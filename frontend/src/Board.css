@@ -60,3 +60,7 @@
 .white {
     background-color: white;
 }
+
+.active {
+    border: 5px solid red;
+}

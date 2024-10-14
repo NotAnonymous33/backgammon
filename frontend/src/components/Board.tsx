@@ -13,11 +13,7 @@ export default function Board() {
         setDice([dice1, dice2])
     }
 
-    useEffect(() => {
-        rollDice()
-    }, [])
-
-    useEffect(() => {
+    const get_board = () => {
         const fetchData = async () => {
             const response = await fetch('http://localhost:5000/api/get_board')
             const data = await response.json()
@@ -25,10 +21,22 @@ export default function Board() {
             setTurn(Boolean(data["turn"]))
         }
         fetchData()
+    }
+
+    useEffect(() => {
+        rollDice()
     }, [])
 
+    useEffect(() => {
+        get_board()
+    }, [])
+
+
     const handleClick = (index: number) => {
-        console.log("clicked")
+        if (board[index] === 0) {
+            return
+        }
+        setActivePiece(index)
     }
 
     return (
@@ -40,13 +48,12 @@ export default function Board() {
                     <div className={
                         "point " +
                         ((index + Math.floor((index + 1) / 13)) % 2 === 0 ? "light " : "dark ") +
-                        (index < 12 ? "top " : "bottom ") +
-                        (activePiece === index && "active ")
+                        (index < 12 ? "top " : "bottom ")
                     }
                         onClick={() => { handleClick(index) }}
                         key={index}>
                         {Array.from({ length: Math.abs(points) }, (_, i) => (
-                            <div className={"checker " + (points > 0 ? "white " : "black ")} key={i}></div>
+                            <div className={"checker " + (points > 0 ? "white " : "black ") + (index === activePiece && i === Math.abs(points) - 1 && " active")} key={i}></div>
                         ))}
                     </div>
                 ))}
