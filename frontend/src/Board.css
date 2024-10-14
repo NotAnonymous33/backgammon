@@ -1,0 +1,62 @@
+.board {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 5px;
+    row-gap: 50px;
+    margin-left: 5px;
+    margin-right: 5px;
+    background-color: #f3d970;
+}
+
+.point {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100px;
+    height: 300px;
+    overflow: hidden;
+}
+
+.point::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 50px 300px 50px;
+}
+
+.top {
+    flex-direction: column-reverse;
+    transform: rotate(180deg);
+}
+
+.bottom {
+    flex-direction: column-reverse;
+    transform: rotate(0deg);
+}
+
+.light::before {
+    border-color: transparent transparent #3de1fa transparent;
+}
+
+.dark::before {
+    border-color: transparent transparent #113065 transparent;
+}
+
+.checker {
+    height: 50px;
+    width: 50px;
+    border-radius: 50%;
+    z-index: 1;
+}
+
+.black {
+    background-color: black;
+}
+
+.white {
+    background-color: white;
+}

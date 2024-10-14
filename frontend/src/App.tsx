@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
+import Board from './components/Board'
+
 
 function App() {
 
@@ -7,6 +9,8 @@ function App() {
   return (
     <>
       <h1>Home</h1>
+      <Board />
+
     </>
   )
 }

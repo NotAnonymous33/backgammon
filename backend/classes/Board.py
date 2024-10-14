@@ -18,4 +18,11 @@ class Board:
         for pos in self.positions:
             positions.append(pos.count(Color.WHITE) - pos.count(Color.BLACK))
         return {"positions": positions, "turn": 1 if self.turn == Color.WHITE else 0}
+    
+    def move(self, old, new):
+        if len(self.positions[old]) == 0:
+            return
+        self.positions[new].append(self.positions[old].pop())
+        
+        
             
