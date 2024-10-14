@@ -1,15 +1,16 @@
 from classes.Color import Color
+from pprint import pprint
 
 class Board:
     def __init__(self):
-        self.positions = [[]] * 24
+        self.positions = [[] for i in range(24)]
         initial_white = [[0, 2], [11, 5], [16, 3], [18, 5]]
         initial_black = [[5, 5], [7, 3], [12, 5], [23, 2]]
         
         for pos, count in initial_white:
-            self.positions[pos] = [Color.WHITE] * count
+            self.positions[pos] = [Color.WHITE for i in range(count)]
         for pos, count in initial_black:
-            self.positions[pos] = [Color.BLACK] * count
+            self.positions[pos] = [Color.BLACK for i in range(count)]
         
         self.turn = Color.WHITE
         
@@ -19,10 +20,13 @@ class Board:
             positions.append(pos.count(Color.WHITE) - pos.count(Color.BLACK))
         return {"positions": positions, "turn": 1 if self.turn == Color.WHITE else 0}
     
-    def move(self, old, new):
-        if len(self.positions[old]) == 0:
-            return
-        self.positions[new].append(self.positions[old].pop())
+    def move(self, current, next):
+        if not self.is_valid(current, next):
+            return False
+        self.positions[next].append(self.positions[current].pop())
+        return True
         
-        
+    def is_valid(self, current, next):
+        if len(self.positions[current]) == 0: return False
+        return True        
             

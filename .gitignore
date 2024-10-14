@@ -1,2 +1,4 @@
 # Million Lint
 .million
+
+__pycache__

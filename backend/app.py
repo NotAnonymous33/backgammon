@@ -26,8 +26,11 @@ def reset():
 @app.route("/api/move", methods=["POST"])
 def move():
     data = request.json
-    board.move(data["start"], data["end"])
+    print(data)
+    if not board.move(data["current"], data["next"]):
+        return jsonify({"error": "Invalid move"})
     return jsonify(board.convert())
+
 
 if __name__ == "__main__":
     socketio.run(app, debug=True)
