@@ -35,8 +35,19 @@ class Board:
         return True
         
     def is_valid(self, current, next): 
-        # TODO: Implement this
-        if len(self.positions[current]) == 0: return False
+        #TODO: unit tests
+        # current can't be empty
+        if len(self.positions[current]) == 0:
+            return False
+        # current must be type of current player
+        if self.positions[current][0] != self.turn:
+            return False
+        if len(self.positions[next]) > 1 and self.positions[next][0] != self.turn:
+            return False
+        
+        # TODO: change this to iterate over dice
+        if (next - current) * self.turn.value != self.dice[0] and (next - current) * self.turn.value != self.dice[1]:
+            return False        
         return True
     
     def roll_dice(self):

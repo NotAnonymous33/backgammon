@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, abort
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -29,7 +29,7 @@ def reset():
 def move():
     data = request.json
     if not board.move(data["current"], data["next"]):
-        return jsonify({"error": "Invalid move"})
+        abort(403)
     return jsonify(board.convert())
 
 @app.route("/api/roll_dice", methods=["POST"])

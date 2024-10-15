@@ -6,6 +6,7 @@ export default function Board() {
     const [activePiece, setActivePiece] = useState(-1)
     const [dice, setDice] = useState([0, 0])
     const [turn, setTurn] = useState(1)
+    const [error, setError] = useState("")
 
     const rollDice = () => {
         const fetchData = async () => {
@@ -42,16 +43,29 @@ export default function Board() {
 
     const make_move = (current: number, next: number) => {
         const fetchData = async () => {
-            const response = await fetch('http://localhost:5000/api/move', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ current, next })
-            })
-            const data = await response.json()
-            setBoard(data["positions"])
-            setTurn(data["turn"])
+            try {
+                const response = await fetch('http://localhost:5000/api/move', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ current, next })
+                })
+
+                if (!response.ok) {
+                    throw new Error(response.status.toString())
+                }
+
+                const data = await response.json()
+                setBoard(data["positions"])
+                setTurn(data["turn"])
+            } catch (err: any) {
+                console.error('Error:', err)
+                if (err.message === "403") {
+                    setError("Invalid move")
+                    alert("Invalid move")
+                }
+            }
         }
         fetchData()
     }
@@ -83,14 +97,20 @@ export default function Board() {
             return
         }
 
-        //// if activePiece != -1
+        // if there is an initial position selected
+
+        // has to match dice
+        if ((index - prevActivePiece) * turn !== dice[0] && (index - prevActivePiece) * turn !== dice[1]) {
+            return
+        }
+
         // if click on empty position, move it
-        if (board[index] === 0 || board[index] * turn > 0) {
+        if ((board[index] === 0 || board[index] * turn > 0)) {
             make_move(prevActivePiece, index)
             setActivePiece(-1)
             return
         }
-        if (board[index] * turn < 0 && Math.abs(board[index]) === 1) { // cant select opposite colour
+        if (board[index] * turn < 0 && Math.abs(board[index]) === 1) { // can capture piece
             make_move(prevActivePiece, index)
             setActivePiece(-1)
             return
@@ -142,7 +162,7 @@ export default function Board() {
             </div>
             <h2>turn: {turn}</h2>
             <h2>active piece: {activePiece}</h2>
-            <h3>dice: {dice[0]} {dice[1]}</h3>
+            <h3>dice: {dice}</h3>
             <button onClick={_ => rollDice()}>Roll dice</button>
 
         </>
