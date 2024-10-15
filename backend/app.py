@@ -14,22 +14,27 @@ CORS(app)
 db = SQLAlchemy(app)
 
 board = Board()
+
 @app.route("/api/get_board", methods=["GET"])
 def get_board():
     return jsonify(board.convert())
 
-@app.route("/api/reset", methods=["POST"])
+@app.route("/api/reset_board", methods=["POST"])
 def reset():
+    global board
     board = Board()
     return jsonify(board.convert())
 
 @app.route("/api/move", methods=["POST"])
 def move():
     data = request.json
-    print(data)
     if not board.move(data["current"], data["next"]):
         return jsonify({"error": "Invalid move"})
     return jsonify(board.convert())
+
+@app.route("/api/roll_dice", methods=["POST"])
+def roll_dice():
+    return jsonify(board.roll_dice())
 
 
 if __name__ == "__main__":

@@ -8,14 +8,31 @@ export default function Board() {
     const [turn, setTurn] = useState(1)
 
     const rollDice = () => {
-        const dice1 = Math.floor(Math.random() * 6) + 1
-        const dice2 = Math.floor(Math.random() * 6) + 1
-        setDice([dice1, dice2])
+        const fetchData = async () => {
+            const response = await fetch('http://localhost:5000/api/roll_dice', {
+                method: 'POST'
+            })
+            const data = await response.json()
+            setDice(data)
+        }
+        fetchData()
     }
 
     const get_board = () => {
         const fetchData = async () => {
             const response = await fetch('http://localhost:5000/api/get_board')
+            const data = await response.json()
+            setBoard(data["positions"])
+            setTurn(data["turn"])
+        }
+        fetchData()
+    }
+
+    const reset_board = () => {
+        const fetchData = async () => {
+            const response = await fetch('http://localhost:5000/api/reset_board', {
+                method: 'POST',
+            })
             const data = await response.json()
             setBoard(data["positions"])
             setTurn(data["turn"])
@@ -73,27 +90,55 @@ export default function Board() {
             setActivePiece(-1)
             return
         }
+        if (board[index] * turn < 0 && Math.abs(board[index]) === 1) { // cant select opposite colour
+            make_move(prevActivePiece, index)
+            setActivePiece(-1)
+            return
+        }
+        return
+
     }
 
 
     return (
         <>
             <h1>Board</h1>
-            <h2>{JSON.stringify(board)}</h2>
+            <h1>{JSON.stringify(board)}</h1>
+            <button onClick={() => reset_board()}>Reset board</button>
             <div className="board">
-                {board && board.map((points, index) => (
-                    <div className={
-                        "point " +
-                        ((index + Math.floor((index + 1) / 13)) % 2 === 0 ? "light " : "dark ") +
-                        (index < 12 ? "top " : "bottom ")
-                    }
-                        onClick={() => { handleClick(index) }}
-                        key={index}>
-                        {Array.from({ length: Math.abs(points) }, (_, i) => (
-                            <div className={"checker " + (points > 0 ? "white " : "black ") + (index === activePiece && i === Math.abs(points) - 1 && " active")} key={i}></div>
-                        ))}
-                    </div>
-                ))}
+                <div className="top-container">
+                    {board && board.slice(0, 12).map((points, index) => (
+                        <div className={
+                            "point top-point " +
+                            ((index + Math.floor((index + 1) / 13)) % 2 === 0 ? "light " : "dark ")
+                        }
+                            onClick={() => { handleClick(index) }}
+                            key={index}>
+                            <h2>{index}</h2>
+                            {Array.from({ length: Math.abs(points) }, (_, i) => (
+                                <div className={"checker " + (points > 0 ? "white " : "black ") + (index === activePiece && i === Math.abs(points) - 1 && " active")} key={i}></div>
+                            ))}
+
+                        </div>
+                    ))}
+                </div>
+                <div className="bottom-container">
+                    {board && board.slice(12, 24).map((points, index) => (
+                        <div className={
+                            "point bottom-point " +
+                            ((index + 12 + Math.floor((index + 1) / 13)) % 2 === 0 ? "light " : "dark ")
+                        }
+                            onClick={() => { handleClick(index + 12) }}
+                            key={index + 12}>
+                            <h2>{index + 12}</h2>
+                            {Array.from({ length: Math.abs(points) }, (_, i) => (
+                                <div className={"checker " + (points > 0 ? "white " : "black ") + (index + 12 === activePiece && i === Math.abs(points) - 1 && " active")} key={i}></div>
+                            ))}
+
+                        </div>
+                    ))}
+
+                </div>
             </div>
             <h2>turn: {turn}</h2>
             <h2>active piece: {activePiece}</h2>

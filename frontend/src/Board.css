@@ -1,11 +1,21 @@
 .board {
     display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: 1fr 1fr;
     gap: 5px;
     row-gap: 50px;
     margin-left: 5px;
     margin-right: 5px;
     background-color: #f3d970;
+    transform: rotate(180deg);
+}
+
+.top-container {
+    display: flex;
+}
+
+.bottom-container {
+    display: flex;
+    flex-direction: row-reverse;
 }
 
 .point {
@@ -26,14 +36,15 @@
     height: 0;
     border-style: solid;
     border-width: 0 50px 300px 50px;
+    z-index: -1;
 }
 
-.top {
+.top-point {
     flex-direction: column-reverse;
     transform: rotate(180deg);
 }
 
-.bottom {
+.bottom-point {
     flex-direction: column-reverse;
     transform: rotate(0deg);
 }
@@ -43,7 +54,7 @@
 }
 
 .dark::before {
-    border-color: transparent transparent #113065 transparent;
+    border-color: transparent transparent #105de1 transparent;
 }
 
 .checker {

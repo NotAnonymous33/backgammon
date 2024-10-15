@@ -1,5 +1,6 @@
 from classes.Color import Color
 from pprint import pprint
+from random import randint
 
 class Board:
     def __init__(self):
@@ -11,6 +12,8 @@ class Board:
             self.positions[pos] = [Color.WHITE for i in range(count)]
         for pos, count in initial_black:
             self.positions[pos] = [Color.BLACK for i in range(count)]
+            
+        self.dice = [0, 0]
         
         self.turn = Color.WHITE
         
@@ -18,15 +21,28 @@ class Board:
         positions = []
         for pos in self.positions:
             positions.append(pos.count(Color.WHITE) - pos.count(Color.BLACK))
-        return {"positions": positions, "turn": 1 if self.turn == Color.WHITE else 0}
+        return {"positions": positions, "turn": 1 if self.turn == Color.WHITE else -1}
     
     def move(self, current, next):
         if not self.is_valid(current, next):
             return False
-        self.positions[next].append(self.positions[current].pop())
+        if len(self.positions[next]) == 1 and self.positions[next][0] != self.turn:
+            self.positions[next].pop()
+            self.positions[next].append(self.positions[current].pop())
+        else:
+            self.positions[next].append(self.positions[current].pop())
+        self.turn = Color.WHITE if self.turn == Color.BLACK else Color.BLACK
         return True
         
-    def is_valid(self, current, next):
+    def is_valid(self, current, next): 
+        # TODO: Implement this
         if len(self.positions[current]) == 0: return False
-        return True        
+        return True
+    
+    def roll_dice(self):
+        self.dice = [randint(1, 6), randint(1, 6)]
+        if self.dice[0] == self.dice[1]:
+            self.dice.append(self.dice[0])
+            self.dice.append(self.dice[0])
+        return self.dice
             
