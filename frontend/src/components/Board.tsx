@@ -1,12 +1,22 @@
 import { useEffect, useState } from "react"
 import '../Board.css'
 
+type BoardType = {
+    positions: number[],
+    turn: number,
+    dice: number[],
+    white_bar: number,
+    black_bar: number
+}
+
+
 export default function Board() {
     const [board, setBoard] = useState<number[]>([])
     const [activePiece, setActivePiece] = useState(-1)
     const [dice, setDice] = useState([0, 0])
     const [turn, setTurn] = useState(1)
-    const [error, setError] = useState("")
+    const [whiteBar, setWhiteBar] = useState(0)
+    const [blackBar, setBlackBar] = useState(0)
 
     const rollDice = () => {
         const fetchData = async () => {
@@ -19,10 +29,12 @@ export default function Board() {
         fetchData()
     }
 
-    const setVals = (data: { positions: number[], turn: number, dice: number[] }) => {
+    const setVals = (data: BoardType) => {
         setBoard(data["positions"])
         setTurn(data["turn"])
         setDice(data["dice"])
+        setWhiteBar(data["white_bar"])
+        setBlackBar(data["black_bar"])
     }
 
     const reset_board = () => {
@@ -37,6 +49,7 @@ export default function Board() {
     }
 
     const make_move = (current: number, next: number) => {
+        console.log(current, next)
         const fetchData = async () => {
             try {
                 const response = await fetch('http://localhost:5000/api/move', {
@@ -55,7 +68,6 @@ export default function Board() {
             } catch (err: any) {
                 console.error('Error:', err)
                 if (err.message === "403") {
-                    setError("Invalid move")
                     alert("Invalid move")
                 }
             }
@@ -75,7 +87,40 @@ export default function Board() {
 
 
     const handleClick = (index: number) => {
+
         const prevActivePiece = activePiece
+
+        if (turn === 1 && whiteBar > 0) {
+            console.log(index, dice)
+            console.log("white bar")
+            if (!dice.includes(index + 1)) {
+                return
+            }
+            if (index > 5) {
+                return
+            }
+            if (board[index] < -1) {
+                return
+            }
+            make_move(-1, index)
+            return
+
+        }
+
+        if (turn === -1 && blackBar > 0) {
+            if (!dice.includes(24 - index)) {
+                return
+            }
+            if (index < 17) {
+                return
+            }
+            if (board[index] > 1) {
+                return
+            }
+            make_move(-1, index)
+            return
+        }
+
 
         // if click the same point, unselect
         if (prevActivePiece === index) {
@@ -98,7 +143,7 @@ export default function Board() {
         // if there is an initial position selected
 
         // has to match dice
-        if ((index - prevActivePiece) * turn !== dice[0] && (index - prevActivePiece) * turn !== dice[1]) {
+        if (!dice.includes((index - prevActivePiece) * turn)) {
             return
         }
 
@@ -121,8 +166,9 @@ export default function Board() {
     return (
         <>
             <h1>Board</h1>
-            <h1>{JSON.stringify(board)}</h1>
             <button onClick={() => reset_board()}>Reset board</button>
+            <h1>White bar: {whiteBar}</h1>
+            <h1>Black bar: {blackBar}</h1>
             <div className="board">
                 <div className="top-container">
                     {board && board.slice(0, 12).map((points, index) => (
