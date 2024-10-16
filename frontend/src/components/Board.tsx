@@ -6,7 +6,8 @@ type BoardType = {
     turn: number,
     dice: number[],
     white_bar: number,
-    black_bar: number
+    black_bar: number,
+    rolled: boolean
 }
 
 
@@ -17,8 +18,12 @@ export default function Board() {
     const [turn, setTurn] = useState(1)
     const [whiteBar, setWhiteBar] = useState(0)
     const [blackBar, setBlackBar] = useState(0)
+    const [rolled, setRolled] = useState(false)
 
     const rollDice = () => {
+        if (rolled) {
+            return
+        }
         const fetchData = async () => {
             const response = await fetch('http://localhost:5000/api/roll_dice', {
                 method: 'POST'
@@ -35,6 +40,7 @@ export default function Board() {
         setDice(data["dice"])
         setWhiteBar(data["white_bar"])
         setBlackBar(data["black_bar"])
+        setRolled(data["rolled"])
     }
 
     const reset_board = () => {

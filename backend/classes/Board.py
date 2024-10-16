@@ -14,6 +14,7 @@ class Board:
             self.positions[pos] = [Color.BLACK for i in range(count)]
             
         self.dice = [0, 0]
+        self.rolled = False
         self.turn = Color.WHITE
         
         self.white_off = 0
@@ -32,6 +33,7 @@ class Board:
             "dice": self.dice,
             "white_bar": self.white_bar,
             "black_bar": self.black_bar,
+            "rolled": self.rolled,
         }
         print(ret)
         
@@ -57,7 +59,7 @@ class Board:
                 self.positions[next].pop()
             self.positions[next].append(self.turn)
             if len(self.dice) == 0:
-                self.turn = Color.WHITE if self.turn == Color.BLACK else Color.BLACK
+                self.swap_turn()
             return True
         
         else: # not reentering
@@ -73,9 +75,13 @@ class Board:
                 self.positions[next].append(self.positions[current].pop())
             self.dice.remove((next - current) * self.turn.value)
         if len(self.dice) == 0:
-            self.turn = Color.WHITE if self.turn == Color.BLACK else Color.BLACK
+            self.swap_turn()
         return True
-        
+    
+    def swap_turn(self):
+        self.turn = Color.WHITE if self.turn == Color.BLACK else Color.BLACK
+        self.rolled = False
+    
     def is_valid(self, current, next): 
         #TODO: unit tests
         # current can't be empty
@@ -118,9 +124,12 @@ class Board:
         return False
     
     def roll_dice(self):
+        if self.rolled:
+            return False
         self.dice = [randint(1, 6), randint(1, 6)]
         if self.dice[0] == self.dice[1]:
             self.dice.append(self.dice[0])
             self.dice.append(self.dice[0])
+        self.rolled = True
         return self.dice
             
