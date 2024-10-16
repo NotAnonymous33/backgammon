@@ -21,7 +21,11 @@ class Board:
         positions = []
         for pos in self.positions:
             positions.append(pos.count(Color.WHITE) - pos.count(Color.BLACK))
-        return {"positions": positions, "turn": 1 if self.turn == Color.WHITE else -1}
+        return {
+            "positions": positions, 
+            "turn": 1 if self.turn == Color.WHITE else -1, 
+            "dice": self.dice
+        }
     
     def move(self, current, next):
         if not self.is_valid(current, next):
@@ -31,7 +35,9 @@ class Board:
             self.positions[next].append(self.positions[current].pop())
         else:
             self.positions[next].append(self.positions[current].pop())
-        self.turn = Color.WHITE if self.turn == Color.BLACK else Color.BLACK
+        self.dice.remove((next - current) * self.turn.value)
+        if len(self.dice) == 0:
+            self.turn = Color.WHITE if self.turn == Color.BLACK else Color.BLACK
         return True
         
     def is_valid(self, current, next): 
@@ -46,9 +52,11 @@ class Board:
             return False
         
         # TODO: change this to iterate over dice
-        if (next - current) * self.turn.value != self.dice[0] and (next - current) * self.turn.value != self.dice[1]:
-            return False        
-        return True
+        for dice in self.dice:
+            if (next - current) * self.turn.value == dice:
+                return True
+        print(current, next, self.dice)
+        return False
     
     def roll_dice(self):
         self.dice = [randint(1, 6), randint(1, 6)]

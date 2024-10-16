@@ -19,14 +19,10 @@ export default function Board() {
         fetchData()
     }
 
-    const get_board = () => {
-        const fetchData = async () => {
-            const response = await fetch('http://localhost:5000/api/get_board')
-            const data = await response.json()
-            setBoard(data["positions"])
-            setTurn(data["turn"])
-        }
-        fetchData()
+    const setVals = (data: { positions: number[], turn: number, dice: number[] }) => {
+        setBoard(data["positions"])
+        setTurn(data["turn"])
+        setDice(data["dice"])
     }
 
     const reset_board = () => {
@@ -35,8 +31,7 @@ export default function Board() {
                 method: 'POST',
             })
             const data = await response.json()
-            setBoard(data["positions"])
-            setTurn(data["turn"])
+            setVals(data)
         }
         fetchData()
     }
@@ -55,10 +50,8 @@ export default function Board() {
                 if (!response.ok) {
                     throw new Error(response.status.toString())
                 }
-
                 const data = await response.json()
-                setBoard(data["positions"])
-                setTurn(data["turn"])
+                setVals(data)
             } catch (err: any) {
                 console.error('Error:', err)
                 if (err.message === "403") {
@@ -71,7 +64,12 @@ export default function Board() {
     }
 
     useEffect(() => {
-        get_board()
+        const fetchData = async () => {
+            const response = await fetch('http://localhost:5000/api/get_board')
+            const data = await response.json()
+            setVals(data)
+        }
+        fetchData()
         rollDice()
     }, [])
 
