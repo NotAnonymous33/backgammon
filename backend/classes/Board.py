@@ -22,6 +22,13 @@ class Board:
         
         self.white_bar = 0
         self.black_bar = 0
+    
+    
+    def can_bearoff(self):
+        pass
+    
+    def has_legal_moves(self):
+        pass
         
     def convert(self):
         positions = []
@@ -34,9 +41,7 @@ class Board:
             "white_bar": self.white_bar,
             "black_bar": self.black_bar,
             "rolled": self.rolled,
-        }
-        print(ret)
-        
+        }        
         return ret
     
     def move(self, current, next):
@@ -57,11 +62,7 @@ class Board:
                 else:
                     self.white_bar += 1
                 self.positions[next].pop()
-            self.positions[next].append(self.turn)
-            if len(self.dice) == 0:
-                self.swap_turn()
-            return True
-        
+            self.positions[next].append(self.turn)        
         else: # not reentering
             # eat the piece
             if len(self.positions[next]) == 1 and self.positions[next][0] != self.turn:
@@ -76,6 +77,7 @@ class Board:
             self.dice.remove((next - current) * self.turn.value)
         if len(self.dice) == 0:
             self.swap_turn()
+        self.can_bearoff()
         return True
     
     def swap_turn(self):
