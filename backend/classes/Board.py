@@ -24,14 +24,18 @@ class Board:
             self.white_bar = 0
             self.black_bar = 0
         else:
-            self.positions = []
-            for pos in board_dict["positions"]:
-                self.positions.append([Color.WHITE for i in range(pos) if i > 0] + [Color.BLACK for i in range(-pos) if i < 0])
-            self.dice = list(map(int, list(board_dict["dice"])))
-            self.rolled = board_dict["rolled"]
-            self.turn = Color.WHITE if board_dict["turn"] == 1 else Color.BLACK
-            self.white_bar = board_dict["white_bar"]
-            self.black_bar = board_dict["black_bar"]
+            try:
+                self.positions = []
+                for pos in board_dict["positions"]:
+                    self.positions.append([Color.WHITE for i in range(pos) if i > 0] + [Color.BLACK for i in range(-pos) if i < 0])
+                self.dice = list(map(int, list(board_dict["dice"])))
+                self.rolled = board_dict["rolled"]
+                self.turn = Color.WHITE if board_dict["turn"] == 1 else Color.BLACK
+                self.white_bar = board_dict["white_bar"]
+                self.black_bar = board_dict["black_bar"]
+            except KeyError:
+                self.__init__()
+                
     
     
     def can_bearoff(self):
