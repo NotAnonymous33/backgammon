@@ -21,7 +21,7 @@ board = Board()
 def commit_board(board_dict: Board):
     db_board = Game(
         board=board_dict["positions"],
-        dice="".join(str(d) for d in board_dict["dice"]),
+        dice=board_dict["dice"],
         turn=board_dict["turn"],
         white_bar=board_dict["white_bar"],
         black_bar=board_dict["black_bar"]
@@ -39,9 +39,7 @@ def reset():
     global board
     board = Board()
     board_dict = board.convert()
-    
     commit_board(board_dict)
-    
     return jsonify(board_dict)
 
 @app.route("/api/move", methods=["POST"])

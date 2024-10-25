@@ -37,7 +37,7 @@ export default function Board() {
     const setVals = (data: BoardType) => {
         setBoard(data["positions"])
         setTurn(data["turn"])
-        setDice(data["dice"])
+        setDice(Array.from(data["dice"]).map(Number))
         setWhiteBar(data["white_bar"])
         setBlackBar(data["black_bar"])
         setRolled(data["rolled"])

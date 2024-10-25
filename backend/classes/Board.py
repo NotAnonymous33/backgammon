@@ -3,25 +3,35 @@ from pprint import pprint
 from random import randint
 
 class Board:
-    def __init__(self):
-        self.positions = [[] for i in range(24)]
-        initial_white = [[0, 2], [11, 5], [16, 3], [18, 5]]
-        initial_black = [[5, 5], [7, 3], [12, 5], [23, 2]]        
-        
-        for pos, count in initial_white:
-            self.positions[pos] = [Color.WHITE for i in range(count)]
-        for pos, count in initial_black:
-            self.positions[pos] = [Color.BLACK for i in range(count)]
+    def __init__(self, board_dict=None):
+        if board_dict is None:
+            self.positions = [[] for i in range(24)]
+            initial_white = [[0, 2], [11, 5], [16, 3], [18, 5]]
+            initial_black = [[5, 5], [7, 3], [12, 5], [23, 2]]        
             
-        self.dice = [0, 0]
-        self.rolled = False
-        self.turn = Color.WHITE
-        
-        self.white_off = 0
-        self.black_off = 0
-        
-        self.white_bar = 0
-        self.black_bar = 0
+            for pos, count in initial_white:
+                self.positions[pos] = [Color.WHITE for i in range(count)]
+            for pos, count in initial_black:
+                self.positions[pos] = [Color.BLACK for i in range(count)]
+                
+            self.dice = [0, 0]
+            self.rolled = False
+            self.turn = Color.WHITE
+            
+            self.white_off = 0
+            self.black_off = 0
+            
+            self.white_bar = 0
+            self.black_bar = 0
+        else:
+            self.positions = []
+            for pos in board_dict["positions"]:
+                self.positions.append([Color.WHITE for i in range(pos) if i > 0] + [Color.BLACK for i in range(-pos) if i < 0])
+            self.dice = list(map(int, list(board_dict["dice"])))
+            self.rolled = board_dict["rolled"]
+            self.turn = Color.WHITE if board_dict["turn"] == 1 else Color.BLACK
+            self.white_bar = board_dict["white_bar"]
+            self.black_bar = board_dict["black_bar"]
     
     
     def can_bearoff(self):
@@ -37,7 +47,7 @@ class Board:
         ret = {
             "positions": positions, 
             "turn": 1 if self.turn == Color.WHITE else -1, 
-            "dice": self.dice,
+            "dice": "".join(str(d) for d in self.dice),
             "white_bar": self.white_bar,
             "black_bar": self.black_bar,
             "rolled": self.rolled,
