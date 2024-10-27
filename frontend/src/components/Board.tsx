@@ -190,7 +190,7 @@ export default function Board() {
             if (!canBearOff(turn)) {
                 return
             }
-            make_move(prevActivePiece, index)
+            make_move(prevActivePiece, index * turn)
             setActivePiece(-1)
             return
         }

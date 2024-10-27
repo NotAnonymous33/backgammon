@@ -76,6 +76,19 @@ class Board:
         if not self.is_valid(current, next):
             return False
         
+        # bearing off
+        if next == 100:
+            if self.turn == Color.WHITE:
+                self.white_off += 1
+                self.dice.remove(current - 18)
+            else:
+                self.black_off += 1
+                self.dice.remove(24 - current)
+            self.positions[current].pop()
+            if len(self.dice) == 0:
+                self.swap_turn()
+            return True
+        
         # reentering checkers
         if current == -1:
             if self.turn == Color.WHITE:
@@ -105,7 +118,6 @@ class Board:
             self.dice.remove((next - current) * self.turn.value)
         if len(self.dice) == 0:
             self.swap_turn()
-        self.can_bearoff()
         return True
     
     def swap_turn(self):
@@ -115,6 +127,31 @@ class Board:
     def is_valid(self, current, next): 
         #TODO: unit tests
         # current can't be empty
+        
+        # bearing off
+        if self.can_bearoff():
+            if self.turn == Color.WHITE:
+                if current < 18:
+                    return False
+                if len(self.positions[current]) == 0:
+                    return False
+                if self.positions[current][0] != Color.WHITE:
+                    return False
+                for dice in self.dice:
+                    if dice == current - 18:
+                        return True
+                return False
+            else:
+                if current > 5:
+                    return False
+                if len(self.positions[current]) == 0:
+                    return False
+                if self.positions[current][0] != Color.BLACK:
+                    return False
+                for dice in self.dice:
+                    if dice == 24 - current:
+                        return True
+                return False
         
         # reentering checkers
         if self.turn == Color.WHITE and self.white_bar > 0:
