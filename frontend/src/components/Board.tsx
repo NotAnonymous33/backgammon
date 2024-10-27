@@ -8,6 +8,8 @@ type BoardType = {
     white_bar: number,
     black_bar: number,
     rolled: boolean
+    white_off: number,
+    black_off: number
 }
 
 
@@ -19,6 +21,8 @@ export default function Board() {
     const [whiteBar, setWhiteBar] = useState(0)
     const [blackBar, setBlackBar] = useState(0)
     const [rolled, setRolled] = useState(false)
+    const [whiteBearOff, setWhiteBearOff] = useState(0)
+    const [blackBearOff, setBlackBearOff] = useState(1)
 
     const rollDice = () => {
         if (rolled) {
@@ -41,6 +45,8 @@ export default function Board() {
         setWhiteBar(data["white_bar"])
         setBlackBar(data["black_bar"])
         setRolled(data["rolled"])
+        setWhiteBearOff(data["white_off"])
+        setBlackBearOff(data["black_off"])
     }
 
     const reset_board = () => {
@@ -79,6 +85,35 @@ export default function Board() {
             }
         }
         fetchData()
+        // TODO: check for win
+        // TODO: add confirm move button
+    }
+
+    const canBearOff = (turn: Number) => {
+        if (turn === 1) {
+            if (whiteBar > 0) {
+                return false
+            }
+            for (let i = 0; i < 18; i++) {
+                if (board[i] > 0) {
+                    return false
+                }
+            }
+            return true
+        }
+        if (turn === -1) {
+            if (blackBar > 0) {
+                return false
+            }
+            for (let i = 6; i < 24; i++) {
+                if (board[i] < 0) {
+                    return false
+                }
+            }
+            return true
+        }
+        console.log(`canBearOff was passed invalid value of ${turn}`)
+        throw new Error("Invalid turn value")
     }
 
     useEffect(() => {
@@ -93,12 +128,10 @@ export default function Board() {
 
 
     const handleClick = (index: number) => {
-
         const prevActivePiece = activePiece
 
+        // can only move to starting pos to reenter white
         if (turn === 1 && whiteBar > 0) {
-            console.log(index, dice)
-            console.log("white bar")
             if (!dice.includes(index + 1)) {
                 return
             }
@@ -110,9 +143,9 @@ export default function Board() {
             }
             make_move(-1, index)
             return
-
         }
 
+        // can only move to starting pos to reenter black
         if (turn === -1 && blackBar > 0) {
             if (!dice.includes(24 - index)) {
                 return
@@ -136,6 +169,11 @@ export default function Board() {
 
         // if there is no intial position selected
         if (prevActivePiece === -1) {
+            if (index === 100 || index === -100) {
+                // TODO: this thing
+                // if can bear off and passed then pick one/find optimal
+                return
+            }
             if (board[index] === 0) { // cant select empty position
                 return
             }
@@ -146,8 +184,16 @@ export default function Board() {
             return
         }
 
-        // if there is an initial position selected
 
+        // if there is an initial position selected
+        if (index === 100 || index === -100) {
+            if (!canBearOff(turn)) {
+                return
+            }
+            make_move(prevActivePiece, index)
+            setActivePiece(-1)
+            return
+        }
         // has to match dice
         if (!dice.includes((index - prevActivePiece) * turn)) {
             return
@@ -175,6 +221,8 @@ export default function Board() {
             <button onClick={() => reset_board()}>Reset board</button>
             <h1>White bar: {whiteBar}</h1>
             <h1>Black bar: {blackBar}</h1>
+            <h1>Can bear off: {canBearOff(turn) ? "Yes" : "No"}</h1>
+            {canBearOff(1) && <div className="bearOffWhite" onClick={() => handleClick(100)}>Bear off white</div>}
             <div className="board">
                 <div className="top-container">
                     {board && board.slice(0, 12).map((points, index) => (
@@ -210,6 +258,7 @@ export default function Board() {
 
                 </div>
             </div>
+            {canBearOff(-1) && <div className="bearOffBlack" onClick={() => handleClick(-100)}>Bear off black</div>}
             <h2>turn: {turn}</h2>
             <h2>active piece: {activePiece}</h2>
             <h3>dice: {dice}</h3>

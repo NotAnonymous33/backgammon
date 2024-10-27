@@ -33,13 +33,25 @@ class Board:
                 self.turn = Color.WHITE if board_dict["turn"] == 1 else Color.BLACK
                 self.white_bar = board_dict["white_bar"]
                 self.black_bar = board_dict["black_bar"]
+                self.white_off = board_dict["white_off"]
+                self.black_off = board_dict["black_off"]
             except KeyError:
                 self.__init__()
-                
-    
+
     
     def can_bearoff(self):
-        pass
+        if self.turn == Color.WHITE:
+            if self.white_bar > 0:
+                return False
+            for i in range(18):
+                if len(self.positions[i]) > 0 and self.positions[i][0] == Color.WHITE:
+                    return False
+        else:
+            if self.black_bar > 0:
+                return False
+            for i in range(6, 24):
+                if len(self.positions[i]) > 0 and self.positions[i][0] == Color.BLACK:
+                    return False
     
     def has_legal_moves(self):
         pass
@@ -55,6 +67,8 @@ class Board:
             "white_bar": self.white_bar,
             "black_bar": self.black_bar,
             "rolled": self.rolled,
+            "white_off": self.white_off,
+            "black_off": self.black_off
         }        
         return ret
     
