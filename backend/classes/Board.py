@@ -14,7 +14,7 @@ class Board:
             for pos, count in initial_black:
                 self.positions[pos] = [Color.BLACK for i in range(count)]
                 
-            self.dice = [0, 0]
+            self.dice = []
             self.rolled = False
             self.turn = Color.WHITE
             
@@ -65,8 +65,10 @@ class Board:
         if self.turn == Color.WHITE:
             if self.white_bar > 0:
                 return False
+            print(self.positions)
             for i in range(18):
                 if len(self.positions[i]) > 0 and self.positions[i][0] == Color.WHITE:
+                    print(f"position {i} is not empty")
                     return False
         else:
             if self.black_bar > 0:
@@ -74,6 +76,7 @@ class Board:
             for i in range(6, 24):
                 if len(self.positions[i]) > 0 and self.positions[i][0] == Color.BLACK:
                     return False
+        return True
     
     def has_legal_moves(self):
         pass
@@ -96,16 +99,17 @@ class Board:
     
     def move(self, current, next):
         if not self.is_valid(current, next):
+            print("Invalid move")
             return False
         
         # bearing off
         if next == 100:
             if self.turn == Color.WHITE:
                 self.white_off += 1
-                self.dice.remove(current - 18)
+                self.dice.remove(24 - current)
             else:
                 self.black_off += 1
-                self.dice.remove(24 - current)
+                self.dice.remove(current + 1)
             self.positions[current].pop()
             if len(self.dice) == 0:
                 self.swap_turn()
@@ -145,6 +149,7 @@ class Board:
     def swap_turn(self):
         self.turn = Color.WHITE if self.turn == Color.BLACK else Color.BLACK
         self.rolled = False
+        self.dice = []
     
     def is_valid(self, current, next): 
         #TODO: unit tests
@@ -152,16 +157,22 @@ class Board:
         
         # bearing off
         if self.can_bearoff():
+            print("can bear off")
             if self.turn == Color.WHITE:
                 if current < 18:
+                    print("trying to bear off from wrong place")
                     return False
                 if len(self.positions[current]) == 0:
+                    print("trying to bear off from empty position")
                     return False
                 if self.positions[current][0] != Color.WHITE:
+                    print("trying to bear off wrong color")
                     return False
+                print(current)
                 for dice in self.dice:
-                    if dice == current - 18:
+                    if dice == 24 - current:
                         return True
+                print("move not in dice")
                 return False
             else:
                 if current > 5:
@@ -221,4 +232,18 @@ class Board:
             self.dice.append(self.dice[0])
         self.rolled = True
         return self.dice
+    
+    def set_board(self, data):
+        if "positions" in data:
+            self.positions = []
+            for pos in data["positions"]:
+                if pos > 0:
+                    self.positions.append([Color.WHITE for _ in range(pos)])
+                else:
+                    self.positions.append([Color.BLACK for _ in range(-pos)])
+        if "dice" in data:
+            self.dice = list(map(int, list(data["dice"])))
+        if "turn" in data:
+            self.turn = Color.WHITE if data["turn"] == 1 else Color.BLACK
+        return self.convert()
             

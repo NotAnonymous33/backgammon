@@ -1,8 +1,6 @@
-from flask import Flask, render_template, request, jsonify, abort
+from flask import Flask, request, jsonify, abort
 from flask_socketio import SocketIO, emit, join_room, leave_room
-from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-import random
 from classes.Board import Board
 from models import Game, db
 
@@ -62,6 +60,13 @@ def roll_dice():
     ret = board.roll_dice()
     commit_board(board.convert())
     return jsonify(ret)
+
+@app.route("/api/set_board", methods=["POST"])
+def set_board():
+    data = request.json
+    board.set_board(data)
+    commit_board(board.convert())
+    return jsonify(board.convert())
 
 
 if __name__ == "__main__":    
