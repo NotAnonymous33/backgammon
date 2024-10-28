@@ -3,8 +3,8 @@ from pprint import pprint
 from random import randint
 
 class Board:
-    def __init__(self, board_dict=None):
-        if board_dict is None:
+    def __init__(self, board_dict=None, board_db=None):
+        if board_dict is None and board_db is None:
             self.positions = [[] for i in range(24)]
             initial_white = [[0, 2], [11, 5], [16, 3], [18, 5]]
             initial_black = [[5, 5], [7, 3], [12, 5], [23, 2]]        
@@ -23,13 +23,19 @@ class Board:
             
             self.white_bar = 0
             self.black_bar = 0
-        else:
+        elif board_dict is not None:
             try:
                 self.positions = []
                 for pos in board_dict["positions"]:
-                    self.positions.append([Color.WHITE for i in range(pos) if i > 0] + [Color.BLACK for i in range(-pos) if i < 0])
+                    if pos > 0:
+                        self.positions.append([Color.WHITE for _ in range(pos)])
+                    else:
+                        self.positions.append([Color.BLACK for _ in range(-pos)])
                 self.dice = list(map(int, list(board_dict["dice"])))
-                self.rolled = board_dict["rolled"]
+                # self.rolled = board_dict["rolled"]
+                self.rolled = False
+                # TODO: look into the use of rolled
+                # should it be part of object or removed
                 self.turn = Color.WHITE if board_dict["turn"] == 1 else Color.BLACK
                 self.white_bar = board_dict["white_bar"]
                 self.black_bar = board_dict["black_bar"]
@@ -37,6 +43,22 @@ class Board:
                 self.black_off = board_dict["black_off"]
             except KeyError:
                 self.__init__()
+        else:
+            self.positions = []
+            for pos in board_db.positions:
+                if pos > 0:
+                    self.positions.append([Color.WHITE for _ in range(pos)])
+                else:
+                    self.positions.append([Color.BLACK for _ in range(-pos)])
+            self.dice = list(map(int, list(board_db.dice)))
+            # self.rolled = board_db.rolled
+            self.rolled = False
+            self.turn = Color.WHITE if board_db.turn == 1 else Color.BLACK
+            self.white_bar = board_db.white_bar
+            self.black_bar = board_db.black_bar
+            self.white_off = board_db.white_off
+            self.black_off = board_db.black_off
+            # TODO if there is an attribute(?) error, call init
 
     
     def can_bearoff(self):
@@ -192,7 +214,7 @@ class Board:
     
     def roll_dice(self):
         if self.rolled:
-            return False
+            return self.dice
         self.dice = [randint(1, 6), randint(1, 6)]
         if self.dice[0] == self.dice[1]:
             self.dice.append(self.dice[0])

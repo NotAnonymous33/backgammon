@@ -22,7 +22,7 @@ export default function Board() {
     const [blackBar, setBlackBar] = useState(0)
     const [rolled, setRolled] = useState(false)
     const [whiteBearOff, setWhiteBearOff] = useState(0)
-    const [blackBearOff, setBlackBearOff] = useState(1)
+    const [blackBearOff, setBlackBearOff] = useState(0)
 
     const rollDice = () => {
         if (rolled) {
@@ -39,6 +39,7 @@ export default function Board() {
     }
 
     const setVals = (data: BoardType) => {
+        console.log(board)
         setBoard(data["positions"])
         setTurn(data["turn"])
         setDice(Array.from(data["dice"]).map(Number))

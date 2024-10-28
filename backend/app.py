@@ -20,11 +20,13 @@ board = Board()
 
 def commit_board(board_dict: Board):
     db_board = Game(
-        board=board_dict["positions"],
+        positions=board_dict["positions"],
         dice=board_dict["dice"],
         turn=board_dict["turn"],
         white_bar=board_dict["white_bar"],
-        black_bar=board_dict["black_bar"]
+        black_bar=board_dict["black_bar"],
+        white_off=board_dict["white_off"],
+        black_off=board_dict["black_off"]
     )
     db.session.add(db_board)
     db.session.commit()
@@ -32,6 +34,11 @@ def commit_board(board_dict: Board):
 
 @app.route("/api/get_board", methods=["GET"])
 def get_board():
+    global board
+    db_board = Game.query.order_by(Game.id.desc()).first()
+    if db_board is None:
+        return jsonify(board.convert())
+    board = Board(board_db=db_board)
     return jsonify(board.convert())
 
 @app.route("/api/reset_board", methods=["POST"])
@@ -47,11 +54,14 @@ def move():
     data = request.json
     if not board.move(data["current"], data["next"]):
         abort(403)
+    commit_board(board.convert())
     return jsonify(board.convert())
 
 @app.route("/api/roll_dice", methods=["POST"])
 def roll_dice():
-    return jsonify(board.roll_dice())
+    ret = board.roll_dice()
+    commit_board(board.convert())
+    return jsonify(ret)
 
 
 if __name__ == "__main__":    
