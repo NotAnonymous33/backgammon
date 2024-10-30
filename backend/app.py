@@ -16,7 +16,7 @@ db.init_app(app)
 
 board = Board()
 
-def commit_board(board_dict: Board):
+def add_board_db(board_dict: dict):
     db_board = Game(
         positions=board_dict["positions"],
         dice=board_dict["dice"],
@@ -29,6 +29,18 @@ def commit_board(board_dict: Board):
     db.session.add(db_board)
     db.session.commit()
     
+def update_board_db(board_dict: dict):
+    db_board = Game.query.order_by(Game.id.desc()).first()
+    db_board.positions = board_dict["positions"]
+    db_board.dice = board_dict["dice"]
+    db_board.turn = board_dict["turn"]
+    db_board.white_bar = board_dict["white_bar"]
+    db_board.black_bar = board_dict["black_bar"]
+    db_board.white_off = board_dict["white_off"]
+    db_board.black_off = board_dict["black_off"]
+    db.session.commit()
+
+    
 
 @app.route("/api/get_board", methods=["GET"])
 def get_board():
@@ -37,14 +49,16 @@ def get_board():
     if db_board is None:
         return jsonify(board.convert())
     board = Board(board_db=db_board)
-    return jsonify(board.convert())
+    board_dict = board.convert()
+    add_board_db(board_dict)
+    return jsonify(board_dict)
 
 @app.route("/api/reset_board", methods=["POST"])
 def reset():
     global board
     board = Board()
     board_dict = board.convert()
-    commit_board(board_dict)
+    update_board_db(board_dict)
     return jsonify(board_dict)
 
 @app.route("/api/move", methods=["POST"])
@@ -52,21 +66,23 @@ def move():
     data = request.json
     if not board.move(data["current"], data["next"]):
         abort(403)
-    commit_board(board.convert())
-    return jsonify(board.convert())
+    board_dict = board.convert()
+    update_board_db(board_dict)
+    return jsonify(board_dict)
 
 @app.route("/api/roll_dice", methods=["POST"])
 def roll_dice():
     ret = board.roll_dice()
-    commit_board(board.convert())
+    add_board_db(board.convert())
     return jsonify(ret)
 
 @app.route("/api/set_board", methods=["POST"])
 def set_board():
     data = request.json
     board.set_board(data)
-    commit_board(board.convert())
-    return jsonify(board.convert())
+    board_dict = board.convert()
+    add_board_db(board_dict)
+    return jsonify(board_dict)
 
 
 if __name__ == "__main__":    
