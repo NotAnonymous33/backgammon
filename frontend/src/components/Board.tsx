@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import '../Board.css'
-import { io } from "socket.io-client"
+import { socket } from '../socket'
 
 type BoardType = {
     positions: number[],
@@ -13,9 +13,6 @@ type BoardType = {
     black_off: number
 }
 
-const socket = io("http://localhost:5000")
-console.log("socket", socket)
-
 export default function Board() {
     const [board, setBoard] = useState<number[]>([])
     const [activePiece, setActivePiece] = useState(-1)
@@ -26,8 +23,12 @@ export default function Board() {
     const [rolled, setRolled] = useState(false)
     const [whiteBearOff, setWhiteBearOff] = useState(0)
     const [blackBearOff, setBlackBearOff] = useState(0)
+    const [message, setMessage] = useState(null)
 
     useEffect(() => {
+        socket.connect()
+        console.log("socket useffect connected")
+
         console.log("useEffect sockets")
         socket.on('connect', () => {
             console.log("client connected")
@@ -45,9 +46,9 @@ export default function Board() {
             console.log("client disconnected:", reason, details)
         })
 
-        socket.on("connect_error", (error) => {
-            console.error("Connection error:", error);
-        });
+        socket.on("message", (data) => {
+            setMessage(data)
+        })
 
         return () => {
             console.log("clean up sockets")
@@ -55,7 +56,7 @@ export default function Board() {
             socket.off('update_board')
             socket.off('update_dice')
             socket.off('disconnect')
-            socket.off('connect_error')
+            socket.off('message')
             socket.disconnect()
         }
     }, [])
@@ -211,12 +212,12 @@ export default function Board() {
 
     return (
         <>
-            <h1>Board</h1>
-            <h1>White bar: {whiteBar}</h1>
-            <h1>Black bar: {blackBar}</h1>
-            <h1>White bear off: {whiteBearOff}</h1>
-            <h1>Black bear off: {blackBearOff}</h1>
-            <h1>Can bear off: {canBearOff(turn) ? "Yes" : "No"}</h1>
+            <h2>White bar: {whiteBar}</h2>
+            <h2>Black bar: {blackBar}</h2>
+            <h2>White bear off: {whiteBearOff}</h2>
+            <h2>Black bear off: {blackBearOff}</h2>
+            <h2>Can bear off: {canBearOff(turn) ? "Yes" : "No"}</h2>
+            <h2>message: {JSON.stringify(message)}</h2>
             <button onClick={() => reset_board()}>Reset board</button>
             {canBearOff(1) && <div className="bearOffWhite" onClick={() => handleClick(100)}>Bear off white</div>}
             <div className="board">

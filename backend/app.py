@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, abort
+from flask import Flask, request
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 from classes.Board import Board
@@ -49,20 +49,33 @@ def handle_connect():
     print(f"{request.sid} connected")
     global board
     db_board = Game.query.order_by(Game.id.desc()).first()
+    print("queried db")
     if db_board is None:
         emit("update_board", board.convert())
-        return {'status': 'success'}
     board = Board(board_db=db_board)
     board_dict = board.convert()
     add_board_db(board_dict)
     emit("update_board", board.convert())
     print("sent board")
-    return {'status': 'success'}
+    
+
+# @socketio.on('connect')
+# def handle_connect():
+#     print(f"{request.sid} connected")
+#     emit("message", {"message": "connected"})
+#     print("emitted message")
     
 
 @socketio.on('disconnect')
 def handle_disconnect():
     print(f"{request.sid} disconnected")
+    
+@app.route("/api/test", methods=["POST"])
+def test():
+    print("emitting a message")
+    socketio.emit("message", {"message": "test"})
+    print("emitted message")
+    return {"message": "test"}
 
 
 @socketio.on("reset_board")
@@ -72,24 +85,23 @@ def reset_board():
     board_dict = board.convert()
     update_board_db(board_dict)
     emit("update_board", board_dict, broadcast=True)
-    return {'status': 'success'}
+    return {"status": "success"}
 
 @socketio.on("move")
 def move(data):
     if not board.move(data["current"], data["next"]):
         emit('error', {'message': 'Invalid move'}, room=request.sid)
-        return {'status': 'error', 'message': 'Invalid move'}
     board_dict = board.convert()
     update_board_db(board_dict)
     emit("update_board", board_dict, broadcast=True)
-    return {'status': 'success'}
+    return {"status": "success"}
 
 @socketio.on("roll_dice")
 def roll_dice():
     ret = board.roll_dice()
     add_board_db(board.convert())
     emit("update_dice", ret, broadcast=True)
-    return {'status': 'success'}
+    return {"status": "success"}
 
 
 @app.route("/api/set_board", methods=["POST"])
@@ -98,8 +110,8 @@ def set_board():
     board.set_board(data)
     board_dict = board.convert()
     add_board_db(board_dict)
-    emit("update_board", board_dict, broadcast=True)
-    return {'status': 'success'}
+    socketio.emit("update_board", board_dict, broadcast=True)
+    return {"status": "success"}
 
 
 if __name__ == "__main__":    
