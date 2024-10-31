@@ -32,10 +32,7 @@ class Board:
                     else:
                         self.positions.append([Color.BLACK for _ in range(-pos)])
                 self.dice = list(map(int, list(board_dict["dice"])))
-                # self.rolled = board_dict["rolled"]
-                self.rolled = False
-                # TODO: look into the use of rolled
-                # should it be part of object or removed
+                self.rolled = board_dict["rolled"]
                 self.turn = Color.WHITE if board_dict["turn"] == 1 else Color.BLACK
                 self.white_bar = board_dict["white_bar"]
                 self.black_bar = board_dict["black_bar"]
@@ -51,8 +48,7 @@ class Board:
                 else:
                     self.positions.append([Color.BLACK for _ in range(-pos)])
             self.dice = list(map(int, list(board_db.dice)))
-            # self.rolled = board_db.rolled
-            self.rolled = False
+            self.rolled = board_db.rolled
             self.turn = Color.WHITE if board_db.turn == 1 else Color.BLACK
             self.white_bar = board_db.white_bar
             self.black_bar = board_db.black_bar
@@ -155,7 +151,7 @@ class Board:
         #TODO: unit tests
         # current can't be empty
         
-        # bearing off
+        # bearing off 
         if self.can_bearoff():
             print("can bear off")
             if self.turn == Color.WHITE:

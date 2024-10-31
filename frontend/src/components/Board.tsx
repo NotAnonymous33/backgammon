@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import '../Board.css'
+import { io } from "socket.io-client"
 
 type BoardType = {
     positions: number[],
@@ -12,6 +13,8 @@ type BoardType = {
     black_off: number
 }
 
+const socket = io("http://localhost:5000")
+console.log("socket", socket)
 
 export default function Board() {
     const [board, setBoard] = useState<number[]>([])
@@ -24,18 +27,44 @@ export default function Board() {
     const [whiteBearOff, setWhiteBearOff] = useState(0)
     const [blackBearOff, setBlackBearOff] = useState(0)
 
+    useEffect(() => {
+        console.log("useEffect sockets")
+        socket.on('connect', () => {
+            console.log("client connected")
+        })
+
+        socket.on('update_board', (data: BoardType) => {
+            setVals(data)
+        })
+
+        socket.on("update_dice", (data: number[]) => {
+            setDice(data)
+        })
+
+        socket.on('disconnect', (reason, details) => {
+            console.log("client disconnected:", reason, details)
+        })
+
+        socket.on("connect_error", (error) => {
+            console.error("Connection error:", error);
+        });
+
+        return () => {
+            console.log("clean up sockets")
+            socket.off('connect')
+            socket.off('update_board')
+            socket.off('update_dice')
+            socket.off('disconnect')
+            socket.off('connect_error')
+            socket.disconnect()
+        }
+    }, [])
+
     const rollDice = () => {
         if (rolled) {
             return
         }
-        const fetchData = async () => {
-            const response = await fetch('http://localhost:5000/api/roll_dice', {
-                method: 'POST'
-            })
-            const data = await response.json()
-            setDice(data)
-        }
-        fetchData()
+        socket.emit("roll_dice")
     }
 
     const setVals = (data: BoardType) => {
@@ -51,41 +80,15 @@ export default function Board() {
     }
 
     const reset_board = () => {
-        const fetchData = async () => {
-            const response = await fetch('http://localhost:5000/api/reset_board', {
-                method: 'POST',
-            })
-            const data = await response.json()
-            setVals(data)
-        }
-        fetchData()
+        socket.emit("reset_board")
     }
 
     const make_move = (current: number, next: number) => {
-        console.log(current, next)
-        const fetchData = async () => {
-            try {
-                const response = await fetch('http://localhost:5000/api/move', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ current, next })
-                })
-
-                if (!response.ok) {
-                    throw new Error(response.status.toString())
-                }
-                const data = await response.json()
-                setVals(data)
-            } catch (err: any) {
-                console.error('Error:', err)
-                if (err.message === "403") {
-                    alert("Invalid move")
-                }
+        socket.emit('move', { current, next }, (response: any) => {
+            if (response.status === 'error') {
+                console.log(response.message)
             }
-        }
-        fetchData()
+        });
         // TODO: check for win
         // TODO: add confirm move button
     }
@@ -116,16 +119,6 @@ export default function Board() {
         console.log(`canBearOff was passed invalid value of ${turn}`)
         throw new Error("Invalid turn value")
     }
-
-    useEffect(() => {
-        const fetchData = async () => {
-            const response = await fetch('http://localhost:5000/api/get_board')
-            const data = await response.json()
-            setVals(data)
-        }
-        fetchData()
-        rollDice()
-    }, [])
 
 
     const handleClick = (index: number) => {
@@ -219,10 +212,12 @@ export default function Board() {
     return (
         <>
             <h1>Board</h1>
-            <button onClick={() => reset_board()}>Reset board</button>
             <h1>White bar: {whiteBar}</h1>
             <h1>Black bar: {blackBar}</h1>
+            <h1>White bear off: {whiteBearOff}</h1>
+            <h1>Black bear off: {blackBearOff}</h1>
             <h1>Can bear off: {canBearOff(turn) ? "Yes" : "No"}</h1>
+            <button onClick={() => reset_board()}>Reset board</button>
             {canBearOff(1) && <div className="bearOffWhite" onClick={() => handleClick(100)}>Bear off white</div>}
             <div className="board">
                 <div className="top-container">

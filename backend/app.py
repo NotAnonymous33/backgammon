@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, abort
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 from classes.Board import Board
 from models import Game, db
@@ -16,6 +16,7 @@ db.init_app(app)
 
 board = Board()
 
+
 def add_board_db(board_dict: dict):
     db_board = Game(
         positions=board_dict["positions"],
@@ -24,7 +25,8 @@ def add_board_db(board_dict: dict):
         white_bar=board_dict["white_bar"],
         black_bar=board_dict["black_bar"],
         white_off=board_dict["white_off"],
-        black_off=board_dict["black_off"]
+        black_off=board_dict["black_off"],
+        rolled=board_dict["rolled"]
     )
     db.session.add(db_board)
     db.session.commit()
@@ -38,43 +40,57 @@ def update_board_db(board_dict: dict):
     db_board.black_bar = board_dict["black_bar"]
     db_board.white_off = board_dict["white_off"]
     db_board.black_off = board_dict["black_off"]
+    db_board.rolled = board_dict["rolled"]
     db.session.commit()
 
-    
 
-@app.route("/api/get_board", methods=["GET"])
-def get_board():
+@socketio.on('connect')
+def handle_connect():
+    print(f"{request.sid} connected")
     global board
     db_board = Game.query.order_by(Game.id.desc()).first()
     if db_board is None:
-        return jsonify(board.convert())
+        emit("update_board", board.convert())
+        return {'status': 'success'}
     board = Board(board_db=db_board)
     board_dict = board.convert()
     add_board_db(board_dict)
-    return jsonify(board_dict)
+    emit("update_board", board.convert())
+    print("sent board")
+    return {'status': 'success'}
+    
 
-@app.route("/api/reset_board", methods=["POST"])
-def reset():
+@socketio.on('disconnect')
+def handle_disconnect():
+    print(f"{request.sid} disconnected")
+
+
+@socketio.on("reset_board")
+def reset_board():
     global board
     board = Board()
     board_dict = board.convert()
     update_board_db(board_dict)
-    return jsonify(board_dict)
+    emit("update_board", board_dict, broadcast=True)
+    return {'status': 'success'}
 
-@app.route("/api/move", methods=["POST"])
-def move():
-    data = request.json
+@socketio.on("move")
+def move(data):
     if not board.move(data["current"], data["next"]):
-        abort(403)
+        emit('error', {'message': 'Invalid move'}, room=request.sid)
+        return {'status': 'error', 'message': 'Invalid move'}
     board_dict = board.convert()
     update_board_db(board_dict)
-    return jsonify(board_dict)
+    emit("update_board", board_dict, broadcast=True)
+    return {'status': 'success'}
 
-@app.route("/api/roll_dice", methods=["POST"])
+@socketio.on("roll_dice")
 def roll_dice():
     ret = board.roll_dice()
     add_board_db(board.convert())
-    return jsonify(ret)
+    emit("update_dice", ret, broadcast=True)
+    return {'status': 'success'}
+
 
 @app.route("/api/set_board", methods=["POST"])
 def set_board():
@@ -82,7 +98,8 @@ def set_board():
     board.set_board(data)
     board_dict = board.convert()
     add_board_db(board_dict)
-    return jsonify(board_dict)
+    emit("update_board", board_dict, broadcast=True)
+    return {'status': 'success'}
 
 
 if __name__ == "__main__":    
