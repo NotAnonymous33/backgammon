@@ -59,13 +59,6 @@ def handle_connect():
     print("sent board")
     
 
-# @socketio.on('connect')
-# def handle_connect():
-#     print(f"{request.sid} connected")
-#     emit("message", {"message": "connected"})
-#     print("emitted message")
-    
-
 @socketio.on('disconnect')
 def handle_disconnect():
     print(f"{request.sid} disconnected")
@@ -77,6 +70,10 @@ def test():
     print("emitted message")
     return {"message": "test"}
 
+@app.route("/api/button_test", methods=["GET"])
+def button_test():
+    print("button was pressed")
+    return {"message": "button was pressed"}
 
 @socketio.on("reset_board")
 def reset_board():
@@ -85,7 +82,7 @@ def reset_board():
     board_dict = board.convert()
     update_board_db(board_dict)
     emit("update_board", board_dict, broadcast=True)
-    return {"status": "success"}
+    # return {"status": "success"}
 
 @socketio.on("move")
 def move(data):
@@ -94,14 +91,14 @@ def move(data):
     board_dict = board.convert()
     update_board_db(board_dict)
     emit("update_board", board_dict, broadcast=True)
-    return {"status": "success"}
+    # return {"status": "success"}
 
 @socketio.on("roll_dice")
 def roll_dice():
     ret = board.roll_dice()
-    add_board_db(board.convert())
+    update_board_db(board.convert())
     emit("update_dice", ret, broadcast=True)
-    return {"status": "success"}
+    # return {"status": "success"}
 
 
 @app.route("/api/set_board", methods=["POST"])
@@ -111,7 +108,9 @@ def set_board():
     board_dict = board.convert()
     add_board_db(board_dict)
     socketio.emit("update_board", board_dict, broadcast=True)
-    return {"status": "success"}
+    # return {"status": "success"}
+    
+
 
 
 if __name__ == "__main__":    

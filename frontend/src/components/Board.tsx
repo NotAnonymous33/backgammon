@@ -94,6 +94,18 @@ export default function Board() {
         // TODO: add confirm move button
     }
 
+    const testButton = () => {
+        const fetchData = async () => {
+            const response = await fetch('http://localhost:5000/api/button_test', {
+                method: "GET"
+            })
+            const data = await response.json()
+            alert(data.message)
+
+        }
+        fetchData()
+    }
+
     const canBearOff = (turn: Number) => {
         if (turn === 1) {
             if (whiteBar > 0) {
@@ -260,6 +272,7 @@ export default function Board() {
             <h2>active piece: {activePiece}</h2>
             <h3>dice: {dice}</h3>
             <button onClick={_ => rollDice()}>Roll dice</button>
+            <button onClick={_ => testButton()}>test </button>
 
         </>
     )
