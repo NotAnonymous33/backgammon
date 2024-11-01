@@ -61,10 +61,8 @@ class Board:
         if self.turn == Color.WHITE:
             if self.white_bar > 0:
                 return False
-            print(self.positions)
             for i in range(18):
                 if len(self.positions[i]) > 0 and self.positions[i][0] == Color.WHITE:
-                    print(f"position {i} is not empty")
                     return False
         else:
             if self.black_bar > 0:
@@ -153,22 +151,17 @@ class Board:
         
         # bearing off 
         if self.can_bearoff():
-            print("can bear off")
             if self.turn == Color.WHITE:
                 if current < 18:
-                    print("trying to bear off from wrong place")
                     return False
                 if len(self.positions[current]) == 0:
-                    print("trying to bear off from empty position")
                     return False
                 if self.positions[current][0] != Color.WHITE:
-                    print("trying to bear off wrong color")
                     return False
                 print(current)
                 for dice in self.dice:
                     if dice == 24 - current:
                         return True
-                print("move not in dice")
                 return False
             else:
                 if current > 5:
@@ -216,7 +209,6 @@ class Board:
         for dice in self.dice:
             if (next - current) * self.turn.value == dice:
                 return True
-        print(current, next, self.dice)
         return False
     
     def roll_dice(self):

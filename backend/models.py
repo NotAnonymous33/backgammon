@@ -4,6 +4,7 @@ db = SQLAlchemy()
 
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    room_code = db.Column(db.String(5), nullable=False, unique=True)
     positions = db.Column(db.PickleType, nullable=False)
     dice = db.Column(db.String(4), nullable=False)
     turn = db.Column(db.Integer, nullable=False)

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import '../Board.css'
 import { socket } from '../socket'
+import { useParams } from "react-router-dom"
 
 type BoardType = {
     positions: number[],
@@ -24,12 +25,18 @@ export default function Board() {
     const [whiteBearOff, setWhiteBearOff] = useState(0)
     const [blackBearOff, setBlackBearOff] = useState(0)
     const [message, setMessage] = useState(null)
+    const params = useParams()
+    const roomCode = params["room_code"]
+
 
     useEffect(() => {
         socket.connect()
         console.log("socket useffect connected")
 
-        console.log("useEffect sockets")
+
+        socket.emit("join_room", { roomCode })
+
+
         socket.on('connect', () => {
             console.log("client connected")
         })
@@ -65,7 +72,7 @@ export default function Board() {
         if (rolled) {
             return
         }
-        socket.emit("roll_dice")
+        socket.emit("roll_dice", { roomCode })
     }
 
     const setVals = (data: BoardType) => {
@@ -81,15 +88,11 @@ export default function Board() {
     }
 
     const reset_board = () => {
-        socket.emit("reset_board")
+        socket.emit("reset_board", { roomCode })
     }
 
     const make_move = (current: number, next: number) => {
-        socket.emit('move', { current, next }, (response: any) => {
-            if (response.status === 'error') {
-                console.log(response.message)
-            }
-        });
+        socket.emit('move', { current, next, roomCode });
         // TODO: check for win
         // TODO: add confirm move button
     }
@@ -136,7 +139,6 @@ export default function Board() {
 
     const handleClick = (index: number) => {
         const prevActivePiece = activePiece
-
         // can only move to starting pos to reenter white
         if (turn === 1 && whiteBar > 0) {
             if (!dice.includes(index + 1)) {
