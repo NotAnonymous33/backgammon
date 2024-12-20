@@ -24,6 +24,7 @@ class Board:
                 self.positions[pos] = [Color.BLACK for i in range(count)]
                 
             self.dice = []
+            self.invalid_dice = []
             self.rolled = False
             self.turn = Color.WHITE
             
@@ -150,7 +151,7 @@ class Board:
                 self.black_off += 1
                 self.dice.remove(current + 1)
             self.positions[current].pop()
-            if len(self.dice) == 0:
+            if len(self.dice) == 0 or len(self.dice) == len(self.invalid_dice):
                 self.swap_turn()
             return True
         
@@ -181,7 +182,7 @@ class Board:
             else:
                 self.positions[next].append(self.positions[current].pop())
             self.dice.remove((next - current) * self.turn.value)
-        if len(self.dice) == 0:
+        if len(self.dice) == 0 or len(self.dice) == len(self.invalid_dice):
             self.swap_turn()
         return True
     
@@ -189,6 +190,7 @@ class Board:
         self.turn = Color.WHITE if self.turn == Color.BLACK else Color.BLACK
         self.rolled = False
         self.dice = []
+        
     
     def is_valid(self, current, next): 
         #TODO: unit tests
@@ -264,7 +266,8 @@ class Board:
             self.dice.append(self.dice[0])
             self.dice.append(self.dice[0])
         self.rolled = True
-        return self.dice
+        valid_moves, self.invalid_dice = self.get_moves()
+        return self.dice, valid_moves
     
     def set_board(self, data):
         if "positions" in data:

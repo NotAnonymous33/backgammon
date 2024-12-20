@@ -80,6 +80,10 @@ export default function Board() {
             setMessage(data)
         })
 
+        socket.on("valid_moves", (data) => {
+            console.log("valid moves", data)
+        })
+
         return () => {
             console.log("clean up sockets")
             socket.off('connect')
