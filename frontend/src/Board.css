@@ -51,11 +51,11 @@
 }
 
 .light::before {
-    border-color: transparent transparent #3de1fa transparent;
+    border-color: transparent transparent #64230b transparent;
 }
 
 .dark::before {
-    border-color: transparent transparent #105de1 transparent;
+    border-color: transparent transparent #b96522 transparent;
 }
 
 .checker {
@@ -64,15 +64,34 @@
     width: 50px;
     border-radius: 50%;
     z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5em;
+    font-weight: bold;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+    cursor: pointer;
+    transition: transform 0.2s ease-in-out;
 }
 
-.black {
-    background-color: black;
+.checker.white {
+    background: linear-gradient(145deg, #f0f0f0, #d8d8d8);
+    border: 2px solid #aaa;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.3);
 }
 
-.white {
-    background-color: white;
+.checker.black {
+    background: linear-gradient(145deg, #333, #222);
+    border: 2px solid #555;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(0, 0, 0, 0.3);
 }
+
+.checker:hover {
+    transform: scale(1.1);
+}
+
+
 
 .active {
     border: 5px solid red;

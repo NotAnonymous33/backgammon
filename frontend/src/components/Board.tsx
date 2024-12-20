@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import '../Board.css'
 import { socket } from '../socket'
 import { useParams } from "react-router-dom"
+import { BACKEND_URL } from "../constants"
 
 type BoardType = {
     positions: number[],
@@ -25,8 +26,30 @@ export default function Board() {
     const [whiteBearOff, setWhiteBearOff] = useState(0)
     const [blackBearOff, setBlackBearOff] = useState(0)
     const [message, setMessage] = useState(null)
+
     const params = useParams()
+
     const roomCode = params["room_code"]
+
+    const pointWidth = 75
+    const pointHeight = 200
+    const pointPadding = 10
+    const checkerRadius = 20
+    const checkerPadding = 5
+    const barWidth = 50
+    const bearOffWidth = 50
+    const boardPadding = 10
+
+    const svgWidth = 2 * boardPadding + 12 * pointWidth + bearOffWidth + barWidth
+    const svgHeight = 2 * boardPadding + 2.2 * pointHeight
+
+    // colours
+    const outerBoardColour = "#b39970"
+    const innerBoardColour = "#f3d970"
+    const darkPointColour = "#64230b"
+    const lightPointColour = "#b96522"
+    const whiteCheckerColour = "#f3f3f3"
+    const blackCheckerColour = "#000000"
 
 
     useEffect(() => {
@@ -76,7 +99,6 @@ export default function Board() {
     }
 
     const setVals = (data: BoardType) => {
-        console.log(board)
         setBoard(data["positions"])
         setTurn(data["turn"])
         setDice(Array.from(data["dice"]).map(Number))
@@ -99,7 +121,7 @@ export default function Board() {
 
     const testButton = () => {
         const fetchData = async () => {
-            const response = await fetch('http://localhost:5000/api/button_test', {
+            const response = await fetch(`${BACKEND_URL}/api/button_test`, {
                 method: "GET"
             })
             const data = await response.json()
@@ -132,7 +154,6 @@ export default function Board() {
             }
             return true
         }
-        console.log(`canBearOff was passed invalid value of ${turn}`)
         throw new Error("Invalid turn value")
     }
 
@@ -223,6 +244,37 @@ export default function Board() {
 
     }
 
+    const indexToCoords = (index: number) => {
+        if (index < 0 || index > 23) {
+            throw new Error("Invalid index")
+        }
+        if (index < 12) {
+            index = 11 - index
+        } else {
+            index -= 12
+        }
+        return boardPadding + index * pointWidth + (index >= 6 ? barWidth : 0)
+    }
+
+
+    const triangleCoords: [number, number, number, number, number, number][] = [];
+    for (let i = 0; i < 24; i++) {
+        const x1 = indexToCoords(i)
+        const x2 = indexToCoords(i) + pointWidth
+        const x3 = indexToCoords(i) + pointWidth / 2
+        let y1, y2, y3
+        if (i < 12) {
+            y1 = svgHeight - boardPadding - pointHeight
+            y2 = svgHeight - boardPadding - pointHeight
+            y3 = svgHeight - boardPadding
+        } else {
+            y1 = boardPadding
+            y2 = boardPadding
+            y3 = boardPadding + pointHeight
+        }
+        triangleCoords.push([x1, y1, x2, y2, x3, y3])
+    }
+
 
     return (
         <>
@@ -270,11 +322,34 @@ export default function Board() {
                 </div>
             </div>
             {canBearOff(-1) && <div className="bearOffBlack" onClick={() => handleClick(-100)}>Bear off black</div>}
+
+            <svg width={svgWidth} height={svgHeight} xmlns="http://www.w3.org/2000/svg">
+                // background
+                <rect x={0} y={0} width={svgWidth} height={svgHeight} fill={outerBoardColour} />
+                // left half
+                <rect x={boardPadding} y={boardPadding} width={6 * pointWidth} height={svgHeight - 2 * boardPadding} fill={innerBoardColour} />
+                // right half
+                <rect x={6 * pointWidth + boardPadding + barWidth} y={boardPadding} width={6 * pointWidth} height={svgHeight - 2 * boardPadding} fill={innerBoardColour} />
+                {triangleCoords.map((coords, index) => (
+                    <polygon
+                        points={coords.join(",")}
+                        fill={(index % 2 === 0 ? darkPointColour : lightPointColour)}
+                        transform={index < 12 ? `rotate(180, ${coords[0] + pointWidth / 2}, ${svgHeight - boardPadding - pointHeight / 2})` : undefined}
+                        onClick={() => handleClick(index)} />
+                ))}
+
+                <g transform={"rotate(0,100,100)"}>
+                    <rect x={100} y={100} width={200} height={50} fill="red" />
+                </g>
+
+            </svg>
+
             <h2>turn: {turn}</h2>
             <h2>active piece: {activePiece}</h2>
             <h3>dice: {dice}</h3>
+
             <button onClick={_ => rollDice()}>Roll dice</button>
-            <button onClick={_ => testButton()}>test </button>
+            <button onClick={_ => testButton()}>test</button>
 
         </>
     )

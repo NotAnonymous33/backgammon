@@ -61,6 +61,9 @@ def update_board_db(room_code: str, board_dict: dict):
     db_board.rolled = board_dict["rolled"]
     db.session.commit()
 
+@app.route("/testing", methods=["GET"])
+def testing():
+    return {"message": "testing"}
 
 @socketio.on("join_room")
 def join(data):
@@ -172,7 +175,7 @@ def set_board():
 if __name__ == "__main__":    
     with app.app_context():
         db.create_all()    
-    socketio.run(app, debug=True)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
 
 
     

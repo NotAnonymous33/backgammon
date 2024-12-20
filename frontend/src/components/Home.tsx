@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react"
 import { socket } from "../socket"
 import { useNavigate } from "react-router-dom"
+import "./Home.css"
+import { BACKEND_URL } from "../constants"
 
 export default function Home() {
     const [roomCode, setRoomCode] = useState("")
@@ -38,7 +40,7 @@ export default function Home() {
     const handleNewGame = () => {
         console.log("create room")
         const fetchData = async () => {
-            const response = await fetch('http://localhost:5000/api/new_game', {
+            const response = await fetch(`${BACKEND_URL}/api/new_game`, {
                 method: "POST"
             })
             const data = await response.json()
@@ -53,10 +55,11 @@ export default function Home() {
     return (
         <>
             <h1>Home</h1>
-            <button onClick={() => handleNewGame()}>New Game</button>
+            <div className="button-div"></div>
+            <button onClick={() => handleNewGame()} className="button-newgame">New Game</button>
             <form onSubmit={handleSubmit}>
-                <input type="text" placeholder="Enter Game ID" onChange={handleChange} value={roomCode} />
-                <button>Join Game</button>
+                <input type="text" placeholder="Enter Game ID" onChange={handleChange} value={roomCode} className="input-gameId" />
+                <button className="button-join">Join Game</button>
             </form>
         </>
     )

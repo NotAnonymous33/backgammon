@@ -3,11 +3,20 @@ from pprint import pprint
 from random import randint
 
 class Board:
+    positions: list[list[Color]]
+    dice: list[int]
+    rolled: bool
+    turn: Color
+    white_off: int
+    black_off: int
+    white_bar: int
+    black_bar: int
+    
     def __init__(self, board_dict=None, board_db=None):
         if board_dict is None and board_db is None:
             self.positions = [[] for i in range(24)]
-            initial_white = [[0, 2], [11, 5], [16, 3], [18, 5]]
-            initial_black = [[5, 5], [7, 3], [12, 5], [23, 2]]        
+            initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
+            initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]       
             
             for pos, count in initial_white:
                 self.positions[pos] = [Color.WHITE for i in range(count)]
@@ -56,6 +65,45 @@ class Board:
             self.black_off = board_db.black_off
             # TODO if there is an attribute(?) error, call init
 
+    def get_moves(self):
+        valid_moves = []
+        invalid_dice = []
+        
+        # ---------- reentering checkers ----------
+        if self.turn == Color.WHITE and self.white_bar > 0:
+            for die in self.dice:
+                if self.is_valid(-1, die-1):
+                    valid_moves.append((-1, die-1, die))
+            if not valid_moves:
+                return valid_moves, self.dice
+            return valid_moves, invalid_dice
+        
+        if self.turn == Color.BLACK and self.black_bar > 0:
+            for die in self.dice:
+                if self.is_valid(-1, 24-die):
+                    valid_moves.append((-1, 24-die, die))
+            if not valid_moves:
+                return valid_moves, self.dice
+            return valid_moves, invalid_dice
+        
+        # ---------- normal moves ----------
+        for start in range(24):
+            if self.positions[start] and self.positions[start][0] == self.turn:
+                for die in self.dice:
+                    end = start + die * self.turn.value
+                    if 0 <= end < 24 and self.is_valid(start, end):
+                        valid_moves.append((start, end, die))
+        
+        if not valid_moves:
+            return valid_moves, self.dice
+        
+        # ---------- prioritise higher moves then all dice ----------
+        valid_moves.sort(key=lambda x: x[2], reverse=True)
+        valid_dice = {move[2] for move in valid_moves}
+        invalid_dice = [die for die in self.dice if die not in valid_dice]
+        
+        return valid_moves, invalid_dice
+    
     
     def can_bearoff(self):
         if self.turn == Color.WHITE:
@@ -71,9 +119,6 @@ class Board:
                 if len(self.positions[i]) > 0 and self.positions[i][0] == Color.BLACK:
                     return False
         return True
-    
-    def has_legal_moves(self):
-        pass
         
     def convert(self):
         positions = []
