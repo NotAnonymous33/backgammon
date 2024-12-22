@@ -2,3 +2,5 @@
 .million
 
 __pycache__
+
+/vscode*
