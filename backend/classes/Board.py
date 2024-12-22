@@ -14,7 +14,8 @@ class Board:
     white_bar: int
     black_bar: int
     
-    def __init__(self, board_dict=None, board_db=None):
+    def __init__(self, board_dict=None, board_db=None, verbose=False):
+        self.verbose = verbose
         if board_dict is None and board_db is None:
             self.positions = [[] for i in range(24)]
             initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
@@ -68,19 +69,55 @@ class Board:
             self.black_off = board_db.black_off
             # TODO if there is an attribute(?) error, call init
 
+    def __str__(self):
+        """
+        Returns the backgammon board as a formatted string.
+        """
+        def format_position(position):
+            """Helper to format a position with its checkers."""
+            if len(position) == 0:
+                return " . "  # Empty position
+            color = "W" if position[0] == Color.WHITE else "B"
+            return f" {color}{len(position)}"  # Format as 'W2' or 'B5'
+
+        # Top row (positions 12-23)
+        top_row = [format_position(self.positions[i]) for i in range(12, 24)]
+        top = (
+            " 13  14  15  16  17  18 | 19  20  21  22  23  24 \n"
+            "-------------------------------------------------\n"
+            + " ".join(top_row[:6]) + " | " + " ".join(top_row[6:])
+        )
+
+        # Middle section (bar)
+        bar = f"\n\nBar:\nWhite: {self.white_bar}, Black: {self.black_bar}\n"
+
+        # Bottom row (positions 11-0, reversed)
+        bottom_row = [format_position(self.positions[i]) for i in range(11, -1, -1)]
+        bottom = (
+            "\n\n 12  11  10   9   8   7 |  6   5   4   3   2   1 \n"
+            "-------------------------------------------------\n"
+            + " ".join(bottom_row[:6]) + " | " + " ".join(bottom_row[6:])
+        )
+
+        # Off-board area
+        off_board = f"\n\nOff-board:\nWhite: {self.white_off}, Black: {self.black_off}"
+
+        # Combine all parts
+        return bar + top + bottom + off_board
+
+    
     def get_invalid_dice(self):
-        '''
-        Returns list of valid moves for the current player
-        list of list of (current, next, dice?) tuples
-        '''
-        invalid_dice = []
+        invalid_dice = self.dice[:]
         max_length = 0
         max_die = 0
-        print("---------------------------------------")
+        if self.verbose:
+            print("---------------------------------------")
         
         # returns whether or not there is a valid move using all dice
         def verify_permutation(board: Board, remaining_dice, move_sequence):
-            print(f"{remaining_dice=}, {move_sequence=}")
+            if self.verbose:
+                print(f"{remaining_dice=}, {move_sequence=}")
+                print(board)
             move_sequence = move_sequence[:]
             nonlocal max_length
             nonlocal max_die
@@ -108,43 +145,27 @@ class Board:
             # bearing off moves
             if board.turn == Color.WHITE and board.white_bar > 0:
                 for i in range(6):
-                    if len(board.positions[i]) and board.positions[i][0] == Color.WHITE:
-                        continue
-                    if not board.is_valid(-1, i):
-                        continue
                     board_copy = deepcopy(board)
-                    board_copy.move(-1, i)
-                    move_sequence.append(remaining_dice[0])
-                    verify_permutation(board_copy, remaining_dice[1:], move_sequence)
+                    if board_copy.move(-1, i):
+                        if verify_permutation(board_copy, remaining_dice[1:], move_sequence + [remaining_dice[0]]):
+                            return True
                 return
             if board.turn == Color.BLACK and board.black_bar > 0:
                 for i in range(23, 17, -1):
-                    if len(board.positions[i]) and board.positions[i][0] == Color.BLACK:
-                        continue
-                    if not board.is_valid(-1, i):
-                        continue
                     board_copy = deepcopy(board)
-                    board_copy.move(-1, i)
-                    move_sequence.append(remaining_dice[0])
-                    verify_permutation(board_copy, remaining_dice[1:], move_sequence)
+                    if board_copy.move(-1, i):
+                        if verify_permutation(board_copy, remaining_dice[1:], move_sequence + [remaining_dice[0]]):
+                            return True
                 return
             
             # bearing off
             if board.can_bearoff():
                 for i in range(24):
-                    if not (len(board.positions[i]) and board.positions[i][0] == board.turn):
-                        continue
-                    if not board.is_valid(i, 100 * board.turn.value):
-                        continue
                     board_copy = deepcopy(board)
-                    board_copy.move(i, 100 * board.turn.value)
-                    if board.turn == Color.WHITE:
-                        move_sequence.append(remaining_dice[0]) # TODO: bearoff logic will need to be changed later
-                    else:
-                        move_sequence.append(remaining_dice[0])
-                    verify_permutation(board_copy, remaining_dice[1:], move_sequence)
+                    if board_copy.move(i, 100 * board.turn.value):
+                        if verify_permutation(board_copy, remaining_dice[1:], move_sequence + [remaining_dice[0]]):
+                            return True
                 
-            
             # normal moves
             for start in range(24):
                 if not (len(board.positions[start]) and board.positions[start][0] == self.turn):
@@ -152,11 +173,9 @@ class Board:
                 end = start + remaining_dice[0] * self.turn.value
                 if board.is_valid(start, end):
                     board_copy = deepcopy(board)
-                    board_copy.move(start, end)
-                    new_move_sequence = move_sequence[:]
-                    new_move_sequence.append(remaining_dice[0])
-                    if verify_permutation(board_copy, remaining_dice[1:], new_move_sequence) :
-                        return True         
+                    if board_copy.move(start, end):
+                        if verify_permutation(board_copy, remaining_dice[1:], move_sequence + [remaining_dice[0]]):
+                            return True         
         
         for permutation in permutations(self.dice):
             if verify_permutation(deepcopy(self), list(permutation), []):
@@ -197,7 +216,6 @@ class Board:
     
     def move(self, current, next):
         if not self.is_valid(current, next):
-            print("Invalid move")
             return False
         
         # bearing off
