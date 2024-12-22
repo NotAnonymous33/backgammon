@@ -1,10 +1,12 @@
-from classes.Color import Color
+from Color import Color
 from pprint import pprint
 from random import randint
+from itertools import permutations
+from copy import deepcopy
 
 class Board:
-    positions: list[list[Color]]
-    dice: list[int]
+    #positions: list[list[Color]]
+    #dice: list[int]
     rolled: bool
     turn: Color
     white_off: int
@@ -66,45 +68,101 @@ class Board:
             self.black_off = board_db.black_off
             # TODO if there is an attribute(?) error, call init
 
-    def get_moves(self):
-        valid_moves = []
+    def get_invalid_dice(self):
+        '''
+        Returns list of valid moves for the current player
+        list of list of (current, next, dice?) tuples
+        '''
         invalid_dice = []
+        max_length = 0
+        max_die = 0
+        print("---------------------------------------")
         
-        # ---------- reentering checkers ----------
-        if self.turn == Color.WHITE and self.white_bar > 0:
-            for die in self.dice:
-                if self.is_valid(-1, die-1):
-                    valid_moves.append((-1, die-1, die))
-            if not valid_moves:
-                return valid_moves, self.dice
-            return valid_moves, invalid_dice
+        # returns whether or not there is a valid move using all dice
+        def verify_permutation(board: Board, remaining_dice, move_sequence):
+            print(f"{remaining_dice=}, {move_sequence=}")
+            move_sequence = move_sequence[:]
+            nonlocal max_length
+            nonlocal max_die
+            nonlocal invalid_dice
+            # base case
+            # all dice are useable
+            if not remaining_dice:
+                invalid_dice = []
+                return True            
+            # there are dice remaining
+            
+            # if you can move more dice than current best, replace
+            if len(move_sequence) > max_length:
+                max_length = len(move_sequence)
+                invalid_dice = remaining_dice
+
+            # if you can move the same number of dice but the max die is greater, replace
+            if len(move_sequence) == max_length and move_sequence and max(move_sequence) > max_die:
+                max_die = max(move_sequence)
+                invalid_dice = remaining_dice
+                return
+            
+            
+            # TODO: deal with bearing off and reentering checkers
+            # bearing off moves
+            if board.turn == Color.WHITE and board.white_bar > 0:
+                for i in range(6):
+                    if len(board.positions[i]) and board.positions[i][0] == Color.WHITE:
+                        continue
+                    if not board.is_valid(-1, i):
+                        continue
+                    board_copy = deepcopy(board)
+                    board_copy.move(-1, i)
+                    move_sequence.append(remaining_dice[0])
+                    verify_permutation(board_copy, remaining_dice[1:], move_sequence)
+                return
+            if board.turn == Color.BLACK and board.black_bar > 0:
+                for i in range(23, 17, -1):
+                    if len(board.positions[i]) and board.positions[i][0] == Color.BLACK:
+                        continue
+                    if not board.is_valid(-1, i):
+                        continue
+                    board_copy = deepcopy(board)
+                    board_copy.move(-1, i)
+                    move_sequence.append(remaining_dice[0])
+                    verify_permutation(board_copy, remaining_dice[1:], move_sequence)
+                return
+            
+            # bearing off
+            if board.can_bearoff():
+                for i in range(24):
+                    if not (len(board.positions[i]) and board.positions[i][0] == board.turn):
+                        continue
+                    if not board.is_valid(i, 100 * board.turn.value):
+                        continue
+                    board_copy = deepcopy(board)
+                    board_copy.move(i, 100 * board.turn.value)
+                    if board.turn == Color.WHITE:
+                        move_sequence.append(remaining_dice[0]) # TODO: bearoff logic will need to be changed later
+                    else:
+                        move_sequence.append(remaining_dice[0])
+                    verify_permutation(board_copy, remaining_dice[1:], move_sequence)
+                
+            
+            # normal moves
+            for start in range(24):
+                if not (len(board.positions[start]) and board.positions[start][0] == self.turn):
+                    continue
+                end = start + remaining_dice[0] * self.turn.value
+                if board.is_valid(start, end):
+                    board_copy = deepcopy(board)
+                    board_copy.move(start, end)
+                    new_move_sequence = move_sequence[:]
+                    new_move_sequence.append(remaining_dice[0])
+                    if verify_permutation(board_copy, remaining_dice[1:], new_move_sequence) :
+                        return True         
         
-        if self.turn == Color.BLACK and self.black_bar > 0:
-            for die in self.dice:
-                if self.is_valid(-1, 24-die):
-                    valid_moves.append((-1, 24-die, die))
-            if not valid_moves:
-                return valid_moves, self.dice
-            return valid_moves, invalid_dice
+        for permutation in permutations(self.dice):
+            if verify_permutation(deepcopy(self), list(permutation), []):
+                return []
         
-        # ---------- normal moves ----------
-        for start in range(24):
-            if self.positions[start] and self.positions[start][0] == self.turn:
-                for die in self.dice:
-                    end = start + die * self.turn.value
-                    if 0 <= end < 24 and self.is_valid(start, end):
-                        valid_moves.append((start, end, die))
-        
-        if not valid_moves:
-            return valid_moves, self.dice
-        
-        # ---------- prioritise higher moves then all dice ----------
-        valid_moves.sort(key=lambda x: x[2], reverse=True)
-        valid_dice = {move[2] for move in valid_moves}
-        invalid_dice = [die for die in self.dice if die not in valid_dice]
-        
-        return valid_moves, invalid_dice
-    
+        return invalid_dice
     
     def can_bearoff(self):
         if self.turn == Color.WHITE:
@@ -195,28 +253,31 @@ class Board:
     def is_valid(self, current, next): 
         #TODO: unit tests
         # current can't be empty
-        
+        if current not in range(24) and current != -1:
+            return False
+        if next not in range(24) and abs(next) != 100:
+            return False
         # bearing off 
-        if self.can_bearoff():
+        if (next == 100 and self.turn == Color.WHITE or next == -100 and self.turn == Color.BLACK):
+            if not self.can_bearoff():
+                return False
+            if len(self.positions[current]) == 0:
+                return False
+            if self.positions[current][0] != self.turn:
+                return False
             if self.turn == Color.WHITE:
-                if current < 18:
-                    return False
-                if len(self.positions[current]) == 0:
-                    return False
-                if self.positions[current][0] != Color.WHITE:
-                    return False
-                print(current)
                 for dice in self.dice:
                     if dice == 24 - current:
                         return True
+                # no exact dice
+                for pos in range(18, 24):
+                    if len(self.positions[pos]) > 0 and self.positions[pos][0] == Color.WHITE:
+                        # TODO: something should go here for when you can bear off with greater dice
+                        # acc too many rules it might be time to start from scratch
+                        # ugh and i need to redo the UI again
+                        pass
                 return False
             else:
-                if current > 5:
-                    return False
-                if len(self.positions[current]) == 0:
-                    return False
-                if self.positions[current][0] != Color.BLACK:
-                    return False
                 for dice in self.dice:
                     if dice == 24 - current:
                         return True
@@ -266,8 +327,7 @@ class Board:
             self.dice.append(self.dice[0])
             self.dice.append(self.dice[0])
         self.rolled = True
-        valid_moves, self.invalid_dice = self.get_moves()
-        return self.dice, valid_moves
+        return self.dice
     
     def set_board(self, data):
         if "positions" in data:

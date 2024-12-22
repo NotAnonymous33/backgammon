@@ -149,10 +149,9 @@ def roll_dice(data):
         emit("error", {"message": "Room not found"}, room=request.sid)
     else:
         board = Board(board_db=db_board)
-        dice, valid_moves = board.roll_dice()
+        dice = board.roll_dice()
         update_board_db(room_code, board.convert())
         emit("update_dice", dice, room=room_code)
-        emit("valid_moves", valid_moves, room=room_code)
 
 
 @app.route("/api/set_board", methods=["POST"])
