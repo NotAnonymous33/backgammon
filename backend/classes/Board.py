@@ -1,4 +1,4 @@
-from Color import Color
+from classes.Color import Color
 from pprint import pprint
 from random import randint
 from itertools import permutations
@@ -51,6 +51,7 @@ class Board:
                 self.black_bar = board_dict["black_bar"]
                 self.white_off = board_dict["white_off"]
                 self.black_off = board_dict["black_off"]
+                self.invalid_dice = self.get_invalid_dice()
             except KeyError:
                 self.__init__()
         else:
@@ -67,6 +68,7 @@ class Board:
             self.black_bar = board_db.black_bar
             self.white_off = board_db.white_off
             self.black_off = board_db.black_off
+            self.invalid_dice = self.get_invalid_dice()
             # TODO if there is an attribute(?) error, call init
 
     def __str__(self):
@@ -258,8 +260,7 @@ class Board:
             else:
                 self.positions[next].append(self.positions[current].pop())
             self.dice.remove((next - current) * self.turn.value)
-        if len(self.dice) == 0 or len(self.dice) == len(self.invalid_dice):
-            self.swap_turn()
+            # TODO: swap turn on confirm move
         return True
     
     def swap_turn(self):
@@ -337,7 +338,7 @@ class Board:
                 return True
         return False
     
-    def roll_dice(self):
+    def roll_dice(self) -> list[int]:
         if self.rolled:
             return self.dice
         self.dice = [randint(1, 6), randint(1, 6)]
@@ -345,6 +346,7 @@ class Board:
             self.dice.append(self.dice[0])
             self.dice.append(self.dice[0])
         self.rolled = True
+        self.invalid_dice = self.get_invalid_dice()
         return self.dice
     
     def set_board(self, data):
