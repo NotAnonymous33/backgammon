@@ -149,7 +149,8 @@ def roll_dice(data):
         emit("error", {"message": "Room not found"}, room=request.sid)
     else:
         board = Board(board_db=db_board)
-        dice = board.roll_dice()
+        dice, valid_moves = board.roll_dice()
+        print(valid_moves)
         update_board_db(room_code, board.convert())
         emit("update_dice", dice, room=room_code)
 

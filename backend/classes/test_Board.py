@@ -44,9 +44,20 @@ class TestBoard(unittest.TestCase):
         
         invalid_dice = self.board.get_invalid_dice()
         self.assertEqual(invalid_dice, [2])
+        
+    def test_get_invalid_dice_reentering_off(self):
+        self.board.positions = [[Color.BLACK] * 2 if i in range(6, 24) else [] for i in range(24)]
+        self.board.turn = Color.WHITE
+        self.board.white_bar = 1
+        self.board.dice = [1, 6]
+        self.board.rolled = True
+        invalid_dice = self.board.get_invalid_dice()
+        self.verbose = False
+        self.assertEqual(invalid_dice, [1])
              
     
     def test_get_1invalid_dice_reentering_checkers(self):
+        self.board = Board()
         self.board.positions = [[Color.BLACK] * 2 if i in range(6, 24) else [] for i in range(24)]
         self.board.turn = Color.WHITE
         self.board.white_bar = 1
@@ -54,6 +65,95 @@ class TestBoard(unittest.TestCase):
         self.board.rolled = True
         invalid_dice = self.board.get_invalid_dice()
         self.assertEqual(invalid_dice, [1])
+
+    def test_get_single_moves_initial_setup(self):
+        self.board = Board()
+        self.board.turn = Color.WHITE
+        self.board.dice = [1, 2]
+        self.board.rolled = True
+        single_moves = self.board.get_single_moves()
+        expected_moves = {(0, 1), (0, 2), (11, 13), (16, 17), (16, 18), (18, 19), (18, 20)}
+        self.assertEqual(single_moves, expected_moves)
+    
+    def test_get_single_moves_reentering_checkers(self):
+        self.board.positions = [[Color.BLACK] * 2 if i in range(6, 24) else [] for i in range(24)]
+        self.board.turn = Color.WHITE
+        self.board.white_bar = 1
+        self.board.dice = [1, 6]
+        self.board.invalid_dice = self.board.get_invalid_dice()
+        self.board.rolled = True
+        single_moves = self.board.get_single_moves()
+        expected_moves = {(-1, 5)}
+        self.assertEqual(single_moves, expected_moves)
+
+    
+    def test_get_single_moves_black_turn(self):
+        self.board = Board()
+        self.board.turn = Color.BLACK
+        self.board.dice = [1, 2]
+        self.board.rolled = True
+        single_moves = self.board.get_single_moves()
+        expected_moves = {(5, 4), (5, 3), (7, 6), (7, 5), (12, 10), (23, 22), (23, 21)}
+        self.assertEqual(single_moves, expected_moves)
+    
+    def test_get_single_moves_black_reentering_checkers(self):
+        self.board.positions = [[Color.WHITE] * 2 if i in range(0, 18) else [] for i in range(24)]
+        self.board.turn = Color.BLACK
+        self.board.black_bar = 1
+        self.board.dice = [1, 6]
+        self.board.rolled = True
+        single_moves = self.board.get_single_moves()
+        expected_moves = {(-1, 23)}
+        self.assertEqual(single_moves, expected_moves)
+    
+    def test_get_single_moves_bearing_off(self):
+        self.board.positions = [[] for _ in range(24)]
+        self.board.positions[18] = [Color.WHITE] * 2
+        self.board.positions[19] = [Color.WHITE] * 2
+        self.board.positions[20] = [Color.WHITE] * 2
+        self.board.positions[21] = [Color.WHITE] * 2
+        self.board.positions[22] = [Color.WHITE] * 2
+        self.board.positions[23] = [Color.WHITE] * 2
+        self.board.turn = Color.WHITE
+        self.board.dice = [1, 2]
+        self.board.rolled = True
+        single_moves = self.board.get_single_moves()
+        expected_moves = {(18, 19), (18, 20), (19, 20), (19, 21), (20, 21), (20, 22), (21, 22), (21, 23), (22, 23), (22, 100), (23, 100)}
+        self.assertEqual(single_moves, expected_moves)
+
+
+    def test_get_valid_moves_no_moves(self):
+        self.board.positions = [[Color.BLACK] * 2 for _ in range(24)]
+        self.board.turn = Color.WHITE
+        self.board.dice = [1, 2]
+        self.board.rolled = True
+        valid_moves = self.board.get_valid_moves()
+        self.assertEqual(valid_moves, [])
+
+    def test_get_valid_moves_reentering_1checker(self):
+        self.board.positions = [[Color.BLACK] * 2 if i in range(6, 24) else [] for i in range(24)]
+        self.board.turn = Color.WHITE
+        self.board.white_bar = 1
+        self.board.dice = [3, 6]
+        self.board.invalid_dice = self.board.get_invalid_dice()
+        self.board.rolled = True
+        valid_moves = self.board.get_valid_moves()
+        expected_moves = [[(-1, 5)]]
+        self.assertCountEqual(valid_moves, expected_moves)
+        
+        
+    def test_get_valid_moves_reentering_2checkers(self):
+        self.board.positions = [[Color.BLACK] * 2 if i in range(6, 24) else [] for i in range(24)]
+        self.board.turn = Color.WHITE
+        self.board.white_bar = 2
+        self.board.dice = [3, 6]
+        self.board.rolled = True
+        valid_moves = self.board.get_valid_moves()
+        expected_moves = [[(-1, 2), (-1, 5)], [(-1, 5), (-1, 2)]]
+        self.assertCountEqual(valid_moves, expected_moves)
+
+    
+
 
 if __name__ == '__main__':
     unittest.main()

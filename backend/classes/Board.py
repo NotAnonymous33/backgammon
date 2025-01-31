@@ -19,7 +19,8 @@ class Board:
         if board_dict is None and board_db is None:
             self.positions = [[] for i in range(24)]
             initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
-            initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]       
+            initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
+                   
             
             for pos, count in initial_white:
                 self.positions[pos] = [Color.WHITE for i in range(count)]
@@ -28,6 +29,7 @@ class Board:
                 
             self.dice = []
             self.invalid_dice = []
+            self.valid_moves = []
             self.rolled = False
             self.turn = Color.WHITE
             
@@ -70,7 +72,7 @@ class Board:
             self.black_off = board_db.black_off
             self.invalid_dice = self.get_invalid_dice()
             # TODO if there is an attribute(?) error, call init
-
+            
     def __str__(self):
         """
         Returns the backgammon board as a formatted string.
@@ -85,7 +87,7 @@ class Board:
         # Top row (positions 12-23)
         top_row = [format_position(self.positions[i]) for i in range(12, 24)]
         top = (
-            " 13  14  15  16  17  18 | 19  20  21  22  23  24 \n"
+            "\n\n 13  14  15  16  17  18 | 19  20  21  22  23  24 \n"
             "-------------------------------------------------\n"
             + " ".join(top_row[:6]) + " | " + " ".join(top_row[6:])
         )
@@ -96,7 +98,7 @@ class Board:
         # Bottom row (positions 11-0, reversed)
         bottom_row = [format_position(self.positions[i]) for i in range(11, -1, -1)]
         bottom = (
-            "\n\n 12  11  10   9   8   7 |  6   5   4   3   2   1 \n"
+            " 12  11  10   9   8   7 |  6   5   4   3   2   1 \n"
             "-------------------------------------------------\n"
             + " ".join(bottom_row[:6]) + " | " + " ".join(bottom_row[6:])
         )
@@ -105,7 +107,7 @@ class Board:
         off_board = f"\n\nOff-board:\nWhite: {self.white_off}, Black: {self.black_off}"
 
         # Combine all parts
-        return bar + top + bottom + off_board
+        return bar + bottom + top + off_board
 
     
     def get_invalid_dice(self):
@@ -140,7 +142,6 @@ class Board:
             if len(move_sequence) == max_length and move_sequence and max(move_sequence) > max_die:
                 max_die = max(move_sequence)
                 invalid_dice = remaining_dice
-                return
             
             
             # TODO: deal with bearing off and reentering checkers
@@ -183,7 +184,56 @@ class Board:
             if verify_permutation(deepcopy(self), list(permutation), []):
                 return []
         
+        for die in invalid_dice:
+            self.dice.remove(die)
         return invalid_dice
+    
+    def get_single_moves(self):
+        moves = set()
+        # TODO: can maybe make more efficient by moving only by dice
+        if self.turn == Color.WHITE:
+            # reentering checkers
+            if self.white_bar > 0:
+                for i in range(6):
+                    if self.is_valid(-1, i):
+                        moves.add((-1, i))
+                return moves
+            # normal moves
+            for start in range(24):
+                for end in range(start + 1, 24):
+                    if self.is_valid(start, end):
+                        moves.add((start, end))
+                if self.is_valid(start, 100):
+                    moves.add((start, 100))
+            return moves
+        
+        if self.black_bar > 0:
+            for i in range(23, 17, -1):
+                if self.is_valid(-1, i):
+                    moves.add((-1, i))
+                    return moves
+        for start in range(23, -1, -1):
+            for end in range(start - 1, -1, -1):
+                if self.is_valid(start, end):
+                    moves.add((start, end))
+            if self.is_valid(start, -100):
+                moves.add((start, -100))
+        return moves
+        
+    def get_valid_moves(self):        
+        def dfs(board: Board, prev_moves):
+            if not board.dice:
+                return [prev_moves]
+            moves = []
+            for move in board.get_single_moves():
+                board_copy = deepcopy(board)
+                board_copy.move(*move)
+                moves += dfs(board_copy, prev_moves + [move])
+            return moves
+        
+        dfs_moves = dfs(deepcopy(self), [])
+        return dfs_moves
+    
     
     def can_bearoff(self):
         if self.turn == Color.WHITE:
@@ -229,7 +279,7 @@ class Board:
                 self.black_off += 1
                 self.dice.remove(current + 1)
             self.positions[current].pop()
-            if len(self.dice) == 0 or len(self.dice) == len(self.invalid_dice):
+            if len(self.dice) == 0:
                 self.swap_turn()
             return True
         
@@ -347,7 +397,8 @@ class Board:
             self.dice.append(self.dice[0])
         self.rolled = True
         self.invalid_dice = self.get_invalid_dice()
-        return self.dice
+        self.valid_moves = self.get_valid_moves()
+        return self.invalid_dice, self.valid_moves
     
     def set_board(self, data):
         if "positions" in data:
