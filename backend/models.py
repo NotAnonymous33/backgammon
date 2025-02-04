@@ -7,6 +7,7 @@ class Game(db.Model):
     room_code = db.Column(db.String(5), nullable=False, unique=True)
     positions = db.Column(db.PickleType, nullable=False)
     dice = db.Column(db.String(4), nullable=False)
+    invalid_dice = db.Column(db.String(4), nullable=False)
     turn = db.Column(db.Integer, nullable=False)
     white_bar = db.Column(db.Integer, nullable=False)
     black_bar = db.Column(db.Integer, nullable=False)
@@ -18,6 +19,7 @@ class Game(db.Model):
         return {
             "positions": self.positions,
             "dice": self.dice,
+            "invalid_dice": self.invalid_dice,
             "turn": self.turn,
             "white_bar": self.white_bar,
             "black_bar": self.black_bar,

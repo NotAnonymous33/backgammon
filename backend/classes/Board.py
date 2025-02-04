@@ -1,12 +1,13 @@
-from classes.Color import Color
+try:
+    from Color import Color
+except:
+    from classes.Color import Color
 from pprint import pprint
 from random import randint
 from itertools import permutations
 from copy import deepcopy
 
 class Board:
-    #positions: list[list[Color]]
-    #dice: list[int]
     rolled: bool
     turn: Color
     white_off: int
@@ -33,11 +34,11 @@ class Board:
             self.rolled = False
             self.turn = Color.WHITE
             
-            self.white_off = 0
-            self.black_off = 0
+            self.white_off = 1
+            self.black_off = 1
             
-            self.white_bar = 0
-            self.black_bar = 0
+            self.white_bar = 1
+            self.black_bar = 1
         elif board_dict is not None:
             try:
                 self.positions = []
@@ -53,6 +54,7 @@ class Board:
                 self.black_bar = board_dict["black_bar"]
                 self.white_off = board_dict["white_off"]
                 self.black_off = board_dict["black_off"]
+                self.valid_moves = self.get_valid_moves()
                 self.invalid_dice = self.get_invalid_dice()
             except KeyError:
                 self.__init__()
@@ -71,6 +73,7 @@ class Board:
             self.white_off = board_db.white_off
             self.black_off = board_db.black_off
             self.invalid_dice = self.get_invalid_dice()
+            self.valid_moves = self.get_valid_moves()
             # TODO if there is an attribute(?) error, call init
             
     def __str__(self):
@@ -258,13 +261,22 @@ class Board:
             "positions": positions, 
             "turn": 1 if self.turn == Color.WHITE else -1, 
             "dice": "".join(str(d) for d in self.dice),
+            "invalid_dice": "".join(str(d) for d in self.invalid_dice),
             "white_bar": self.white_bar,
             "black_bar": self.black_bar,
             "rolled": self.rolled,
             "white_off": self.white_off,
-            "black_off": self.black_off
+            "black_off": self.black_off,
+            "valid_moves": self.valid_moves
         }        
         return ret
+    
+    def move_from_sequence(self, sequence):
+        for move in sequence:
+            if not self.move(*move):
+                return False
+        if self.rolled and len(self.dice) == 0:
+            self.swap_turn()
     
     def move(self, current, next):
         if not self.is_valid(current, next):
@@ -317,6 +329,7 @@ class Board:
         self.turn = Color.WHITE if self.turn == Color.BLACK else Color.BLACK
         self.rolled = False
         self.dice = []
+        self.invalid_dice = []
         
     
     def is_valid(self, current, next): 
@@ -390,7 +403,7 @@ class Board:
     
     def roll_dice(self) -> list[int]:
         if self.rolled:
-            return self.dice
+            return self.dice, self.invalid_dice, self.valid_moves
         self.dice = [randint(1, 6), randint(1, 6)]
         if self.dice[0] == self.dice[1]:
             self.dice.append(self.dice[0])
@@ -398,7 +411,7 @@ class Board:
         self.rolled = True
         self.invalid_dice = self.get_invalid_dice()
         self.valid_moves = self.get_valid_moves()
-        return self.invalid_dice, self.valid_moves
+        return self.dice, self.invalid_dice, self.valid_moves
     
     def set_board(self, data):
         if "positions" in data:

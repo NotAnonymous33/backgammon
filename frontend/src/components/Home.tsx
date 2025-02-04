@@ -32,19 +32,16 @@ export default function Home() {
 
     const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
-        console.log("Joining room", roomCode)
         socket.emit("join_room", { room_code: roomCode })
         navigate(`/game/${roomCode}`)
     }
 
     const handleNewGame = () => {
-        console.log("create room")
         const fetchData = async () => {
             const response = await fetch(`${BACKEND_URL}/api/new_game`, {
                 method: "POST"
             })
             const data = await response.json()
-            console.log("new game")
             navigate(`/game/${data.room_code}`)
         }
         fetchData()

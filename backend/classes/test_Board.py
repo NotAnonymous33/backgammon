@@ -152,7 +152,16 @@ class TestBoard(unittest.TestCase):
         expected_moves = [[(-1, 2), (-1, 5)], [(-1, 5), (-1, 2)]]
         self.assertCountEqual(valid_moves, expected_moves)
 
-    
+    def test_get_valid_moves_reentering_plus_one(self):
+        self.board = Board()
+        self.board.white_bar = 1
+        self.board.dice = [1, 2]
+        self.board.rolled = True
+        valid_moves = self.board.get_valid_moves()
+        expected_moves = [[(-1, 0), (0, 2)], [(-1, 0), (11, 13)], [(-1, 0), (16, 18)], [(-1, 0), (18, 20)],
+                          [(-1, 1), (0, 1)], [(-1, 1), (1, 2)], [(-1, 1), (16, 17)], [(-1, 1), (18, 19)]]
+        self.assertCountEqual(valid_moves, expected_moves)
+        
 
 
 if __name__ == '__main__':

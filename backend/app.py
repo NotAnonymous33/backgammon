@@ -39,6 +39,7 @@ def add_board_db(room_code: str, board_dict: dict):
         room_code=room_code,
         positions=board_dict["positions"],
         dice=board_dict["dice"],
+        invalid_dice=board_dict["invalid_dice"],
         turn=board_dict["turn"],
         white_bar=board_dict["white_bar"],
         black_bar=board_dict["black_bar"],
@@ -72,20 +73,11 @@ def join(data):
     if not db_board:
         emit("message", {"message": "Room not found"}, room=request.sid)
     else:
-        board_dict = {
-            "positions": db_board.positions,
-            "dice": db_board.dice,
-            "turn": db_board.turn,
-            "white_bar": db_board.white_bar,
-            "black_bar": db_board.black_bar,
-            "white_off": db_board.white_off,
-            "black_off": db_board.black_off,
-            "rolled": db_board.rolled
-        }
+        board = Board(board_db=db_board)
         emit("message", {"message": "attempting to join room"})
         join_room(room_code)
         emit("joined_room", {"room_code": room_code}, room=request.sid)
-        emit("update_board", board_dict, room=request.sid)
+        emit("update_board", board.convert(), room=request.sid)
         
         
 @socketio.on("leave_room")
@@ -110,7 +102,6 @@ def test():
 
 @app.route("/api/button_test", methods=["GET"])
 def button_test():
-    print("button was pressed")
     return {"message": "button was pressed"}
 
 @socketio.on("reset_board")
@@ -128,14 +119,13 @@ def reset_board(data):
 
 @socketio.on("move")
 def move(data):
-    print(data)
     room_code = data["roomCode"]
     db_board = Game.query.filter_by(room_code=room_code).order_by(Game.id.desc()).first()
     if not db_board:
         emit("error", {"message": "Room not found"}, room=request.sid)
     else:
         board = Board(board_db=db_board)
-        if not board.move(data["current"], data["next"]):
+        if not board.move_from_sequence(data["moveSequence"]):
             emit('error', {'message': 'Invalid move'}, room=request.sid)
         board_dict = board.convert()
         update_board_db(room_code, board_dict)
@@ -149,10 +139,14 @@ def roll_dice(data):
         emit("error", {"message": "Room not found"}, room=request.sid)
     else:
         board = Board(board_db=db_board)
-        dice, valid_moves = board.roll_dice()
-        print(valid_moves)
+        valid_dice, invalid_dice, valid_moves = board.roll_dice()
         update_board_db(room_code, board.convert())
-        emit("update_dice", dice, room=room_code)
+        update_data = {
+            "dice": valid_dice,
+            "invalidDice": invalid_dice,
+            "validMoves": valid_moves
+        }
+        emit("update_dice", update_data, room=room_code)
 
 
 @app.route("/api/set_board", methods=["POST"])
