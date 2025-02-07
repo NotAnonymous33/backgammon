@@ -21,8 +21,8 @@ class Board:
             self.positions = [[] for i in range(24)]
             #initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
             #initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
-            initial_white = [(i, 1) for i in range(18, 24)]
-            initial_black = [(i, 1) for i in range(0, 6)]
+            initial_white = [(i, 2) for i in range(18, 20)]
+            initial_black = [(i, 2) for i in range(4, 6)]
                    
             
             for pos, count in initial_white:
@@ -371,15 +371,17 @@ class Board:
                 # maybe i need to return something here, check later TODO
             else: # self.turn == Color.BLACK
                 for dice in self.dice:
-                    if dice == current - 1:
+                    if dice == current + 1:
                         return True
-                for pos in range(6, -1, -1):
+                for pos in range(5, -1, -1):
                     if len(self.positions[pos]) > 0 and self.positions[pos][0] == Color.BLACK:
                         if current == pos:
                             return True
                         else:
                             return False
                 return False
+            # TODO im pretty sure theres a problem where you can bear off with a value greater than the dice
+            # i think im just too stupid to fix this 
         
         # reentering checkers
         if self.turn == Color.WHITE and self.white_bar > 0:

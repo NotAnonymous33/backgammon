@@ -138,15 +138,17 @@ export default function Board() {
         })
 
         socket.on("update_dice", (data: { dice: number[]; validMoves: number[][][]; invalidDice: number[]; rolled: boolean }) => {
-            const newGameState: GameState = {
-                ...gameState,
-                dice: data.dice.map(Number),
-                validMoves: data.validMoves,
-                invalidDice: data.invalidDice.map(Number),
-            }
-            setGameState(newGameState)
-            originalGameStateRef.current = newGameState
-            verbose && console.log("Updated dice:", data.dice)
+            setGameState((prevState) => {
+                const newGameState: GameState = {
+                    ...prevState,
+                    dice: data.dice.map(Number),
+                    validMoves: data.validMoves,
+                    invalidDice: data.invalidDice.map(Number),
+                }
+                originalGameStateRef.current = newGameState
+                verbose && console.log("Updated dice:", data.dice)
+                return newGameState
+            })
         })
 
         socket.on("message", (data) => {
@@ -223,8 +225,16 @@ export default function Board() {
                     prev.turn === 1 ? newDice.indexOf(next + 1) : newDice.indexOf(24 - next)
             }
             if (next === 100 || next === -100) {
-                diceIndex = newDice.indexOf(Math.max(...newDice))
+                if (next === 100) {
+                    diceIndex = newDice.indexOf(24 - current)
+                } else {
+                    diceIndex = newDice.indexOf(current + 1)
+                }
+                if (diceIndex < 0) {
+                    diceIndex = newDice.indexOf(Math.max(...newDice))
+                }
             }
+
             if (diceIndex >= 0) {
                 newDice.splice(diceIndex, 1)
             }
@@ -264,6 +274,7 @@ export default function Board() {
         verbose && console.log("rollDice")
         verbose && console.log("rolled: ", rolled)
         if (rolled) return
+        verbose && console.log("emitting roll_dice")
         socket.emit("roll_dice", { roomCode })
     }
 
