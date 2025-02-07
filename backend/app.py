@@ -140,6 +140,7 @@ def roll_dice(data):
     else:
         board = Board(board_db=db_board)
         valid_dice, invalid_dice, valid_moves = board.roll_dice()
+        print(f"{valid_dice=}, {invalid_dice=}")
         update_board_db(room_code, board.convert())
         update_data = {
             "dice": valid_dice,

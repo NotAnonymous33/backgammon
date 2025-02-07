@@ -21,6 +21,8 @@ class Board:
             self.positions = [[] for i in range(24)]
             initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
             initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
+            # initial_white = [(i, 1) for i in range(18, 24)]
+            # initial_black = [(i, 1) for i in range(0, 6)]
                    
             
             for pos, count in initial_white:
@@ -37,8 +39,8 @@ class Board:
             self.white_off = 1
             self.black_off = 1
             
-            self.white_bar = 1
-            self.black_bar = 1
+            self.white_bar = 0
+            self.black_bar = 0
         elif board_dict is not None:
             try:
                 self.positions = []
@@ -148,7 +150,7 @@ class Board:
             
             
             # TODO: deal with bearing off and reentering checkers
-            # bearing off moves
+            # reentering moves
             if board.turn == Color.WHITE and board.white_bar > 0:
                 for i in range(6):
                     board_copy = deepcopy(board)
@@ -322,7 +324,6 @@ class Board:
             else:
                 self.positions[next].append(self.positions[current].pop())
             self.dice.remove((next - current) * self.turn.value)
-            # TODO: swap turn on confirm move
         return True
     
     def swap_turn(self):
@@ -333,7 +334,7 @@ class Board:
         
     
     def is_valid(self, current, next): 
-        #TODO: unit tests
+        # TODO: unit tests
         # current can't be empty
         if current not in range(24) and current != -1:
             return False
@@ -354,15 +355,21 @@ class Board:
                 # no exact dice
                 for pos in range(18, 24):
                     if len(self.positions[pos]) > 0 and self.positions[pos][0] == Color.WHITE:
-                        # TODO: something should go here for when you can bear off with greater dice
-                        # acc too many rules it might be time to start from scratch
-                        # ugh and i need to redo the UI again
-                        pass
-                return False
-            else:
+                        if current == pos:
+                            return True
+                        else:
+                            return False
+                # maybe i need to return something here, check later TODO
+            else: # self.turn == Color.BLACK
                 for dice in self.dice:
                     if dice == 24 - current:
                         return True
+                for pos in range(6, -1, -1):
+                    if len(self.positions[pos]) > 0 and self.positions[pos][0] == Color.BLACK:
+                        if current == pos:
+                            return True
+                        else:
+                            return False
                 return False
         
         # reentering checkers

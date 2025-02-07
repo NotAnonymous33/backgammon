@@ -166,29 +166,42 @@ export default function Board() {
             const newBoard = [...prev.board]
             let newWhiteBar = prev.whiteBar
             let newBlackBar = prev.blackBar
+            let newWhiteBearOff = prev.whiteBearOff
+            let newBlackBearOff = prev.blackBearOff
 
-            // moving from the bar
-            if (current === -1) {
-                if (prev.turn === 1) { // white move
-                    newWhiteBar -= 1
-                } else { // black move
-                    newBlackBar -= 1
-                }
-            } else {
-                newBoard[current] = newBoard[current] - prev.turn
+            if (next === 100) {
+                // bear off white
+                newBoard[current] -= 1
+                newWhiteBearOff += 1
             }
-            // If the destination has a single opposing checker, capture it:
-            if (newBoard[next] === -prev.turn) {
-                newBoard[next] = prev.turn
-                // update bar count
-                if (prev.turn === 1) {
-                    // captured black checker
-                    newBlackBar += 1
-                } else {
-                    newWhiteBar += 1
-                }
+            else if (next === -100) {
+                // bear off black
+                newBoard[current] += 1
+                newBlackBearOff += 1
             } else {
-                newBoard[next] = newBoard[next] + prev.turn
+                // moving from the bar
+                if (current === -1) {
+                    if (prev.turn === 1) { // white move
+                        newWhiteBar -= 1
+                    } else { // black move
+                        newBlackBar -= 1
+                    }
+                } else {
+                    newBoard[current] = newBoard[current] - prev.turn
+                }
+                // If the destination has a single opposing checker, capture it:
+                if (newBoard[next] === -prev.turn) {
+                    newBoard[next] = prev.turn
+                    // update bar count
+                    if (prev.turn === 1) {
+                        // captured black checker
+                        newBlackBar += 1
+                    } else {
+                        newWhiteBar += 1
+                    }
+                } else {
+                    newBoard[next] = newBoard[next] + prev.turn
+                }
             }
 
             // remove the used die
@@ -199,6 +212,9 @@ export default function Board() {
                     prev.turn === 1
                         ? newDice.indexOf(next + 1)
                         : newDice.indexOf(24 - next)
+            }
+            if (next == 100 || next == -100) {
+                diceIndex = newDice.indexOf(Math.max(...newDice))
             }
             if (diceIndex >= 0) {
                 newDice.splice(diceIndex, 1)
@@ -219,6 +235,8 @@ export default function Board() {
                 validMoves: newValidMoves,
                 whiteBar: newWhiteBar,
                 blackBar: newBlackBar,
+                whiteBearOff: newWhiteBearOff,
+                blackBearOff: newBlackBearOff,
             }
         })
     }
@@ -312,8 +330,7 @@ export default function Board() {
         return false
     }
 
-    // handleClick and drag handlers remain mostly the same,
-    // but they now reference gameState (instead of individual state vars).
+
     function handleClick(index: number, barColor: number = 0) {
         verbose && console.log(`handleClick(${index}, ${barColor})`)
         verbose && console.log(`selectedChecker: ${selectedChecker}`)
@@ -683,6 +700,8 @@ export default function Board() {
             <h2>turn: {gameState.turn}</h2>
             <h2>active piece: {selectedChecker}</h2>
             <h3>dice: {gameState.dice.join(", ")}</h3>
+            <h3>{gameState.invalidDice}</h3>
+            {/* <h3>invalid dice: {gameState.invalidDice.join(", ")}</h3> */}
 
 
         </>
