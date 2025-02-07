@@ -19,6 +19,8 @@ board = Board()
 
 rooms = {}
 
+verbose = True
+
 def generate_code():
     code = "".join(list(map(lambda x: chr(randint(65, 90)), range(5))))
     while code in rooms:
@@ -104,6 +106,7 @@ def test():
 def button_test():
     return {"message": "button was pressed"}
 
+# TODO: i think this isn't used anywhere
 @socketio.on("reset_board")
 def reset_board(data):
     room_code = data.get('room_code')
@@ -119,20 +122,28 @@ def reset_board(data):
 
 @socketio.on("move")
 def move(data):
+    verbose and print(f"app:move data: {data}")
     room_code = data["roomCode"]
     db_board = Game.query.filter_by(room_code=room_code).order_by(Game.id.desc()).first()
     if not db_board:
         emit("error", {"message": "Room not found"}, room=request.sid)
     else:
         board = Board(board_db=db_board)
-        if not board.move_from_sequence(data["moveSequence"]):
-            emit('error', {'message': 'Invalid move'}, room=request.sid)
-        board_dict = board.convert()
-        update_board_db(room_code, board_dict)
-        emit("update_board", board_dict, broadcast=True)
+        move_result = board.move_from_sequence(data["moveSequence"])
+        if move_result:
+            emit("message", {"message": "Game won"}, room=request.sid)
+            return
+        elif move_result == False:
+            emit("error", {"message": "Invalid move"}, room=request.sid)
+        elif move_result is None:
+            board_dict = board.convert()
+            update_board_db(room_code, board_dict)
+            emit("update_board", board_dict, broadcast=True)
 
 @socketio.on("roll_dice")
 def roll_dice(data):
+    verbose and print(f"app:roll_dice data: {data}")
+    
     room_code = data["roomCode"]
     db_board = Game.query.filter_by(room_code=room_code).order_by(Game.id.desc()).first()
     if not db_board:
@@ -145,13 +156,15 @@ def roll_dice(data):
         update_data = {
             "dice": valid_dice,
             "invalidDice": invalid_dice,
-            "validMoves": valid_moves
+            "validMoves": valid_moves,
+            "rolled": board.rolled
         }
         emit("update_dice", update_data, room=room_code)
 
 
 @app.route("/api/set_board", methods=["POST"])
 def set_board():
+    verbose and print("app:set_board")
     data = request.json
     room_code = data["roomCode"]
     db_board = Game.query.filter_by(room_code=room_code).order_by(Game.id.desc()).first()

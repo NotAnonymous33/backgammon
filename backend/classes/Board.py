@@ -16,13 +16,13 @@ class Board:
     black_bar: int
     
     def __init__(self, board_dict=None, board_db=None, verbose=False):
-        self.verbose = verbose
+        self.verbose = True
         if board_dict is None and board_db is None:
             self.positions = [[] for i in range(24)]
-            initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
-            initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
-            # initial_white = [(i, 1) for i in range(18, 24)]
-            # initial_black = [(i, 1) for i in range(0, 6)]
+            #initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
+            #initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
+            initial_white = [(i, 1) for i in range(18, 24)]
+            initial_black = [(i, 1) for i in range(0, 6)]
                    
             
             for pos, count in initial_white:
@@ -116,17 +116,13 @@ class Board:
 
     
     def get_invalid_dice(self):
+        self.verbose and print("Board:get_invalid_dice")
         invalid_dice = self.dice[:]
         max_length = 0
         max_die = 0
-        if self.verbose:
-            print("---------------------------------------")
         
         # returns whether or not there is a valid move using all dice
         def verify_permutation(board: Board, remaining_dice, move_sequence):
-            if self.verbose:
-                print(f"{remaining_dice=}, {move_sequence=}")
-                print(board)
             move_sequence = move_sequence[:]
             nonlocal max_length
             nonlocal max_die
@@ -148,8 +144,6 @@ class Board:
                 max_die = max(move_sequence)
                 invalid_dice = remaining_dice
             
-            
-            # TODO: deal with bearing off and reentering checkers
             # reentering moves
             if board.turn == Color.WHITE and board.white_bar > 0:
                 for i in range(6):
@@ -225,7 +219,8 @@ class Board:
                 moves.add((start, -100))
         return moves
         
-    def get_valid_moves(self):        
+    def get_valid_moves(self):
+        self.verbose and print("Board:get_valid_moves")
         def dfs(board: Board, prev_moves):
             if not board.dice:
                 return [prev_moves]
@@ -274,24 +269,36 @@ class Board:
         return ret
     
     def move_from_sequence(self, sequence):
+        self.verbose and print("Board:move_from_sequence")
         for move in sequence:
             if not self.move(*move):
                 return False
+        if self.has_won():
+            return True
         if self.rolled and len(self.dice) == 0:
             self.swap_turn()
+    
+    def has_won(self):
+        return self.white_off == 15 or self.black_off == 15
     
     def move(self, current, next):
         if not self.is_valid(current, next):
             return False
         
         # bearing off
-        if next == 100:
+        if next == 100 or next == -100:
             if self.turn == Color.WHITE:
                 self.white_off += 1
-                self.dice.remove(24 - current)
+                if (24 - current) in self.dice:
+                    self.dice.remove(24 - current)
+                else:
+                    self.dice.remove(max(self.dice))
             else:
                 self.black_off += 1
-                self.dice.remove(current + 1)
+                if (current - 1) in self.dice:
+                    self.dice.remove(current - 1)
+                else:
+                    self.dice.remove(max(self.dice))
             self.positions[current].pop()
             if len(self.dice) == 0:
                 self.swap_turn()
@@ -327,10 +334,12 @@ class Board:
         return True
     
     def swap_turn(self):
+        self.verbose and print("Board:swap_turn")
         self.turn = Color.WHITE if self.turn == Color.BLACK else Color.BLACK
         self.rolled = False
         self.dice = []
         self.invalid_dice = []
+        self.valid_moves = []
         
     
     def is_valid(self, current, next): 
@@ -362,7 +371,7 @@ class Board:
                 # maybe i need to return something here, check later TODO
             else: # self.turn == Color.BLACK
                 for dice in self.dice:
-                    if dice == 24 - current:
+                    if dice == current - 1:
                         return True
                 for pos in range(6, -1, -1):
                     if len(self.positions[pos]) > 0 and self.positions[pos][0] == Color.BLACK:
@@ -409,6 +418,7 @@ class Board:
         return False
     
     def roll_dice(self) -> list[int]:
+        self.verbose and print("Board:roll_dice")
         if self.rolled:
             return self.dice, self.invalid_dice, self.valid_moves
         self.dice = [randint(1, 6), randint(1, 6)]
