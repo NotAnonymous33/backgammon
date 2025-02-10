@@ -124,6 +124,7 @@ export default function Board() {
         socket.connect()
         socket.emit("join_room", { roomCode })
 
+
         socket.on("connect", () => {
             verbose && console.log("socket:connect")
         })
@@ -136,6 +137,16 @@ export default function Board() {
             verbose && console.log("socket:update_board")
             setVals(data)
         })
+
+        socket.on("game_over", (data: { winner: number }) => {
+            setMessage(`Game Over: ${data.winner}`)
+            verbose && console.log("Game Over:", JSON.stringify(data))
+            // setGameOver(true) <- to disable further moves maybe TODO
+            // I can actually retrieve it from the setVals now TODO
+        })
+
+        // TODO: if there are more than X checkers on a point, need to reduce space between them
+        // TODO: same with bear off area
 
         socket.on("update_dice", (data: { dice: number[]; validMoves: number[][][]; invalidDice: number[]; rolled: boolean }) => {
             setGameState((prevState) => {
@@ -163,9 +174,13 @@ export default function Board() {
             socket.off("update_dice")
             socket.off("message")
             socket.off("update_valid_moves")
+            socket.off("game_over")
             socket.disconnect()
         }
     }, [roomCode])
+
+    // moving pieces when you havent rolled is most definitely bugged TODO
+    // TODO you can roll dice after youved used all the dice
 
     function confirmMove() {
         //--- confirm move by emitting to server
@@ -268,7 +283,8 @@ export default function Board() {
         setMoveSequence([])
     }
 
-    // TODO: if i move, roll dice, then reset, valid_moves is empty (no confirm). shit is bugged the fuck out dawg idk man
+    // TODO: if i move, roll dice, then reset, valid_moves is empty (no confirm)
+    // TODO: i think i removed this bug but i actually cant remember
 
     function rollDice() {
         verbose && console.log("rollDice")
@@ -336,17 +352,17 @@ export default function Board() {
 
     //--- check move validity against valid moves in gameState
     function moveIsValid(current: number, next: number) {
-        verbose && console.log(`moveIsValid(${current}, ${next})`)
+        // verbose && console.log(`moveIsValid(${current}, ${next})`)
         for (let i = 0; i < gameState.validMoves.length; i++) {
             if (
                 gameState.validMoves[i][0][0] === current &&
                 gameState.validMoves[i][0][1] === next
             ) {
-                verbose && console.log("Move is valid")
+                // verbose && console.log("Move is valid")
                 return true
             }
         }
-        verbose && console.log("Move is invalid")
+        // verbose && console.log("Move is invalid")
         return false
     }
 
@@ -440,7 +456,7 @@ export default function Board() {
         if (dragPointIndex === null || !dragColor) return
         const { x, y } = dragPosition
         const { x: initialX, y: initialY } = initialDragPosition
-        //--- if movement is minimal, treat as a click
+        // if move is less than 5 pixels, consider it a click
         if (Math.abs(x - initialX) < 5 && Math.abs(y - initialY) < 5) {
             if (dragPointIndex !== -1) {
                 handleClick(dragPointIndex)
@@ -522,13 +538,14 @@ export default function Board() {
         return { x, y }
     }
 
+
     return (
         <>
-            <h2>White bar: {gameState.whiteBar}</h2>
+            {/* <h2>White bar: {gameState.whiteBar}</h2>
             <h2>Black bar: {gameState.blackBar}</h2>
             <h2>White bear off: {gameState.whiteBearOff}</h2>
             <h2>Black bear off: {gameState.blackBearOff}</h2>
-            <h2>Can bear off: {canBearOff(gameState.turn) ? "Yes" : "No"}</h2>
+            <h2>Can bear off: {canBearOff(gameState.turn) ? "Yes" : "No"}</h2> */}
             <h2>message: {JSON.stringify(message)}</h2>
 
             <div style={{ display: "flex" }}>
@@ -584,7 +601,8 @@ export default function Board() {
                         onClick={() => handleClick(-100)}
                     />
 
-                    {/*//--- triangles */}
+
+                    {/* triangles */}
                     {triangleCoords.map((coords, index) => {
                         const [x1, y1, x2, y2, x3, y3] = coords
                         const fill = index % 2 === 0 ? darkPointColour : lightPointColour
@@ -594,18 +612,28 @@ export default function Board() {
                             const midY = y1 + pointHeight / 2
                             transform = `rotate(180, ${midX}, ${midY})`
                         }
+                        let strokeColor = "#000"
+                        let strokeWidthValue = 1
+
+                        const origin = selectedChecker !== null ? selectedChecker : (dragPointIndex !== null ? dragPointIndex : null)
+                        if (origin !== null && moveIsValid(origin, index)) {
+                            strokeColor = index % 2 === 0 ? "#00CC00" : "#00FF00"
+                            strokeWidthValue = 3
+                        }
                         return (
                             <polygon
                                 key={index}
                                 points={`${x1},${y1} ${x2},${y2} ${x3},${y3}`}
                                 fill={fill}
-                                stroke="#000"
-                                strokeWidth={1}
+                                stroke={strokeColor}
+                                strokeWidth={strokeWidthValue}
                                 transform={transform}
                                 onClick={() => handleClick(index)}
                             />
                         )
                     })}
+
+
 
                     {/*//--- checkers on board */}
                     {gameState.board.map((pointVal, pointIndex) => {

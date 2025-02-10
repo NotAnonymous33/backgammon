@@ -14,6 +14,7 @@ class Game(db.Model):
     white_off = db.Column(db.Integer, nullable=False)
     black_off = db.Column(db.Integer, nullable=False)
     rolled = db.Column(db.Boolean, nullable=False)
+    game_over = db.Column(db.Boolean, nullable=False)
     
     def convert(self):
         return {
@@ -26,4 +27,5 @@ class Game(db.Model):
             "white_off": self.white_off,
             "black_off": self.black_off,
             "rolled": self.rolled,
+            "game_over": self.game_over
         }

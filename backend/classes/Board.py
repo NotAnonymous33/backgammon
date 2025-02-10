@@ -17,12 +17,18 @@ class Board:
     
     def __init__(self, board_dict=None, board_db=None, verbose=False):
         self.verbose = True
-        if board_dict is None and board_db is None:
+        if board_dict is None and board_db is None: # no params
             self.positions = [[] for i in range(24)]
-            #initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
-            #initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
-            initial_white = [(i, 2) for i in range(18, 20)]
-            initial_black = [(i, 2) for i in range(4, 6)]
+            initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
+            initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
+            
+            # bearing off testing inital
+            # initial_white = [(i, 2) for i in range(18, 20)]
+            # initial_black = [(i, 2) for i in range(4, 6)]
+            
+            # game over testing initial
+            # initial_white = [(22, 2)]
+            # initial_black = [(0, 2)]
                    
             
             for pos, count in initial_white:
@@ -36,12 +42,14 @@ class Board:
             self.rolled = False
             self.turn = Color.WHITE
             
-            self.white_off = 1
-            self.black_off = 1
+            self.white_off = 0
+            self.black_off = 0
             
             self.white_bar = 0
             self.black_bar = 0
-        elif board_dict is not None:
+            
+            self.game_over = False
+        elif board_dict is not None: # board dict
             try:
                 self.positions = []
                 for pos in board_dict["positions"]:
@@ -58,9 +66,10 @@ class Board:
                 self.black_off = board_dict["black_off"]
                 self.valid_moves = self.get_valid_moves()
                 self.invalid_dice = self.get_invalid_dice()
+                self.game_over = board_dict["game_over"]
             except KeyError:
                 self.__init__()
-        else:
+        else: # board db
             self.positions = []
             for pos in board_db.positions:
                 if pos > 0:
@@ -74,6 +83,7 @@ class Board:
             self.black_bar = board_db.black_bar
             self.white_off = board_db.white_off
             self.black_off = board_db.black_off
+            self.game_over = board_db.game_over
             self.invalid_dice = self.get_invalid_dice()
             self.valid_moves = self.get_valid_moves()
             # TODO if there is an attribute(?) error, call init
@@ -264,7 +274,8 @@ class Board:
             "rolled": self.rolled,
             "white_off": self.white_off,
             "black_off": self.black_off,
-            "valid_moves": self.valid_moves
+            "valid_moves": self.valid_moves,
+            "game_over": self.game_over
         }        
         return ret
     
@@ -274,6 +285,7 @@ class Board:
             if not self.move(*move):
                 return False
         if self.has_won():
+            self.game_over = True
             return True
         if self.rolled and len(self.dice) == 0:
             self.swap_turn()
@@ -362,6 +374,8 @@ class Board:
                     if dice == 24 - current:
                         return True
                 # no exact dice
+                if 24 - current > max(self.dice):
+                    return False
                 for pos in range(18, 24):
                     if len(self.positions[pos]) > 0 and self.positions[pos][0] == Color.WHITE:
                         if current == pos:
@@ -373,6 +387,8 @@ class Board:
                 for dice in self.dice:
                     if dice == current + 1:
                         return True
+                if current + 1 > max(self.dice):
+                    return False
                 for pos in range(5, -1, -1):
                     if len(self.positions[pos]) > 0 and self.positions[pos][0] == Color.BLACK:
                         if current == pos:
@@ -421,6 +437,8 @@ class Board:
     
     def roll_dice(self) -> list[int]:
         self.verbose and print("Board:roll_dice")
+        if self.game_over:
+            return False
         if self.rolled:
             return self.dice, self.invalid_dice, self.valid_moves
         self.dice = [randint(1, 6), randint(1, 6)]

@@ -25,7 +25,6 @@ def generate_code():
     code = "".join(list(map(lambda x: chr(randint(65, 90)), range(5))))
     while code in rooms:
         code = "".join(list(map(lambda x: chr(randint(65, 90)), range(5))))
-    
     return code
 
 @app.route("/api/new_game", methods=["POST"])
@@ -47,7 +46,8 @@ def add_board_db(room_code: str, board_dict: dict):
         black_bar=board_dict["black_bar"],
         white_off=board_dict["white_off"],
         black_off=board_dict["black_off"],
-        rolled=board_dict["rolled"]
+        rolled=board_dict["rolled"],
+        game_over=board_dict["game_over"]
     )
     db.session.add(db_board)
     db.session.commit()
@@ -130,27 +130,29 @@ def move(data):
     else:
         board = Board(board_db=db_board)
         move_result = board.move_from_sequence(data["moveSequence"])
-        if move_result:
-            emit("message", {"message": "Game won"}, room=request.sid)
-            return
-        elif move_result == False:
+        if move_result == False:
             emit("error", {"message": "Invalid move"}, room=request.sid)
-        elif move_result is None:
+        else:
+            if move_result == True:
+                emit("game_over", {"winner": "white" if board.white_off == 15 else "black"}, room=room_code)
             board_dict = board.convert()
             update_board_db(room_code, board_dict)
-            emit("update_board", board_dict, broadcast=True)
-
+            emit("update_board", board_dict, room=room_code)
+        
 @socketio.on("roll_dice")
 def roll_dice(data):
-    verbose and print(f"app:roll_dice data: {data}")
-    
+    verbose and print(f"app:roll_dice data: {data}")    
     room_code = data["roomCode"]
     db_board = Game.query.filter_by(room_code=room_code).order_by(Game.id.desc()).first()
     if not db_board:
         emit("error", {"message": "Room not found"}, room=request.sid)
     else:
         board = Board(board_db=db_board)
-        valid_dice, invalid_dice, valid_moves = board.roll_dice()
+        roll_dice_result = board.roll_dice()
+        if roll_dice_result == False:
+            emit("error", {"message": "Game is Over"}, room=request.sid)
+            return
+        valid_dice, invalid_dice, valid_moves = roll_dice_result
         print(f"{valid_dice=}, {invalid_dice=}")
         update_board_db(room_code, board.convert())
         update_data = {
