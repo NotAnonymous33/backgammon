@@ -220,7 +220,7 @@ class Board:
             for i in range(23, 17, -1):
                 if self.is_valid(-1, i):
                     moves.add((-1, i))
-                    return moves
+            return moves
         for start in range(23, -1, -1):
             for end in range(start - 1, -1, -1):
                 if self.is_valid(start, end):
@@ -280,6 +280,11 @@ class Board:
         return ret
     
     def move_from_sequence(self, sequence):
+        # TODO: you can probably make partial moves which should not be a thing i imagine
+        # i mean theres nothing wrong with it exactly i just dont like the idea of it
+        # also might mess up some stuff frontend based off my assumptions when writing 
+        # maybe not because i thankfully consider variable number of dice
+        # doesnt matter, just need to remove it in the future pls thank you future ismail
         self.verbose and print("Board:move_from_sequence")
         for move in sequence:
             if not self.move(*move):
@@ -412,11 +417,11 @@ class Board:
             return True
         
         if self.turn == Color.BLACK and self.black_bar > 0:
-            if not (24-next) in self.dice:
-                return False
             if current != -1:
                 return False
             if next < 18:
+                return False
+            if not (24-next) in self.dice:
                 return False
             if len(self.positions[next]) > 1 and self.positions[next][0] == Color.WHITE:
                 return False

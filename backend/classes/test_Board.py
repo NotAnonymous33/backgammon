@@ -120,6 +120,16 @@ class TestBoard(unittest.TestCase):
         single_moves = self.board.get_single_moves()
         expected_moves = {(18, 19), (18, 20), (19, 20), (19, 21), (20, 21), (20, 22), (21, 22), (21, 23), (22, 23), (22, 100), (23, 100)}
         self.assertEqual(single_moves, expected_moves)
+        
+    def test_get_single_moves_bearing_off_black(self):
+        self.board.positions = [[] for _ in range(24)]
+        self.board.black_bar = 1
+        self.board.turn = Color.BLACK
+        self.board.dice = [1, 2]
+        self.board.rolled = True
+        single_moves = self.board.get_single_moves()
+        expected_moves = {(-1, 23), (-1, 22)}
+        self.assertEqual(single_moves, expected_moves)
 
 
     def test_get_valid_moves_no_moves(self):
