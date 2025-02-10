@@ -110,7 +110,7 @@ export default function Board() {
     }
 
     useEffect(() => {
-        //--- log move sequence update
+        //--- log move sequence 
         verbose && console.log(`moveSequence ${moveSequence}`)
     }, [moveSequence])
 
@@ -149,6 +149,7 @@ export default function Board() {
         // TODO: same with bear off area
 
         socket.on("update_dice", (data: { dice: number[]; validMoves: number[][][]; invalidDice: number[]; rolled: boolean }) => {
+            setRolled(data.rolled)
             setGameState((prevState) => {
                 const newGameState: GameState = {
                     ...prevState,
