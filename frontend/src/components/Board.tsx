@@ -355,11 +355,13 @@ export default function Board() {
     function moveIsValid(current: number, next: number) {
         // verbose && console.log(`moveIsValid(${current}, ${next})`)
         for (let i = 0; i < gameState.validMoves.length; i++) {
+            if (gameState.validMoves[i].length === 0) {
+                return false
+            }
             if (
                 gameState.validMoves[i][0][0] === current &&
                 gameState.validMoves[i][0][1] === next
             ) {
-                // verbose && console.log("Move is valid")
                 return true
             }
         }
@@ -539,6 +541,12 @@ export default function Board() {
         return { x, y }
     }
 
+    const [origin, setOrigin] = useState<number | null>(null)
+    useEffect(() => {
+        setOrigin(selectedChecker !== null ? selectedChecker : (dragPointIndex !== null ? dragPointIndex : null));
+    }, [selectedChecker, dragPointIndex]);
+
+
 
     return (
         <>
@@ -586,8 +594,8 @@ export default function Board() {
                         width={bearOffWidth}
                         height={blackBearOffHeight}
                         fill={innerBoardColour}
-                        stroke="#000"
-                        strokeWidth={1}
+                        stroke={(origin !== null && moveIsValid(origin, 100)) ? "#00FF00" : "#000"}
+                        strokeWidth={(origin !== null && moveIsValid(origin, 100)) ? 3 : 1}
                         onClick={() => handleClick(100)}
                     />
                     {/*//--- black bearing off area */}
@@ -597,8 +605,8 @@ export default function Board() {
                         width={bearOffWidth}
                         height={blackBearOffHeight}
                         fill={innerBoardColour}
-                        stroke="#000"
-                        strokeWidth={1}
+                        stroke={(origin !== null && moveIsValid(origin, -100)) ? "#00FF00" : "#000"}
+                        strokeWidth={(origin !== null && moveIsValid(origin, -100)) ? 3 : 1}
                         onClick={() => handleClick(-100)}
                     />
 
@@ -616,7 +624,6 @@ export default function Board() {
                         let strokeColor = "#000"
                         let strokeWidthValue = 1
 
-                        const origin = selectedChecker !== null ? selectedChecker : (dragPointIndex !== null ? dragPointIndex : null)
                         if (origin !== null && moveIsValid(origin, index)) {
                             strokeColor = index % 2 === 0 ? "#00CC00" : "#00FF00"
                             strokeWidthValue = 3
@@ -633,7 +640,6 @@ export default function Board() {
                             />
                         )
                     })}
-
 
 
                     {/*//--- checkers on board */}
@@ -757,10 +763,10 @@ export default function Board() {
                 </svg>
 
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                    <button onClick={resetBoard}>Reset</button>
-                    <button onClick={confirmMove}>Confirm</button>
                     <button onClick={rollDice}>Roll dice</button>
-                    <button onClick={testButton}>test</button>
+                    <button onClick={confirmMove}>Confirm</button>
+                    <button onClick={resetBoard}>Reset</button>
+                    {/* <button onClick={testButton}>test</button> */}
                 </div>
             </div>
 

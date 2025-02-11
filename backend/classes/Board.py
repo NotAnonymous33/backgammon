@@ -312,8 +312,8 @@ class Board:
                     self.dice.remove(max(self.dice))
             else:
                 self.black_off += 1
-                if (current - 1) in self.dice:
-                    self.dice.remove(current - 1)
+                if (current + 1) in self.dice:
+                    self.dice.remove(current + 1)
                 else:
                     self.dice.remove(max(self.dice))
             self.positions[current].pop()
