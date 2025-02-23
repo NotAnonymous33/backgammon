@@ -7,6 +7,14 @@ from random import randint
 from itertools import permutations
 from copy import deepcopy
 
+
+def list_diff(a, b):
+    a_copy = a[:]
+    for i in b:
+        if i in a_copy:
+            a_copy.remove(i)
+    return a_copy
+
 class Board:
     rolled: bool
     turn: Color
@@ -16,15 +24,14 @@ class Board:
     black_bar: int
     
     def __init__(self, board_dict=None, board_db=None, verbose=False):
-        self.verbose = True
+        self.verbose = False
         if board_dict is None and board_db is None: # no params
             self.positions = [[] for i in range(24)]
             initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
             initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
             
-            # bearing off testing inital
-            # initial_white = [(i, 2) for i in range(18, 20)]
-            # initial_black = [(i, 2) for i in range(4, 6)]
+            # initial_white = [(11, 4), (16, 2), (17, 1), (18, 4), (20, 2)]
+            # initial_black = [(1, 2), (2, 1), (4, 1), (5, 3), (6, 1), (7, 2), (12, 3), (21, 1)]
             
             # game over testing initial
             # initial_white = [(22, 2)]
@@ -124,7 +131,6 @@ class Board:
         # Combine all parts
         return bar + bottom + top + off_board
 
-    
     def get_invalid_dice(self):
         self.verbose and print("Board:get_invalid_dice")
         invalid_dice = self.dice[:]
@@ -159,14 +165,14 @@ class Board:
                 for i in range(6):
                     board_copy = deepcopy(board)
                     if board_copy.move(-1, i):
-                        if verify_permutation(board_copy, remaining_dice[1:], move_sequence + [remaining_dice[0]]):
+                        if verify_permutation(board_copy, board_copy.dice, move_sequence + list_diff(board.dice, board_copy.dice)):
                             return True
                 return
             if board.turn == Color.BLACK and board.black_bar > 0:
                 for i in range(23, 17, -1):
                     board_copy = deepcopy(board)
                     if board_copy.move(-1, i):
-                        if verify_permutation(board_copy, remaining_dice[1:], move_sequence + [remaining_dice[0]]):
+                        if verify_permutation(board_copy, board_copy.dice, move_sequence + list_diff(board.dice, board_copy.dice)):
                             return True
                 return
             
@@ -189,9 +195,9 @@ class Board:
                         if verify_permutation(board_copy, remaining_dice[1:], move_sequence + [remaining_dice[0]]):
                             return True         
         
-        for permutation in permutations(self.dice):
-            if verify_permutation(deepcopy(self), list(permutation), []):
-                return []
+        if verify_permutation(deepcopy(self), self.dice, []):
+            return []
+        
         
         for die in invalid_dice:
             self.dice.remove(die)
@@ -450,6 +456,19 @@ class Board:
         if self.dice[0] == self.dice[1]:
             self.dice.append(self.dice[0])
             self.dice.append(self.dice[0])
+        self.rolled = True
+        self.invalid_dice = self.get_invalid_dice()
+        self.valid_moves = self.get_valid_moves()
+        return self.dice, self.invalid_dice, self.valid_moves
+    
+    def set_dice(self, dice) -> list[int]:
+        self.verbose and print("Board:roll_dice")
+        if self.game_over:
+            return False
+        if self.rolled:
+            return self.dice, self.invalid_dice, self.valid_moves
+        self.dice = [randint(1, 6), randint(1, 6)]
+        self.dice = dice
         self.rolled = True
         self.invalid_dice = self.get_invalid_dice()
         self.valid_moves = self.get_valid_moves()
