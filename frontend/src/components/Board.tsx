@@ -36,6 +36,12 @@ export default function Board() {
     const params = useParams()
     const roomCode = params["room_code"]
 
+    const [selectedAiAgent, setSelectedAiAgent] = useState<string>("random")
+    const [selectedAiAgent2, setSelectedAiAgent2] = useState<string>("random")
+
+    const [playerSide, setPlayerSide] = useState<string | null>(null);
+    const [playerType, setPlayerType] = useState<"human" | "ai">("human");
+
     //--- local game state
     const [gameState, setGameState] = useState<GameState>({
         board: [],
@@ -69,6 +75,7 @@ export default function Board() {
     const pointHeight = 200
     const checkerRadius = 20
     const checkerPadding = 5
+    const checkerBearOffPadding = -7
     const barWidth = 50
     const bearOffWidth = 50
     const boardPadding = 10
@@ -87,6 +94,12 @@ export default function Board() {
     const bearOffXStart = boardPadding + 12 * pointWidth + barWidth + 5
     const bearOffAreaHeight = svgHeight - 2 * boardPadding
     const blackBearOffHeight = bearOffAreaHeight / 2
+
+    useEffect(() => {
+        if (playerSide) {
+            socket.emit("join_room", { roomCode, side: playerSide, playerType });
+        }
+    }, [playerSide, playerType, roomCode]);
 
     function setVals(data: BoardType) {
         //--- log setting values
@@ -124,7 +137,6 @@ export default function Board() {
         socket.connect()
         socket.emit("join_room", { roomCode })
 
-
         socket.on("connect", () => {
             verbose && console.log("socket:connect")
         })
@@ -141,12 +153,7 @@ export default function Board() {
         socket.on("game_over", (data: { winner: number }) => {
             setMessage(`Game Over: ${data.winner}`)
             verbose && console.log("Game Over:", JSON.stringify(data))
-            // setGameOver(true) <- to disable further moves maybe TODO
-            // I can actually retrieve it from the setVals now TODO
         })
-
-        // TODO: if there are more than X checkers on a point, need to reduce space between them
-        // TODO: same with bear off area
 
         socket.on("update_dice", (data: { dice: number[]; validMoves: number[][][]; invalidDice: number[]; rolled: boolean }) => {
             setRolled(data.rolled)
@@ -180,17 +187,12 @@ export default function Board() {
         }
     }, [roomCode])
 
-    // moving pieces when you havent rolled is most definitely bugged TODO
-    // TODO you can roll dice after youved used all the dice
-
     function confirmMove() {
-        //--- confirm move by emitting to server
         verbose && console.log("confirmMove")
         socket.emit("move", { moveSequence, roomCode })
         setMoveSequence([])
     }
 
-    //--- update local game state when a move is made
     function makeLocalMove(current: number, next: number) {
         verbose && console.log(`makeLocalMove(${current}, ${next})`)
         setMoveSequence((prev) => [...prev, [current, next]])
@@ -202,15 +204,12 @@ export default function Board() {
             let newBlackBearOff = prev.blackBearOff
 
             if (next === 100) {
-                //--- bear off white
                 newBoard[current] -= 1
                 newWhiteBearOff += 1
             } else if (next === -100) {
-                //--- bear off black
                 newBoard[current] += 1
                 newBlackBearOff += 1
             } else {
-                //--- moving from the bar
                 if (current === -1) {
                     if (prev.turn === 1) {
                         newWhiteBar -= 1
@@ -220,7 +219,6 @@ export default function Board() {
                 } else {
                     newBoard[current] = newBoard[current] - prev.turn
                 }
-                //--- capture opposing checker if present
                 if (newBoard[next] === -prev.turn) {
                     newBoard[next] = prev.turn
                     if (prev.turn === 1) {
@@ -233,7 +231,6 @@ export default function Board() {
                 }
             }
 
-            //--- remove used die from dice
             let newDice = [...prev.dice]
             let diceIndex = newDice.indexOf(Math.abs(next - current))
             if (current === -1) {
@@ -254,7 +251,6 @@ export default function Board() {
             if (diceIndex >= 0) {
                 newDice.splice(diceIndex, 1)
             }
-            //--- update valid moves by filtering sequences
             const newValidMoves = prev.validMoves
                 .filter(
                     (sequence) =>
@@ -284,9 +280,6 @@ export default function Board() {
         setMoveSequence([])
     }
 
-    // TODO: if i move, roll dice, then reset, valid_moves is empty (no confirm)
-    // TODO: i think i removed this bug but i actually cant remember
-
     function rollDice() {
         verbose && console.log("rollDice")
         verbose && console.log("rolled: ", rolled)
@@ -306,33 +299,12 @@ export default function Board() {
         })()
     }
 
-    //--- check if bearing off is allowed for the current turn
-    function canBearOff(turn: number) {
-        if (turn === 1) {
-            if (gameState.whiteBar > 0) return false
-            for (let i = 0; i < 18; i++) {
-                if (gameState.board[i] > 0) return false
-            }
-            return true
-        }
-        if (turn === -1) {
-            if (gameState.blackBar > 0) return false
-            for (let i = 6; i < 24; i++) {
-                if (gameState.board[i] < 0) return false
-            }
-            return true
-        }
-        throw new Error("Invalid turn value")
-    }
-
-    //--- helper to convert point index to x coordinate
     function indexToCoords(index: number) {
         let realIndex = index < 12 ? 11 - index : index - 12
         const skipBar = realIndex >= 6 ? barWidth : 0
         return boardPadding + realIndex * pointWidth + skipBar
     }
 
-    //--- pre-calculate triangle coordinates
     const triangleCoords: [number, number, number, number, number, number][] = []
     for (let i = 0; i < 24; i++) {
         const x1 = indexToCoords(i)
@@ -351,9 +323,7 @@ export default function Board() {
         triangleCoords.push([x1, y1, x2, y2, x3, y3])
     }
 
-    //--- check move validity against valid moves in gameState
     function moveIsValid(current: number, next: number) {
-        // verbose && console.log(`moveIsValid(${current}, ${next})`)
         for (let i = 0; i < gameState.validMoves.length; i++) {
             if (gameState.validMoves[i].length === 0) {
                 return false
@@ -365,7 +335,6 @@ export default function Board() {
                 return true
             }
         }
-        // verbose && console.log("Move is invalid")
         return false
     }
 
@@ -398,7 +367,6 @@ export default function Board() {
         }
     }
 
-    //--- DRAG AND DROP HANDLERS (modified to support bearing off)
     function handleCheckerMouseDown(
         e: MouseEvent<SVGCircleElement>,
         pointIndex: number,
@@ -442,7 +410,6 @@ export default function Board() {
         setInitialDragPosition({ x, y })
         setDragOffset({ x: mouseX - x, y: mouseY - y })
         setDragPosition({ x, y })
-        //--- do not remove the checker from state on drag start
     }
 
     function handleMouseMove(e: MouseEvent<SVGSVGElement>) {
@@ -459,7 +426,6 @@ export default function Board() {
         if (dragPointIndex === null || !dragColor) return
         const { x, y } = dragPosition
         const { x: initialX, y: initialY } = initialDragPosition
-        // if move is less than 5 pixels, consider it a click
         if (Math.abs(x - initialX) < 5 && Math.abs(y - initialY) < 5) {
             if (dragPointIndex !== -1) {
                 handleClick(dragPointIndex)
@@ -470,7 +436,6 @@ export default function Board() {
             setDragColor(null)
             return
         }
-        //--- check if dropped in bearing off area
         if (x >= bearOffXStart && x <= bearOffXStart + bearOffWidth) {
             if (dragColor === "black" && y >= boardPadding && y <= boardPadding + blackBearOffHeight) {
                 if (moveIsValid(dragPointIndex, -100)) {
@@ -485,7 +450,6 @@ export default function Board() {
             setDragColor(null)
             return
         }
-        //--- otherwise, find the closest triangle on the board
         let bestPoint = -1
         let bestDist = Number.POSITIVE_INFINITY
         for (let i = 0; i < 24; i++) {
@@ -546,15 +510,86 @@ export default function Board() {
         setOrigin(selectedChecker !== null ? selectedChecker : (dragPointIndex !== null ? dragPointIndex : null));
     }, [selectedChecker, dragPointIndex]);
 
+    // --- Pre-game selection UI with a dropdown for AI agent selection
+    if (!playerSide) {
+        return (
+            <div style={{ textAlign: "center", padding: "2rem" }}>
+                <h2>Player vs Player</h2>
+                <button onClick={() => setPlayerSide("white")}>Play as White</button>
+                <button onClick={() => setPlayerSide("black")}>Play as Black</button>
+                <h2>Player vs AI</h2>
+                <div>
+                    <label>
+                        Choose AI Agent:{" "}
+                        <select
+                            value={selectedAiAgent}
+                            onChange={e => setSelectedAiAgent(e.target.value)}
+                        >
+                            <option value="random">Random</option>
+                            <option value="first">First Move</option>
+                        </select>
+                    </label>
+                </div>
+                <button
+                    onClick={() => {
+                        setPlayerSide("white");
+                        setPlayerType("human");
+                        // Also join the opposite side as AI with chosen model.
+                        socket.emit("join_room", { roomCode, side: "black", playerType: "ai", aiModel: selectedAiAgent });
+                    }}
+                >
+                    Play as White
+                </button>
+                <button
+                    onClick={() => {
+                        setPlayerSide("black");
+                        setPlayerType("human");
+                        socket.emit("join_room", { roomCode, side: "white", playerType: "ai", aiModel: selectedAiAgent });
+                    }}
+                >
+                    Play as Black
+                </button>
+                <h2>AI vs AI (under construction)</h2>
+                <div>
+                    <label>
+                        Choose White AI Agent:{" "}
+                        <select
+                            value={selectedAiAgent}
+                            onChange={e => setSelectedAiAgent(e.target.value)}
+                        >
+                            <option value="random">Random</option>
+                            <option value="first">First Move</option>
+                        </select>
+                    </label>
+                </div>
+                <div>
+                    <label>
+                        Choose Black AI Agent:{" "}
+                        <select
+                            value={selectedAiAgent2}
+                            onChange={e => setSelectedAiAgent2(e.target.value)}
+                        >
+                            <option value="random">Random</option>
+                            <option value="first">First Move</option>
+                        </select>
+                    </label>
+                </div>
 
+                <button
+                    onClick={() => {
+                        setPlayerSide("spectator");
+                        socket.emit("join_room", { roomCode, side: "white", playerType: "ai", aiModel: selectedAiAgent });
+                        socket.emit("join_room", { roomCode, side: "black", playerType: "ai", aiModel: selectedAiAgent2 });
+                    }}
+                >
+                    Watch AI vs AI
+                </button>
+            </div>
+        );
+    }
 
     return (
         <>
-            {/* <h2>White bar: {gameState.whiteBar}</h2>
-            <h2>Black bar: {gameState.blackBar}</h2>
-            <h2>White bear off: {gameState.whiteBearOff}</h2>
-            <h2>Black bear off: {gameState.blackBearOff}</h2>
-            <h2>Can bear off: {canBearOff(gameState.turn) ? "Yes" : "No"}</h2> */}
             <h2>message: {JSON.stringify(message)}</h2>
 
             <div style={{ display: "flex" }}>
@@ -567,7 +602,6 @@ export default function Board() {
                     onMouseUp={handleMouseUp}
                     style={{ border: "1px solid #333", background: outerBoardColour }}
                 >
-                    {/*//--- inner board left half */}
                     <rect
                         x={boardPadding}
                         y={boardPadding}
@@ -577,7 +611,6 @@ export default function Board() {
                         stroke="#000"
                         strokeWidth={1}
                     />
-                    {/*//--- inner board right half */}
                     <rect
                         x={boardPadding + 6 * pointWidth + barWidth}
                         y={boardPadding}
@@ -587,7 +620,6 @@ export default function Board() {
                         stroke="#000"
                         strokeWidth={1}
                     />
-                    {/*//--- white bearing off area */}
                     <rect
                         x={bearOffXStart}
                         y={boardPadding + blackBearOffHeight}
@@ -598,7 +630,6 @@ export default function Board() {
                         strokeWidth={(origin !== null && moveIsValid(origin, 100)) ? 3 : 1}
                         onClick={() => handleClick(100)}
                     />
-                    {/*//--- black bearing off area */}
                     <rect
                         x={bearOffXStart}
                         y={boardPadding}
@@ -610,8 +641,6 @@ export default function Board() {
                         onClick={() => handleClick(-100)}
                     />
 
-
-                    {/* triangles */}
                     {triangleCoords.map((coords, index) => {
                         const [x1, y1, x2, y2, x3, y3] = coords
                         const fill = index % 2 === 0 ? darkPointColour : lightPointColour
@@ -641,14 +670,11 @@ export default function Board() {
                         )
                     })}
 
-
-                    {/*//--- checkers on board */}
                     {gameState.board.map((pointVal, pointIndex) => {
                         if (pointVal === 0) return null
                         const color = pointVal > 0 ? "white" : "black"
                         const count = Math.abs(pointVal)
                         return Array.from({ length: count }).map((_, stackIndex) => {
-                            //--- hide the checker if it is currently being dragged from this point
                             if (dragPointIndex === pointIndex && dragColor === color && stackIndex === count - 1) {
                                 return null
                             }
@@ -664,13 +690,12 @@ export default function Board() {
                                     stroke="#444"
                                     strokeWidth={2}
                                     style={{ cursor: "grab", outline: isSelected ? "3px solid red" : "none" }}
-                                    onMouseDown={(e) => handleCheckerMouseDown(e, pointIndex, stackIndex)}
+                                    onMouseDown={e => handleCheckerMouseDown(e, pointIndex, stackIndex)}
                                 />
                             )
                         })
                     })}
 
-                    {/*//--- checkers on white bar */}
                     {Array.from({ length: gameState.whiteBar }).map((_, index) => {
                         if (dragPointIndex === -1 && dragColor === "white" && index === gameState.whiteBar - 1) {
                             return null
@@ -686,12 +711,11 @@ export default function Board() {
                                 stroke="#444"
                                 strokeWidth={2}
                                 style={{ cursor: "grab", outline: selectedChecker === -1 ? "3px solid red" : "none" }}
-                                onMouseDown={(e) => handleCheckerMouseDown(e, -1, index, 1)}
+                                onMouseDown={e => handleCheckerMouseDown(e, -1, index, 1)}
                             />
                         )
                     })}
 
-                    {/*//--- checkers on black bar */}
                     {Array.from({ length: gameState.blackBar }).map((_, index) => {
                         if (dragPointIndex === -1 && dragColor === "black" && index === gameState.blackBar - 1) {
                             return null
@@ -707,15 +731,14 @@ export default function Board() {
                                 stroke="#444"
                                 strokeWidth={2}
                                 style={{ cursor: "grab", outline: selectedChecker === -1 ? "3px solid red" : "none" }}
-                                onMouseDown={(e) => handleCheckerMouseDown(e, -1, index, -1)}
+                                onMouseDown={e => handleCheckerMouseDown(e, -1, index, -1)}
                             />
                         )
                     })}
 
-                    {/*//--- render bear off checkers for black */}
                     {Array.from({ length: gameState.blackBearOff }).map((_, index) => {
                         const x = bearOffXStart + bearOffWidth / 2
-                        const y = boardPadding + (checkerRadius + checkerPadding) * (index + 0.5)
+                        const y = boardPadding + (checkerRadius + checkerBearOffPadding) * (index + 1.5)
                         return (
                             <circle
                                 key={`blackBearOff-${index}`}
@@ -729,12 +752,10 @@ export default function Board() {
                         )
                     })}
 
-                    {/*//--- render bear off checkers for white */}
                     {Array.from({ length: gameState.whiteBearOff }).map((_, index) => {
                         const x = bearOffXStart + bearOffWidth / 2
                         const bottomY = boardPadding + blackBearOffHeight + blackBearOffHeight
-                        const y = bottomY - (checkerRadius + checkerPadding) * (index + 0.5)
-
+                        const y = bottomY - (checkerRadius + checkerBearOffPadding) * (index + 1.5)
                         return (
                             <circle
                                 key={`whiteBearOff-${index}`}
@@ -748,7 +769,6 @@ export default function Board() {
                         )
                     })}
 
-                    {/*//--- render dragged checker */}
                     {dragPointIndex !== null && dragColor && (
                         <circle
                             cx={dragPosition.x}
@@ -766,7 +786,6 @@ export default function Board() {
                     <button onClick={rollDice}>Roll dice</button>
                     <button onClick={confirmMove}>Confirm</button>
                     <button onClick={resetBoard}>Reset</button>
-                    {/* <button onClick={testButton}>test</button> */}
                 </div>
             </div>
 

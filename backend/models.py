@@ -15,6 +15,8 @@ class Game(db.Model):
     black_off = db.Column(db.Integer, nullable=False)
     rolled = db.Column(db.Boolean, nullable=False)
     game_over = db.Column(db.Boolean, nullable=False)
+    white_ai_model = db.Column(db.String(20), nullable=True)
+    black_ai_model = db.Column(db.String(20), nullable=True)
     
     def convert(self):
         return {
@@ -27,5 +29,7 @@ class Game(db.Model):
             "white_off": self.white_off,
             "black_off": self.black_off,
             "rolled": self.rolled,
-            "game_over": self.game_over
+            "game_over": self.game_over,
+            "white_ai_model": self.white_ai_model,
+            "black_ai_model": self.black_ai_model,
         }
