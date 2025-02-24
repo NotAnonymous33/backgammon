@@ -2,30 +2,41 @@ from Board import Board
 from agents.FirstAgent import FirstAgent
 from agents.RandomAgent import RandomAgent
 
-board = Board()
-white = FirstAgent()
-black = RandomAgent()
+
+black = FirstAgent()
+white = RandomAgent()
 count = 0
+N = 100
 
-while not board.game_over:
-    if board.turn.value == 1:
-        agent = white
+white_win = 0
+black_win = 0
+for i in range(N):
+    board = Board()
+    cur_count = 0
+    while not board.game_over:
+        if board.turn.value == 1:
+            agent = white
+        else:
+            agent = black    
+        dice, invdice, moves, = board.roll_dice()
+        move = agent.select_move(board)
+        board.move_from_sequence(move) 
+        count += 1
+        cur_count += 1
+        if cur_count > 1000:
+            print("Game stuck")
+            break
+
+    if board.white_off == 15:
+        print("White wins!")
+        white_win += 1
     else:
-        agent = black    
-    print(board)
-    dice, invdice, moves, = board.roll_dice()
-    print(dice)
-    print(len(moves))
-    move = agent.select_move(board)
-    board.move_from_sequence(move) 
-    count += 1
-    print(count)
-    if count > 1000:
-        print("hi")
-
-if board.white_off == 15:
-    print("White wins!")
-else:
-    print("Black wins!")
+        print("Black wins!")
+        black_win += 1
+    print(white_win, black_win, white_win + black_win)
+        
+print("White wins: ", white_win)
+print("Black wins: ", black_win)
+print("Avg game length: ", count/N)
 
     

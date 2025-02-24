@@ -3,8 +3,7 @@ import random
 
 class RandomAgent:
     def select_move(self, board):
-        valid_moves = board.get_valid_moves()
-        if len(valid_moves) == 0:
+        if len(board.valid_moves) == 0:
             return []
-        return random.choice(valid_moves)
+        return random.choice(board.valid_moves)
     

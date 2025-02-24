@@ -86,9 +86,6 @@ class TestBoard(unittest.TestCase):
         self.board.black_bar = 1
         self.board.set_dice([1, 6])
         
-        print(self.board)
-        print(f"{self.board.invalid_dice=}")
-        print(f"{self.board.dice=}")
         single_moves = self.board.get_single_moves()
         expected_moves = {(-1, 18)}
         self.assertEqual(single_moves, expected_moves)
@@ -121,7 +118,7 @@ class TestBoard(unittest.TestCase):
         self.board.positions = [[Color.BLACK] * 2 for _ in range(24)]
         self.board.turn = Color.WHITE
         self.board.set_dice([1, 2])
-        self.assertEqual(self.board.valid_moves, [])
+        self.assertEqual(self.board.valid_moves, [[]])
 
     def test_get_valid_moves_reentering_1checker(self):
         self.board.positions = [[Color.BLACK] * 2 if i in range(6, 24) else [] for i in range(24)]

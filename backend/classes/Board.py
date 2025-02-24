@@ -137,7 +137,7 @@ class Board:
         max_length = 0
         max_die = 0
         
-        # returns whether or not there is a valid move using all dice
+        # returns whether there is a valid move using all dice
         def verify_permutation(board: Board, remaining_dice, move_sequence):
             move_sequence = move_sequence[:]
             nonlocal max_length
@@ -197,8 +197,7 @@ class Board:
         
         if verify_permutation(deepcopy(self), self.dice, []):
             return []
-        
-        
+
         for die in invalid_dice:
             self.dice.remove(die)
         return invalid_dice
@@ -237,10 +236,16 @@ class Board:
         
     def get_valid_moves(self):
         self.verbose and print("Board:get_valid_moves")
+
         def dfs(board: Board, prev_moves):
             if not board.dice:
                 return [prev_moves]
             moves = []
+            if len(board.dice) == 1:
+                for move in board.get_single_moves():
+                    if board.is_valid(*move):
+                        moves.append(prev_moves + [move])
+                return moves
             for move in board.get_single_moves():
                 board_copy = deepcopy(board)
                 board_copy.move(*move)
@@ -292,9 +297,12 @@ class Board:
         # maybe not because i thankfully consider variable number of dice
         # doesnt matter, just need to remove it in the future pls thank you future ismail
         self.verbose and print("Board:move_from_sequence")
+        if sequence not in self.valid_moves:
+            return False
         for move in sequence:
-            if not self.move(*move):
-                return False
+            self.move(*move)
+            # if not self.move(*move):
+            #     return False
         if self.has_won():
             self.game_over = True
             return True
@@ -446,7 +454,7 @@ class Board:
                 return True
         return False
     
-    def roll_dice(self) -> list[int]:
+    def roll_dice(self):
         self.verbose and print("Board:roll_dice")
         if self.game_over:
             return False
