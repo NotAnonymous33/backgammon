@@ -146,7 +146,6 @@ class TestBoard(unittest.TestCase):
         expected_moves = [[(-1, 0), (0, 2)], [(-1, 0), (11, 13)], [(-1, 0), (16, 18)], [(-1, 0), (18, 20)],
                           [(-1, 1), (0, 1)], [(-1, 1), (1, 2)], [(-1, 1), (16, 17)], [(-1, 1), (18, 19)]]
         self.assertCountEqual(valid_moves, expected_moves)
-        
 
 
 if __name__ == '__main__':

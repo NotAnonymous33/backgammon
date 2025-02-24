@@ -204,34 +204,42 @@ class Board:
     
     def get_single_moves(self):
         moves = set()
-        # TODO: can maybe make more efficient by moving only by dice
         if self.turn == Color.WHITE:
             # reentering checkers
             if self.white_bar > 0:
-                for i in range(6):
-                    if self.is_valid(-1, i):
-                        moves.add((-1, i))
-                return moves
-            # normal moves
-            for start in range(24):
-                for end in range(start + 1, 24):
-                    if self.is_valid(start, end):
-                        moves.add((start, end))
+                for dice in self.dice:
+                    if self.is_valid(-1, dice - 1):
+                        moves.add((-1, dice - 1))
+            # bearing off
+            for start in range(18, 24):
                 if self.is_valid(start, 100):
                     moves.add((start, 100))
+
+            # normal moves
+            for start in range(24):
+                for dice in self.dice:
+                    if self.is_valid(start, start + dice):
+                        moves.add((start, start + dice))
+
             return moves
-        
+
+        # reentering checkers
         if self.black_bar > 0:
             for i in range(23, 17, -1):
                 if self.is_valid(-1, i):
                     moves.add((-1, i))
             return moves
-        for start in range(23, -1, -1):
-            for end in range(start - 1, -1, -1):
-                if self.is_valid(start, end):
-                    moves.add((start, end))
+
+        # bearing off
+        for start in range(5, -1, -1):
             if self.is_valid(start, -100):
                 moves.add((start, -100))
+
+        # normal moves
+        for start in range(23, -1, -1):
+            for dice in self.dice:
+                if self.is_valid(start, start - dice):
+                    moves.add((start, start - dice))
         return moves
         
     def get_valid_moves(self):
@@ -371,8 +379,7 @@ class Board:
         self.dice = []
         self.invalid_dice = []
         self.valid_moves = []
-        
-    
+
     def is_valid(self, current, next): 
         # TODO: unit tests
         # current can't be empty
@@ -381,7 +388,7 @@ class Board:
         if next not in range(24) and abs(next) != 100:
             return False
         # bearing off 
-        if (next == 100 and self.turn == Color.WHITE or next == -100 and self.turn == Color.BLACK):
+        if next == 100 and self.turn == Color.WHITE or next == -100 and self.turn == Color.BLACK:
             if not self.can_bearoff():
                 return False
             if len(self.positions[current]) == 0:
