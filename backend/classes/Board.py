@@ -55,6 +55,8 @@ class Board:
             self.white_bar = 0
             self.black_bar = 0
             
+            self.white_left = self.calc_white_left()
+            self.black_left = self.calc_black_left()
             self.passed = self.has_passed()
             self.game_over = False
         elif board_dict is not None: # board dict
@@ -74,6 +76,9 @@ class Board:
                 self.black_off = board_dict["black_off"]
                 self.valid_moves = self.get_valid_moves()
                 self.invalid_dice = self.get_invalid_dice()
+                self.white_left = self.calc_white_left()
+                self.black_left = self.calc_black_left()
+                self.passed = self.has_passed()
                 self.game_over = board_dict["game_over"]
             except KeyError:
                 self.__init__()
@@ -94,6 +99,9 @@ class Board:
             self.game_over = board_db.game_over
             self.invalid_dice = self.get_invalid_dice()
             self.valid_moves = self.get_valid_moves()
+            self.white_left = self.calc_white_left()
+            self.black_left = self.calc_black_left()
+            self.passed = self.has_passed()
             # TODO if there is an attribute(?) error, call init
             
     def __str__(self):
@@ -132,8 +140,9 @@ class Board:
         invalid_dice = f"\n\nInvalid Dice: {self.invalid_dice}"
         start = "\n\nTurn: " + ("White" if self.turn == Color.WHITE else "Black") + "-----------------------------------------------\n"
         end = "\n\n-----------------------------------------------\n"
+        left = f"\n\nWhite left: {self.white_left}, Black left: {self.black_left}"
         # Combine all parts
-        return start + bar + bottom + top + off_board + dice + invalid_dice + end
+        return start + bar + bottom + top + off_board + dice + invalid_dice + left + end
 
     def get_invalid_dice(self):
         self.verbose and print("Board:get_invalid_dice")
@@ -270,7 +279,6 @@ class Board:
         dfs_moves = dfs(deepcopy(self), [])
         return dfs_moves
     
-    
     def can_bearoff(self):
         if self.turn == Color.WHITE:
             if self.white_bar:
@@ -318,9 +326,17 @@ class Board:
                 continue
                 
             if pos[0] == Color.WHITE:
-                lowest_white = min(lowest_white, i)
-            else:  # pos[0] == Color.BLACK
-                highest_black = max(highest_black, i)
+                lowest_white = i
+                break
+                
+        for i, pos in enumerate(self.positions[::-1]):
+            if not pos:
+                continue
+            # TODO: add passed and white and black left to init function
+                
+            if pos[0] == Color.BLACK:
+                highest_black = 23 - i
+                break
         
         # If all pieces are borne off for one color, it's considered passed
         if lowest_white == -1 or highest_black == 24:
@@ -329,7 +345,22 @@ class Board:
         # Check if all black pieces are past all white pieces
         return lowest_white > highest_black
     
+    def calc_white_left(self):
+        total = 0
+        for i, pos in enumerate(self.positions):
+            if pos and pos[0] == Color.WHITE:
+                total += (24 - i) * len(pos)
+        total += self.white_bar
+        return total
+            
     
+    def calc_black_left(self):
+        total = 0
+        for i, pos in enumerate(self.positions):
+            if pos and pos[0] == Color.BLACK:
+                total += (i + 1) * len(pos)
+        total += self.black_bar
+        return total
     
     def move_from_sequence(self, sequence):
         self.verbose and print("Board:move_from_sequence")
@@ -341,6 +372,8 @@ class Board:
         for move in sequence:
             self.move(*move, bypass=True)
         self.passed = self.has_passed()
+        self.white_left = self.calc_white_left()
+        self.black_left = self.calc_black_left()
         if self.has_won():
             self.game_over = True
             return True

@@ -184,5 +184,6 @@ class TestBoard(unittest.TestCase):
         self.assertTrue(self.board.has_passed())
 
 
+
 if __name__ == '__main__':
     unittest.main()
