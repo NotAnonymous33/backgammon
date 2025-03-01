@@ -42,7 +42,7 @@ class Board:
                 self.positions[pos] = [Color.WHITE for i in range(count)]
             for pos, count in initial_black:
                 self.positions[pos] = [Color.BLACK for i in range(count)]
-                
+            
             self.dice = []
             self.invalid_dice = []
             self.valid_moves = []
@@ -55,6 +55,7 @@ class Board:
             self.white_bar = 0
             self.black_bar = 0
             
+            self.passed = self.has_passed()
             self.game_over = False
         elif board_dict is not None: # board dict
             try:
@@ -127,9 +128,12 @@ class Board:
 
         # Off-board area
         off_board = f"\n\nOff-board:\nWhite: {self.white_off}, Black: {self.black_off}"
-
+        dice = f"\n\nDice: {self.dice}"
+        invalid_dice = f"\n\nInvalid Dice: {self.invalid_dice}"
+        start = "\n\nTurn: " + ("White" if self.turn == Color.WHITE else "Black") + "-----------------------------------------------\n"
+        end = "\n\n-----------------------------------------------\n"
         # Combine all parts
-        return bar + bottom + top + off_board
+        return start + bar + bottom + top + off_board + dice + invalid_dice + end
 
     def get_invalid_dice(self):
         self.verbose and print("Board:get_invalid_dice")
@@ -161,14 +165,14 @@ class Board:
                 invalid_dice = remaining_dice
             
             # reentering moves
-            if board.turn == Color.WHITE and board.white_bar > 0:
+            if board.turn == Color.WHITE and board.white_bar:
                 for i in range(6):
                     board_copy = deepcopy(board)
                     if board_copy.move(-1, i):
                         if verify_permutation(board_copy, board_copy.dice, move_sequence + list_diff(board.dice, board_copy.dice)):
                             return True
                 return
-            if board.turn == Color.BLACK and board.black_bar > 0:
+            if board.turn == Color.BLACK and board.black_bar:
                 for i in range(23, 17, -1):
                     board_copy = deepcopy(board)
                     if board_copy.move(-1, i):
@@ -206,10 +210,11 @@ class Board:
         moves = set()
         if self.turn == Color.WHITE:
             # reentering checkers
-            if self.white_bar > 0:
+            if self.white_bar:
                 for dice in self.dice:
                     if self.is_valid(-1, dice - 1):
                         moves.add((-1, dice - 1))
+                return moves
             # bearing off
             for start in range(18, 24):
                 if self.is_valid(start, 100):
@@ -224,7 +229,7 @@ class Board:
             return moves
 
         # reentering checkers
-        if self.black_bar > 0:
+        if self.black_bar:
             for i in range(23, 17, -1):
                 if self.is_valid(-1, i):
                     moves.add((-1, i))
@@ -247,7 +252,9 @@ class Board:
 
         def dfs(board: Board, prev_moves):
             if not board.dice:
-                return [prev_moves]
+                if prev_moves:
+                    return [prev_moves]
+                return []
             moves = []
             if len(board.dice) == 1:
                 for move in board.get_single_moves():
@@ -256,7 +263,7 @@ class Board:
                 return moves
             for move in board.get_single_moves():
                 board_copy = deepcopy(board)
-                board_copy.move(*move)
+                board_copy.move(*move, bypass=True)
                 moves += dfs(board_copy, prev_moves + [move])
             return moves
         
@@ -266,16 +273,16 @@ class Board:
     
     def can_bearoff(self):
         if self.turn == Color.WHITE:
-            if self.white_bar > 0:
+            if self.white_bar:
                 return False
             for i in range(18):
-                if len(self.positions[i]) > 0 and self.positions[i][0] == Color.WHITE:
+                if self.positions[i] and self.positions[i][0] == Color.WHITE:
                     return False
         else:
-            if self.black_bar > 0:
+            if self.black_bar:
                 return False
             for i in range(6, 24):
-                if len(self.positions[i]) > 0 and self.positions[i][0] == Color.BLACK:
+                if self.positions[i] and self.positions[i][0] == Color.BLACK:
                     return False
         return True
         
@@ -298,19 +305,42 @@ class Board:
         }        
         return ret
     
+    def has_passed(self):
+        if self.white_bar > 0 or self.black_bar > 0:
+            return False
+        
+        lowest_white = 24
+        highest_black = -1
+        
+        # Single pass through positions for efficiency
+        for i, pos in enumerate(self.positions):
+            if not pos:
+                continue
+                
+            if pos[0] == Color.WHITE:
+                lowest_white = min(lowest_white, i)
+            else:  # pos[0] == Color.BLACK
+                highest_black = max(highest_black, i)
+        
+        # If all pieces are borne off for one color, it's considered passed
+        if lowest_white == -1 or highest_black == 24:
+            return True
+        
+        # Check if all black pieces are past all white pieces
+        return lowest_white > highest_black
+    
+    
+    
     def move_from_sequence(self, sequence):
-        # TODO: you can probably make partial moves which should not be a thing i imagine
-        # i mean theres nothing wrong with it exactly i just dont like the idea of it
-        # also might mess up some stuff frontend based off my assumptions when writing 
-        # maybe not because i thankfully consider variable number of dice
-        # doesnt matter, just need to remove it in the future pls thank you future ismail
         self.verbose and print("Board:move_from_sequence")
+        sequence = [tuple(move) for move in sequence]
+        if self.valid_moves == [] and sequence == []:
+            self.swap_turn()
         if sequence not in self.valid_moves:
             return False
         for move in sequence:
-            self.move(*move)
-            # if not self.move(*move):
-            #     return False
+            self.move(*move, bypass=True)
+        self.passed = self.has_passed()
         if self.has_won():
             self.game_over = True
             return True
@@ -320,8 +350,8 @@ class Board:
     def has_won(self):
         return self.white_off == 15 or self.black_off == 15
     
-    def move(self, current, next):
-        if not self.is_valid(current, next):
+    def move(self, current, next, bypass=False):
+        if not bypass and not self.is_valid(current, next):
             return False
         
         # bearing off
@@ -383,9 +413,9 @@ class Board:
     def is_valid(self, current, next): 
         # TODO: unit tests
         # current can't be empty
-        if current not in range(24) and current != -1:
+        if current < -1 or current > 23:
             return False
-        if next not in range(24) and abs(next) != 100:
+        if (next < 0 or next > 23) and abs(next) != 100:
             return False
         # bearing off 
         if next == 100 and self.turn == Color.WHITE or next == -100 and self.turn == Color.BLACK:
@@ -403,7 +433,7 @@ class Board:
                 if 24 - current > max(self.dice):
                     return False
                 for pos in range(18, 24):
-                    if len(self.positions[pos]) > 0 and self.positions[pos][0] == Color.WHITE:
+                    if self.positions[pos] and self.positions[pos][0] == Color.WHITE:
                         if current == pos:
                             return True
                         else:
@@ -416,17 +446,16 @@ class Board:
                 if current + 1 > max(self.dice):
                     return False
                 for pos in range(5, -1, -1):
-                    if len(self.positions[pos]) > 0 and self.positions[pos][0] == Color.BLACK:
+                    if self.positions[pos] and self.positions[pos][0] == Color.BLACK:
                         if current == pos:
                             return True
                         else:
                             return False
                 return False
-            # TODO im pretty sure theres a problem where you can bear off with a value greater than the dice
-            # i think im just too stupid to fix this 
-        
+            assert False, "Should not reach here"
+
         # reentering checkers
-        if self.turn == Color.WHITE and self.white_bar > 0:
+        if self.turn == Color.WHITE and self.white_bar:
             if not (next+1) in self.dice:
                 return False
             if current != -1:
@@ -437,7 +466,7 @@ class Board:
                 return False
             return True
         
-        if self.turn == Color.BLACK and self.black_bar > 0:
+        if self.turn == Color.BLACK and self.black_bar:
             if current != -1:
                 return False
             if next < 18:
@@ -482,7 +511,6 @@ class Board:
             return False
         if self.rolled:
             return self.dice, self.invalid_dice, self.valid_moves
-        self.dice = [randint(1, 6), randint(1, 6)]
         self.dice = dice
         self.rolled = True
         self.invalid_dice = self.get_invalid_dice()

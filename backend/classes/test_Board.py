@@ -118,7 +118,7 @@ class TestBoard(unittest.TestCase):
         self.board.positions = [[Color.BLACK] * 2 for _ in range(24)]
         self.board.turn = Color.WHITE
         self.board.set_dice([1, 2])
-        self.assertEqual(self.board.valid_moves, [[]])
+        self.assertEqual(self.board.valid_moves, [])
 
     def test_get_valid_moves_reentering_1checker(self):
         self.board.positions = [[Color.BLACK] * 2 if i in range(6, 24) else [] for i in range(24)]
@@ -146,6 +146,42 @@ class TestBoard(unittest.TestCase):
         expected_moves = [[(-1, 0), (0, 2)], [(-1, 0), (11, 13)], [(-1, 0), (16, 18)], [(-1, 0), (18, 20)],
                           [(-1, 1), (0, 1)], [(-1, 1), (1, 2)], [(-1, 1), (16, 17)], [(-1, 1), (18, 19)]]
         self.assertCountEqual(valid_moves, expected_moves)
+
+    def test_has_passed_initial_setup(self):
+        self.assertFalse(self.board.has_passed())
+
+    def test_has_passed_white_bar(self):
+        self.board.white_bar = 1
+        self.assertFalse(self.board.has_passed())
+
+    def test_has_passed_black_bar(self):
+        self.board.black_bar = 1
+        self.assertFalse(self.board.has_passed())
+
+    def test_has_passed_all_black_past_white(self):
+        self.board.positions = [[] for _ in range(24)]
+        self.board.positions[0] = [Color.BLACK] * 2
+        self.board.positions[1] = [Color.BLACK] * 2
+        self.board.positions[22] = [Color.WHITE] * 2
+        self.board.positions[23] = [Color.WHITE] * 2
+        self.assertTrue(self.board.has_passed())
+
+    def test_has_passed_not_all_black_past_white(self):
+        self.board.positions = [[] for _ in range(24)]
+        self.board.positions[0] = [Color.BLACK] * 2
+        self.board.positions[2] = [Color.BLACK] * 2
+        self.board.positions[1] = [Color.WHITE] * 2
+        self.assertFalse(self.board.has_passed())
+
+    def test_has_passed_white_off(self):
+        self.board.positions = [[] for _ in range(24)]
+        self.board.white_off = 15
+        self.assertTrue(self.board.has_passed())
+
+    def test_has_passed_black_off(self):
+        self.board.positions = [[] for _ in range(24)]
+        self.board.black_off = 15
+        self.assertTrue(self.board.has_passed())
 
 
 if __name__ == '__main__':

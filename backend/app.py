@@ -6,6 +6,7 @@ from models import Game, db
 from random import randint
 from classes.agents.FirstAgent import FirstAgent
 from classes.agents.RandomAgent import RandomAgent
+from backend.classes.agents.MCTS import BackgammonMCTSAgent
 # from werkzeug.middleware.profiler import ProfilerMiddleware
 
 app = Flask(__name__)
@@ -83,6 +84,7 @@ def join(data):
     
     if room_code not in rooms:
         rooms[room_code] = {"players": {"white": None, "black": None}}
+        print(rooms)
 
     if side in ["white", "black"]:
         if player_type == "human":
@@ -171,22 +173,29 @@ def move(data):
         emit("error", {"message": "Not your turn or you are not authorized to move this side."}, room=request.sid)
         return
 
+    print(f"moving from sequence {data['moveSequence']=}")
+    
     move_result = board.move_from_sequence(data["moveSequence"])
     if move_result == False:
+        print("move is false")
         emit("error", {"message": "Invalid move"}, room=request.sid)
         return
     else:
         if move_result == True:
+            print("move is true")
             emit("game_over", {"winner": "white" if board.white_off == 15 else "black"}, room=room_code)
         board_dict = board.convert()
         update_board_db(room_code, board_dict)
+        print("updated db, emitting update_board")
         emit("update_board", board_dict, room=room_code)
+        
     
     # If the next turn belongs to an AI, trigger an AI move.
     next_side = "white" if board.turn.value == 1 else "black"
     next_player = rooms.get(room_code, {}).get("players", {}).get(next_side)
     if next_player and next_player.get("type") == "ai":
         #socketio.start_background_task(ai_move, room_code) # TODO check this
+        print("ai move")
         ai_move(room_code)
 
 def ai_move(room_code):
@@ -225,13 +234,17 @@ def ai_move(room_code):
         ai = FirstAgent()
     elif ai_model == "random":
         ai = RandomAgent()
+    elif ai_model == "mcts":
+        ai = BackgammonMCTSAgent(time_budget=5)
     
+    print("selecting move")
     chosen_sequence = ai.select_move(board)
     if chosen_sequence is None:
         # No valid moves.
         return
 
     board.move_from_sequence(chosen_sequence)
+    print(f"ai move: {chosen_sequence}")
     board_dict = board.convert()
     update_board_db(room_code, board_dict)
     emit("update_board", board_dict, room=room_code)

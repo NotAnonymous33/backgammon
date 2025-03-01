@@ -188,7 +188,9 @@ export default function Board() {
     }, [roomCode])
 
     function confirmMove() {
-        verbose && console.log("confirmMove")
+        if (verbose) {
+            console.log("ConfirmingMove move sequence:", moveSequence)
+        }
         socket.emit("move", { moveSequence, roomCode })
         setMoveSequence([])
     }
@@ -527,6 +529,7 @@ export default function Board() {
                         >
                             <option value="random">Random</option>
                             <option value="first">First Move</option>
+                            <option value="mcts">Monte Carlo Tree Search</option>
                         </select>
                     </label>
                 </div>
@@ -559,6 +562,7 @@ export default function Board() {
                         >
                             <option value="random">Random</option>
                             <option value="first">First Move</option>
+                            <option value="mcts">Monte Carlo Tree Search</option>
                         </select>
                     </label>
                 </div>
@@ -571,6 +575,7 @@ export default function Board() {
                         >
                             <option value="random">Random</option>
                             <option value="first">First Move</option>
+                            <option value="mcts">Monte Carlo Tree Search</option>
                         </select>
                     </label>
                 </div>
