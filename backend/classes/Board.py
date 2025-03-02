@@ -7,6 +7,7 @@ from random import randint
 from itertools import permutations
 from copy import deepcopy
 
+sign = lambda x: -1 if x < 0 else (1 if x > 0 else 0)
 
 def list_diff(a, b):
     a_copy = a[:]
@@ -26,7 +27,7 @@ class Board:
     def __init__(self, board_dict=None, board_db=None, verbose=False):
         self.verbose = False
         if board_dict is None and board_db is None: # no params
-            self.positions = [[] for i in range(24)]
+            self.positions = [0 for _ in range(24)]
             initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
             initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
             
@@ -39,9 +40,9 @@ class Board:
                    
             
             for pos, count in initial_white:
-                self.positions[pos] = [Color.WHITE for i in range(count)]
+                self.positions[pos] = count
             for pos, count in initial_black:
-                self.positions[pos] = [Color.BLACK for i in range(count)]
+                self.positions[pos] = -count
             
             self.dice = []
             self.invalid_dice = []
@@ -61,12 +62,7 @@ class Board:
             self.game_over = False
         elif board_dict is not None: # board dict
             try:
-                self.positions = []
-                for pos in board_dict["positions"]:
-                    if pos > 0:
-                        self.positions.append([Color.WHITE for _ in range(pos)])
-                    else:
-                        self.positions.append([Color.BLACK for _ in range(-pos)])
+                self.positions = board_dict["positions"]
                 self.dice = list(map(int, list(board_dict["dice"])))
                 self.rolled = board_dict["rolled"]
                 self.turn = Color.WHITE if board_dict["turn"] == 1 else Color.BLACK
@@ -83,12 +79,7 @@ class Board:
             except KeyError:
                 self.__init__()
         else: # board db
-            self.positions = []
-            for pos in board_db.positions:
-                if pos > 0:
-                    self.positions.append([Color.WHITE for _ in range(pos)])
-                else:
-                    self.positions.append([Color.BLACK for _ in range(-pos)])
+            self.positions = board_db.positions
             self.dice = list(map(int, list(board_db.dice)))
             self.rolled = board_db.rolled
             self.turn = Color.WHITE if board_db.turn == 1 else Color.BLACK
@@ -110,10 +101,10 @@ class Board:
         """
         def format_position(position):
             """Helper to format a position with its checkers."""
-            if len(position) == 0:
+            if position == 0:
                 return " . "  # Empty position
-            color = "W" if position[0] == Color.WHITE else "B"
-            return f" {color}{len(position)}"  # Format as 'W2' or 'B5'
+            color = "W" if position > 0 else "B"
+            return f" {color}{abs(position)}"  # Format as 'W2' or 'B5'
 
         # Top row (positions 12-23)
         top_row = [format_position(self.positions[i]) for i in range(12, 24)]
@@ -199,7 +190,7 @@ class Board:
                 
             # normal moves
             for start in range(24):
-                if not (len(board.positions[start]) and board.positions[start][0] == self.turn):
+                if sign(board.positions[start]) != self.turn.value:
                     continue
                 end = start + remaining_dice[0] * self.turn.value
                 if board.is_valid(start, end):
@@ -284,22 +275,19 @@ class Board:
             if self.white_bar:
                 return False
             for i in range(18):
-                if self.positions[i] and self.positions[i][0] == Color.WHITE:
+                if self.positions[i] > 0:
                     return False
         else:
             if self.black_bar:
                 return False
             for i in range(6, 24):
-                if self.positions[i] and self.positions[i][0] == Color.BLACK:
+                if self.positions[i] < 0:
                     return False
         return True
         
     def convert(self):
-        positions = []
-        for pos in self.positions:
-            positions.append(pos.count(Color.WHITE) - pos.count(Color.BLACK))
         ret = {
-            "positions": positions, 
+            "positions": self.positions, 
             "turn": 1 if self.turn == Color.WHITE else -1, 
             "dice": "".join(str(d) for d in self.dice),
             "invalid_dice": "".join(str(d) for d in self.invalid_dice),
@@ -322,19 +310,12 @@ class Board:
         
         # Single pass through positions for efficiency
         for i, pos in enumerate(self.positions):
-            if not pos:
-                continue
-                
-            if pos[0] == Color.WHITE:
+            if pos > 0:
                 lowest_white = i
                 break
                 
         for i, pos in enumerate(self.positions[::-1]):
-            if not pos:
-                continue
-            # TODO: add passed and white and black left to init function
-                
-            if pos[0] == Color.BLACK:
+            if pos < 0:
                 highest_black = 23 - i
                 break
         
@@ -348,8 +329,8 @@ class Board:
     def calc_white_left(self):
         total = 0
         for i, pos in enumerate(self.positions):
-            if pos and pos[0] == Color.WHITE:
-                total += (24 - i) * len(pos)
+            if pos > 0:
+                total += (24 - i) * pos
         total += self.white_bar
         return total
             
@@ -357,8 +338,8 @@ class Board:
     def calc_black_left(self):
         total = 0
         for i, pos in enumerate(self.positions):
-            if pos and pos[0] == Color.BLACK:
-                total += (i + 1) * len(pos)
+            if pos < 0:
+                total += (i + 1) * pos * -1
         total += self.black_bar
         return total
     
@@ -395,43 +376,40 @@ class Board:
                     self.dice.remove(24 - current)
                 else:
                     self.dice.remove(max(self.dice))
+                self.positions[current] -= 1
             else:
                 self.black_off += 1
                 if (current + 1) in self.dice:
                     self.dice.remove(current + 1)
                 else:
                     self.dice.remove(max(self.dice))
-            self.positions[current].pop()
-            if len(self.dice) == 0:
-                self.swap_turn()
+                self.positions[current] += 1
+            # if len(self.dice) == 0:
+            #     self.swap_turn() TODO im pretty sure i dont want this 
             return True
         
+        # capturing a piece
+        if self.turn == Color.WHITE:
+            if self.positions[next] == -1:
+                self.positions[next] = 0
+                self.black_bar += 1
+        else:
+            if self.positions[next] == 1:
+                self.positions[next] = 0
+                self.white_bar += 1
         # reentering checkers
         if current == -1:
             if self.turn == Color.WHITE:
                 self.white_bar -= 1
                 self.dice.remove(next+1)
+                self.positions[next] += 1
             else:
                 self.black_bar -= 1
-                self.dice.remove(24-next)
-            if len(self.positions[next]) == 1 and self.positions[next][0] != self.turn:
-                if self.turn == Color.WHITE:
-                    self.black_bar += 1
-                else:
-                    self.white_bar += 1
-                self.positions[next].pop()
-            self.positions[next].append(self.turn)        
+                self.dice.remove(24-next)    
+                self.positions[next] -= 1
         else: # not reentering
-            # eat the piece
-            if len(self.positions[next]) == 1 and self.positions[next][0] != self.turn:
-                if self.turn == Color.WHITE:
-                    self.black_bar += 1
-                else:
-                    self.white_bar += 1
-                self.positions[next].pop()
-                self.positions[next].append(self.positions[current].pop())
-            else:
-                self.positions[next].append(self.positions[current].pop())
+            self.positions[current] -= self.turn.value
+            self.positions[next] += self.turn.value
             self.dice.remove((next - current) * self.turn.value)
         return True
     
@@ -454,9 +432,7 @@ class Board:
         if next == 100 and self.turn == Color.WHITE or next == -100 and self.turn == Color.BLACK:
             if not self.can_bearoff():
                 return False
-            if len(self.positions[current]) == 0:
-                return False
-            if self.positions[current][0] != self.turn:
+            if sign(self.positions[current]) != self.turn.value:
                 return False
             if self.turn == Color.WHITE:
                 for dice in self.dice:
@@ -466,7 +442,7 @@ class Board:
                 if 24 - current > max(self.dice):
                     return False
                 for pos in range(18, 24):
-                    if self.positions[pos] and self.positions[pos][0] == Color.WHITE:
+                    if self.positions[pos] > 0:
                         if current == pos:
                             return True
                         else:
@@ -479,7 +455,7 @@ class Board:
                 if current + 1 > max(self.dice):
                     return False
                 for pos in range(5, -1, -1):
-                    if self.positions[pos] and self.positions[pos][0] == Color.BLACK:
+                    if self.positions[pos] < 0:
                         if current == pos:
                             return True
                         else:
@@ -488,34 +464,31 @@ class Board:
             assert False, "Should not reach here"
 
         # reentering checkers
-        if self.turn == Color.WHITE and self.white_bar:
+        if self.white_bar and self.turn == Color.WHITE:
             if not (next+1) in self.dice:
                 return False
             if current != -1:
                 return False
             if next > 5:
                 return False
-            if len(self.positions[next]) > 1 and self.positions[next][0] == Color.BLACK:
+            if self.positions[next] < -1:
                 return False
             return True
         
-        if self.turn == Color.BLACK and self.black_bar:
+        if self.black_bar and self.turn == Color.BLACK:
             if current != -1:
                 return False
             if next < 18:
                 return False
             if not (24-next) in self.dice:
                 return False
-            if len(self.positions[next]) > 1 and self.positions[next][0] == Color.WHITE:
+            if self.positions[next] > 1:
                 return False
             return True
         
-        if len(self.positions[current]) == 0:
+        if sign(self.positions[current]) != self.turn.value:
             return False
-        # current must be type of current player
-        if self.positions[current][0] != self.turn:
-            return False
-        if len(self.positions[next]) > 1 and self.positions[next][0] != self.turn:
+        if self.positions[next] * self.turn.value < -1:
             return False
         
         for dice in self.dice:
@@ -552,12 +525,7 @@ class Board:
     
     def set_board(self, data):
         if "positions" in data:
-            self.positions = []
-            for pos in data["positions"]:
-                if pos > 0:
-                    self.positions.append([Color.WHITE for _ in range(pos)])
-                else:
-                    self.positions.append([Color.BLACK for _ in range(-pos)])
+            self.positions = data["positions"]
         if "dice" in data:
             self.dice = list(map(int, list(data["dice"])))
         if "turn" in data:

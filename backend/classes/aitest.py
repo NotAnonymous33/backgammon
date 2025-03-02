@@ -3,16 +3,17 @@ from agents.FirstAgent import FirstAgent
 from agents.RandomAgent import RandomAgent
 from agents.MCTS import BackgammonMCTSAgent
 from agents.HeuristicAgent import HeuristicBackgammonAgent
-from time import perf_counter
+from time import perf_counter, sleep
 
 start = perf_counter()
 # black = BackgammonMCTSAgent(time_budget=1)
 # white = BackgammonMCTSAgent(time_budget=10)
 white = BackgammonMCTSAgent(time_budget=1)
 # black = BackgammonMCTSAgent(time_budget=3)
+# white = RandomAgent()
 black = RandomAgent()
 count = 0
-N = 10 # 98.9 seconds
+N = 10
 # 24.4 simulations per second time3 vs time3
 white_win = 0
 black_win = 0
@@ -28,9 +29,10 @@ for i in range(N):
             agent = black    
         dice, invdice, moves, = board.roll_dice()
         move = agent.select_move(board)
-        # print(board)
-        # print(move)
+        print(board)
+        print(move)
         board.move_from_sequence(move) 
+        # sleep(0.5)
         count += 1
         cur_count += 1
 
