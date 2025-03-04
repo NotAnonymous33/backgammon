@@ -127,7 +127,7 @@ class HeuristicBackgammonAgent:
                     current = 0
         return longest
         
-    def select_move(self, board):
+    def select_move(self, board: Board):
         """Select the best move based on heuristic evaluation."""
         # Return empty list if no valid moves
         if not board.valid_moves:

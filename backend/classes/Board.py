@@ -24,7 +24,25 @@ class Board:
     white_bar: int
     black_bar: int
     
-    def __init__(self, board_dict=None, board_db=None, verbose=False):
+    def __init__(self, board_dict=None, board_db=None, copy=False, verbose=False):
+        if copy:
+            self.verbose = verbose
+            self.positions = copy.positions[:]
+            self.dice = copy.dice[:]
+            self.invalid_dice = copy.invalid_dice[:]
+            self.valid_moves = copy.valid_moves[:]
+            self.rolled = copy.rolled
+            self.turn = copy.turn
+            self.white_off = copy.white_off
+            self.black_off = copy.black_off
+            self.white_bar = copy.white_bar
+            self.black_bar = copy.black_bar
+            self.white_left = copy.white_left
+            self.black_left = copy.black_left
+            self.passed = copy.passed
+            self.game_over = copy.game_over
+            return
+            
         self.verbose = False
         if board_dict is None and board_db is None: # no params
             self.positions = [0 for _ in range(24)]
@@ -62,7 +80,7 @@ class Board:
                 self.black_bar = board_dict["black_bar"]
                 self.white_off = board_dict["white_off"]
                 self.black_off = board_dict["black_off"]
-                self.valid_moves = self.get_valid_moves()
+                self.valid_moves = self.set_valid_moves()
                 self.invalid_dice = self.get_invalid_dice()
                 self.white_left = self.calc_white_left()
                 self.black_left = self.calc_black_left()
@@ -82,13 +100,16 @@ class Board:
                 self.black_off = board_db.black_off
                 self.game_over = board_db.game_over
                 self.invalid_dice = self.get_invalid_dice()
-                self.valid_moves = self.get_valid_moves()
+                self.set_valid_moves()
                 self.white_left = self.calc_white_left()
                 self.black_left = self.calc_black_left()
                 self.passed = self.has_passed()
             except AttributeError:
                 self.__init__()
-            
+
+    def __deepcopy__(self, memo):
+        return Board(copy=self)
+
     def __str__(self):
         """
         Returns the backgammon board as a formatted string.
@@ -241,7 +262,7 @@ class Board:
                     moves.add((start, start - dice))
         return moves
         
-    def get_valid_moves(self):
+    def set_valid_moves(self):
         self.verbose and print("Board:get_valid_moves")
 
         def dfs(board: Board, prev_moves):
@@ -262,7 +283,7 @@ class Board:
             return moves
         
         dfs_moves = dfs(deepcopy(self), [])
-        return dfs_moves
+        self.valid_moves = dfs_moves
     
     def can_bearoff(self):
         if self.turn == Color.WHITE:
@@ -339,8 +360,10 @@ class Board:
     
     def move_from_sequence(self, sequence):
         self.verbose and print("Board:move_from_sequence")
-        sequence = [tuple(move) for move in sequence]
-        if self.valid_moves == [] and sequence == []:
+        # TODO ive had errors removing this before
+        # seems to work fine now, no idea why
+        # sequence = [tuple(move) for move in sequence] 
+        if not self.valid_moves and not sequence:
             self.swap_turn()
         if sequence not in self.valid_moves:
             return False
@@ -502,7 +525,7 @@ class Board:
             self.dice.append(self.dice[0])
         self.rolled = True
         self.invalid_dice = self.get_invalid_dice()
-        self.valid_moves = self.get_valid_moves()
+        self.set_valid_moves()
         return self.dice, self.invalid_dice, self.valid_moves
     
     def set_dice(self, dice) -> list[int]:
@@ -514,7 +537,7 @@ class Board:
         self.dice = dice
         self.rolled = True
         self.invalid_dice = self.get_invalid_dice()
-        self.valid_moves = self.get_valid_moves()
+        self.set_valid_moves()
         return self.dice, self.invalid_dice, self.valid_moves
     
     def set_board(self, data):

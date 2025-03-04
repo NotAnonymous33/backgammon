@@ -6,16 +6,14 @@ from agents.HeuristicAgent import HeuristicBackgammonAgent
 from time import perf_counter, sleep
 
 start = perf_counter()
-# black = BackgammonMCTSAgent(time_budget=1)
-# white = BackgammonMCTSAgent(time_budget=10)
-# white = BackgammonMCTSAgent(time_budget=1)
-# black = BackgammonMCTSAgent(time_budget=1)
-white = HeuristicBackgammonAgent()
-black = HeuristicBackgammonAgent()
+white = BackgammonMCTSAgent(time_budget=3)
+black = BackgammonMCTSAgent(time_budget=3)
+# white = HeuristicBackgammonAgent([1 for i in range(10)])
+# black = HeuristicBackgammonAgent([i for i in range(10)])
 # white = RandomAgent()
 # black = RandomAgent()
 count = 0
-N = 10
+N = 1
 # 24.4 simulations per second time3 vs time3
 white_win = 0
 black_win = 0
@@ -33,6 +31,7 @@ for i in range(N):
         move = agent.select_move(board)
         print(board)
         print(move)
+        sleep(1)
         board.move_from_sequence(move) 
         # sleep(0.5)
         count += 1
@@ -46,9 +45,8 @@ for i in range(N):
 
 print("Time: ", (perf_counter() - start))
 print("Games played: ", N)
-print(f"Simulations per game: {count}")
 print("Time per game: ", (perf_counter() - start)/N)
-# print("Simulations per second: ", (white.mcts.sim_count)/(perf_counter() - start))
+print("Simulations per second: ", (white.mcts.sim_count + black.mcts.sim_count)/(perf_counter() - start))
 
 print("White wins: ", white_win)
 print("Black wins: ", black_win)
