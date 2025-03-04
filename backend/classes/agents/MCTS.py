@@ -104,22 +104,6 @@ class MCTSBackgammonAgent:
         self.player_color = None
         self.sim_count = 0
     
-    # def select_move(self, board):
-    #     """Select the best move using MCTS given the current board state."""
-    #     if len(board.valid_moves) == 0:
-    #         return []
-        
-    #     # Initialize root with current board state
-    #     self.player_color = board.turn
-    #     self.root = Node(state=BackgammonState(board))
-        
-    #     # Run search with time budget
-    #     time_budget = 2.0  # 2 seconds
-    #     self.search(time_budget)
-        
-    #     # Return best move
-    #     return self.best_move()
-    
     def search(self, time_budget):
         """Run MCTS for the specified time."""
         start_time = time.time()
@@ -195,24 +179,8 @@ class MCTSBackgammonAgent:
             return state.get_result(self.player_color)
         else:
             if self.player_color == Color.WHITE:
-                return 2 * (state.board.black_left / (state.board.white_left + state.board.black_left) - 1)
+                return 2 * (state.board.black_left / (state.board.white_left + state.board.black_left)) - 1
             return 2 * (state.board.white_left / (state.board.white_left + state.board.black_left) - 1)
-            # # Heuristic: compare pieces borne off and on bar
-            # if self.player_color == Color.WHITE:
-            #     relative_progress = state.board.white_left - state.board.black_left
-            # else:
-            #     relative_progress = state.board.black_left - state.board.white_left
-            
-            
-            # white_progress = state.board.white_off - state.board.white_bar
-            # black_progress = state.board.black_off - state.board.black_bar
-            # if self.player_color == Color.WHITE:
-            #     relative_progress = white_progress - black_progress
-            # else:
-            #     relative_progress = black_progress - white_progress
-            
-            # # Normalize to [-1, 1]
-            # return max(-1, min(1, relative_progress / 15))
     
     def backpropagate(self, node, result):
         """Update statistics in all nodes along path from node to root."""

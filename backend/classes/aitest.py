@@ -8,10 +8,12 @@ from time import perf_counter, sleep
 start = perf_counter()
 # black = BackgammonMCTSAgent(time_budget=1)
 # white = BackgammonMCTSAgent(time_budget=10)
-white = BackgammonMCTSAgent(time_budget=1)
-# black = BackgammonMCTSAgent(time_budget=3)
+# white = BackgammonMCTSAgent(time_budget=1)
+# black = BackgammonMCTSAgent(time_budget=1)
+white = HeuristicBackgammonAgent()
+black = HeuristicBackgammonAgent()
 # white = RandomAgent()
-black = RandomAgent()
+# black = RandomAgent()
 count = 0
 N = 10
 # 24.4 simulations per second time3 vs time3
@@ -46,7 +48,7 @@ print("Time: ", (perf_counter() - start))
 print("Games played: ", N)
 print(f"Simulations per game: {count}")
 print("Time per game: ", (perf_counter() - start)/N)
-print("Simulations per second: ", (white.mcts.sim_count)/(perf_counter() - start))
+# print("Simulations per second: ", (white.mcts.sim_count)/(perf_counter() - start))
 
 print("White wins: ", white_win)
 print("Black wins: ", black_win)

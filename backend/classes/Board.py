@@ -31,14 +31,6 @@ class Board:
             initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
             initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
             
-            # initial_white = [(11, 4), (16, 2), (17, 1), (18, 4), (20, 2)]
-            # initial_black = [(1, 2), (2, 1), (4, 1), (5, 3), (6, 1), (7, 2), (12, 3), (21, 1)]
-            
-            # game over testing initial
-            # initial_white = [(22, 2)]
-            # initial_black = [(0, 2)]
-                   
-            
             for pos, count in initial_white:
                 self.positions[pos] = count
             for pos, count in initial_black:
@@ -79,21 +71,23 @@ class Board:
             except KeyError:
                 self.__init__()
         else: # board db
-            self.positions = board_db.positions
-            self.dice = list(map(int, list(board_db.dice)))
-            self.rolled = board_db.rolled
-            self.turn = Color.WHITE if board_db.turn == 1 else Color.BLACK
-            self.white_bar = board_db.white_bar
-            self.black_bar = board_db.black_bar
-            self.white_off = board_db.white_off
-            self.black_off = board_db.black_off
-            self.game_over = board_db.game_over
-            self.invalid_dice = self.get_invalid_dice()
-            self.valid_moves = self.get_valid_moves()
-            self.white_left = self.calc_white_left()
-            self.black_left = self.calc_black_left()
-            self.passed = self.has_passed()
-            # TODO if there is an attribute(?) error, call init
+            try:   
+                self.positions = board_db.positions
+                self.dice = list(map(int, list(board_db.dice)))
+                self.rolled = board_db.rolled
+                self.turn = Color.WHITE if board_db.turn == 1 else Color.BLACK
+                self.white_bar = board_db.white_bar
+                self.black_bar = board_db.black_bar
+                self.white_off = board_db.white_off
+                self.black_off = board_db.black_off
+                self.game_over = board_db.game_over
+                self.invalid_dice = self.get_invalid_dice()
+                self.valid_moves = self.get_valid_moves()
+                self.white_left = self.calc_white_left()
+                self.black_left = self.calc_black_left()
+                self.passed = self.has_passed()
+            except AttributeError:
+                self.__init__()
             
     def __str__(self):
         """
