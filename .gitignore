@@ -5,3 +5,6 @@ __pycache__
 
 .vscode/*
 backend/.idea
+
+*.c
+*.pyd
