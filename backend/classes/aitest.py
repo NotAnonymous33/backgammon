@@ -1,4 +1,5 @@
-from Board import Board
+from CBoard import Board
+# from Board import Board
 from agents.FirstAgent import FirstAgent
 from agents.RandomAgent import RandomAgent
 from agents.MCTS import BackgammonMCTSAgent
@@ -6,14 +7,15 @@ from agents.HeuristicAgent import HeuristicBackgammonAgent
 from time import perf_counter, sleep
 
 start = perf_counter()
-white = BackgammonMCTSAgent(time_budget=3)
-black = BackgammonMCTSAgent(time_budget=3)
-# white = HeuristicBackgammonAgent([1 for i in range(10)])
-# black = HeuristicBackgammonAgent([i for i in range(10)])
+# white = BackgammonMCTSAgent(time_budget=1)
+# black = BackgammonMCTSAgent(time_budget=1)
+white = HeuristicBackgammonAgent([1 for i in range(10)])
+black = HeuristicBackgammonAgent([i for i in range(10)])
+# black = HeuristicBackgammonAgent()
 # white = RandomAgent()
 # black = RandomAgent()
 count = 0
-N = 1
+N = 100
 # 24.4 simulations per second time3 vs time3
 white_win = 0
 black_win = 0
@@ -23,17 +25,15 @@ for i in range(N):
     board = Board()
     cur_count = 0
     while not board.game_over:
-        if board.turn.value == 1:
+        if board.turn == 1:
             agent = white
         else:
             agent = black    
         dice, invdice, moves, = board.roll_dice()
         move = agent.select_move(board)
-        print(board)
-        print(move)
-        sleep(1)
-        board.move_from_sequence(move) 
-        # sleep(0.5)
+        # print(board)
+        # print(move)
+        board.move_from_sequence(move)
         count += 1
         cur_count += 1
 
@@ -41,12 +41,12 @@ for i in range(N):
         white_win += 1
     else:
         black_win += 1
-    print(white_win, black_win, white_win + black_win)
+    # print(white_win, black_win, white_win + black_win)
 
 print("Time: ", (perf_counter() - start))
 print("Games played: ", N)
 print("Time per game: ", (perf_counter() - start)/N)
-print("Simulations per second: ", (white.mcts.sim_count + black.mcts.sim_count)/(perf_counter() - start))
+# print("Simulations per second: ", (white.mcts.sim_count)/(perf_counter() - start))
 
 print("White wins: ", white_win)
 print("Black wins: ", black_win)

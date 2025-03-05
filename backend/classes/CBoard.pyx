@@ -1,12 +1,15 @@
+# board.pyx
+import cython
 from pprint import pprint
 from random import randint
 from itertools import permutations
 from copy import deepcopy
-import cython
 
+@cython.ccall
 def sign(x: cython.int) -> cython.int:
     return -1 if x < 0 else (1 if x > 0 else 0)
 
+@cython.ccall
 def list_diff(a, b):
     a_copy = a[:]
     for i in b:
@@ -14,23 +17,25 @@ def list_diff(a, b):
             a_copy.remove(i)
     return a_copy
 
-class Board:
-    rolled: bool
-    turn: int
-    white_off: int
-    black_off: int
-    white_bar: int
-    black_bar: int
-    white_left: int
-    black_left: int
-    passed: bool
-    game_over: bool
-    positions: list[int]
-    dice: list[int]
-    invalid_dice: list[int]
-    valid_moves: list[list[tuple[int, int]]]
+cdef class Board:
+    cdef public bint rolled
+    cdef public int turn
+    cdef public int white_off
+    cdef public int black_off
+    cdef public int white_bar
+    cdef public int black_bar
+    cdef public bint verbose
+    cdef public list positions
+    cdef public list dice
+    cdef public list invalid_dice
+    cdef public list valid_moves
+    cdef public int white_left
+    cdef public int black_left
+    cdef public bint passed
+    cdef public bint game_over
     
-    def __init__(self, board_dict=None, board_db=None, copy=False, verbose=False):
+
+    def __init__(self, board_dict=None, board_db=None, copy=False, bint verbose=False):
         if copy:
             self.verbose = verbose
             self.positions = copy.positions[:]
@@ -156,14 +161,16 @@ class Board:
         # Combine all parts
         return start + bar + bottom + top + off_board + dice + invalid_dice + left + end
 
+
     def get_invalid_dice(self):
-        self.verbose and print("Board:get_invalid_dice")
+        if self.verbose:
+            print("Board:get_invalid_dice")
         invalid_dice = self.dice[:]
         max_length = 0
         max_die = 0
         
         # returns whether there is a valid move using all dice
-        def verify_permutation(board: Board, remaining_dice, move_sequence):
+        def verify_permutation(board, remaining_dice, move_sequence):
             move_sequence = move_sequence[:]
             nonlocal max_length
             nonlocal max_die
@@ -227,6 +234,7 @@ class Board:
             self.dice.remove(die)
         return invalid_dice
     
+    @cython.ccall
     def get_single_moves(self):
         moves = set()
         if self.turn == 1:
@@ -269,9 +277,10 @@ class Board:
         return moves
         
     def set_valid_moves(self):
-        self.verbose and print("Board:get_valid_moves")
+        if self.verbose:
+            print("Board:get_valid_moves")
 
-        def dfs(board: Board, prev_moves):
+        def dfs(board, prev_moves):
             if not board.dice:
                 if prev_moves:
                     return [prev_moves]
@@ -289,7 +298,9 @@ class Board:
             return moves
         
         self.valid_moves = dfs(deepcopy(self), [])
+        return self.valid_moves
     
+    @cython.ccall
     def can_bearoff(self):
         if self.turn == 1:
             if self.white_bar:
@@ -305,8 +316,9 @@ class Board:
                     return False
         return True
         
+
     def convert(self):
-        ret = {
+        return {
             "positions": self.positions, 
             "turn": self.turn, 
             "dice": "".join(str(d) for d in self.dice),
@@ -318,9 +330,9 @@ class Board:
             "black_off": self.black_off,
             "valid_moves": self.valid_moves,
             "game_over": self.game_over
-        }        
-        return ret
+        }
     
+    @cython.ccall
     def has_passed(self):
         if self.white_bar > 0 or self.black_bar > 0:
             return False
@@ -346,25 +358,32 @@ class Board:
         # Check if all black pieces are past all white pieces
         return lowest_white > highest_black
     
+    @cython.ccall
     def calc_white_left(self):
-        total = 0
+        cdef int total = 0
+        cdef int i
+        cdef int pos
         for i, pos in enumerate(self.positions):
             if pos > 0:
                 total += (24 - i) * pos
         total += self.white_bar
         return total
             
-    
+    @cython.ccall
     def calc_black_left(self):
-        total = 0
+        cdef int total = 0
+        cdef int i
+        cdef int pos
         for i, pos in enumerate(self.positions):
             if pos < 0:
                 total += (i + 1) * pos * -1
         total += self.black_bar
         return total
     
+    @cython.ccall
     def move_from_sequence(self, sequence):
-        self.verbose and print("Board:move_from_sequence")
+        if self.verbose:
+            print("Board:move_from_sequence")
         # TODO ive had errors removing this before
         # seems to work fine now, no idea why
         # sequence = [tuple(move) for move in sequence] 
@@ -382,11 +401,14 @@ class Board:
             return True
         if self.rolled and len(self.dice) == 0:
             self.swap_turn()
+        return True
     
+    @cython.ccall
     def has_won(self):
         return self.white_off == 15 or self.black_off == 15
     
-    def move(self, current, next, bypass=False):
+    @cython.ccall
+    def move(self, current, next, bint bypass=False):
         if not bypass and not self.is_valid(current, next):
             return False
         
@@ -435,14 +457,17 @@ class Board:
             self.dice.remove((next - current) * self.turn)
         return True
     
+    @cython.ccall
     def swap_turn(self):
-        self.verbose and print("Board:swap_turn")
+        if self.verbose:
+            print("Board:swap_turn")
         self.turn = self.turn * -1
         self.rolled = False
         self.dice = []
         self.invalid_dice = []
         self.valid_moves = []
 
+    @cython.ccall
     def is_valid(self, current, next): 
         # TODO: unit tests
         # current can't be empty
@@ -470,7 +495,7 @@ class Board:
                         else:
                             return False
                 # maybe i need to return something here, check later TODO
-            else: # self.turn == Color.BLACK
+            else: # self.turn == -1
                 for dice in self.dice:
                     if dice == current + 1:
                         return True
@@ -518,8 +543,10 @@ class Board:
                 return True
         return False
     
+    @cython.ccall
     def roll_dice(self):
-        self.verbose and print("Board:roll_dice")
+        if self.verbose:
+            print("Board:roll_dice")
         if self.game_over:
             return False
         if self.rolled:
@@ -533,8 +560,10 @@ class Board:
         self.set_valid_moves()
         return self.dice, self.invalid_dice, self.valid_moves
     
-    def set_dice(self, dice) -> list[int]:
-        self.verbose and print("Board:roll_dice")
+    @cython.ccall
+    def set_dice(self, dice):
+        if self.verbose:
+            print("Board:roll_dice")
         if self.game_over:
             return False
         if self.rolled:
@@ -545,6 +574,7 @@ class Board:
         self.set_valid_moves()
         return self.dice, self.invalid_dice, self.valid_moves
     
+    @cython.ccall
     def set_board(self, data):
         if "positions" in data:
             self.positions = data["positions"]
@@ -553,4 +583,3 @@ class Board:
         if "turn" in data:
             self.turn = data["turn"]
         return self.convert()
-            

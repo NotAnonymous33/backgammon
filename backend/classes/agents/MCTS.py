@@ -4,10 +4,8 @@ import random
 import math
 try:
     from Board import Board
-    from Color import Color
 except:
     from ..Board import Board
-    from ..Color import Color
 
 class BackgammonState:
     def __init__(self, board=None):
@@ -38,7 +36,7 @@ class BackgammonState:
             return 0
         
 
-        if player_color == Color.WHITE:
+        if player_color == 1:
             return 1 if self.board.white_off == 15 else -1
         else:  # player_color == Color.BLACK
             return 1 if self.board.black_off == 15 else -1
@@ -178,7 +176,7 @@ class MCTSBackgammonAgent:
         if state.is_terminal():
             return state.get_result(self.player_color)
         else:
-            if self.player_color == Color.WHITE:
+            if self.player_color == 1:
                 return 2 * (state.board.black_left / (state.board.white_left + state.board.black_left)) - 1
             return 2 * (state.board.white_left / (state.board.white_left + state.board.black_left) - 1)
     

@@ -3,10 +3,8 @@ import random
 import math
 try:
     from Board import Board
-    from Color import Color
 except:
     from ..Board import Board
-    from ..Color import Color
 
 
 class HeuristicBackgammonAgent:
@@ -83,8 +81,8 @@ class HeuristicBackgammonAgent:
                     score += self.single_checker_weight_outer
         
         # 4. Primes (consecutive points)
-        white_prime_length = self.longest_prime(board, Color.WHITE)
-        black_prime_length = self.longest_prime(board, Color.BLACK)
+        white_prime_length = self.longest_prime(board, 1)
+        black_prime_length = self.longest_prime(board, -1)
         score += white_prime_length * self.prime_weight
         score -= black_prime_length * self.prime_weight
         
@@ -111,7 +109,7 @@ class HeuristicBackgammonAgent:
     def longest_prime(self, board, color):
         longest = 0
         current = 0
-        if color == Color.WHITE:
+        if color == 1:
             for i in range(24):
                 if board.positions[i] >= 2:
                     current += 1
@@ -134,7 +132,7 @@ class HeuristicBackgammonAgent:
             return []
             
         best_move = None
-        if board.turn == Color.WHITE:
+        if board.turn == 1:
             best_score = -1000000
         else:
             best_score = 1000000
@@ -148,7 +146,7 @@ class HeuristicBackgammonAgent:
             score = self.evaluate_board(new_board)
             
             # Update best move if necessary
-            if board.turn == Color.WHITE:
+            if board.turn == 1:
                 if score > best_score:
                     best_score = score
                     best_move = move

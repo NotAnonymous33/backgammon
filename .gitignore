@@ -8,3 +8,5 @@ backend/.idea
 
 *.c
 *.pyd
+
+backend/classes/build/

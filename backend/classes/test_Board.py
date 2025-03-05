@@ -1,6 +1,5 @@
 import unittest
 from Board import Board
-from Color import Color
 
 class TestBoard(unittest.TestCase):
 
