@@ -10,3 +10,4 @@ backend/.idea
 *.pyd
 
 backend/classes/build/
+*.html

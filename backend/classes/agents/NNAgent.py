@@ -616,7 +616,8 @@ def extract_features(board):
     
     features.append(white_anchor_points / 6.0)
     features.append(black_anchor_points / 6.0)
-
+    
+    features.append(1.0 if board.turn == 1 else 0.0)
     
     return features
 
@@ -878,8 +879,6 @@ class BackgammonTrainer:
             # Play a complete game
             winner, white_states, black_states = self.play_game()
             
-            self.td_lambda.update(white_states, float(winner))
-            self.td_lambda.update(black_states, float(winner))
             if winner == 1:  # White won
                 wins_white += 1
                 self.td_lambda.update(white_states, 1.0)
