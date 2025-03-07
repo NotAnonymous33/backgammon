@@ -616,8 +616,7 @@ def extract_features(board):
     
     features.append(white_anchor_points / 6.0)
     features.append(black_anchor_points / 6.0)
-    
-    features.append(1.0 if board.turn == 1 else 0.0)
+
     
     return features
 
@@ -879,13 +878,11 @@ class BackgammonTrainer:
             # Play a complete game
             winner, white_states, black_states = self.play_game()
             
+            self.td_lambda.update(white_states, float(winner))
+            self.td_lambda.update(black_states, float(winner))
             if winner == 1:  # White won
                 wins_white += 1
-                self.td_lambda.update(white_states, 1.0)
-                self.td_lambda.update(black_states, 0.0)
-            else:  # Black won
-                self.td_lambda.update(white_states, 0.0)
-                self.td_lambda.update(black_states, 1.0)
+
             
             if (game_num + 1) % 20 == 0:
                 print(f"Completed game {game_num + 1}/{self.games_per_epoch}")
@@ -905,8 +902,7 @@ class BackgammonTrainer:
         board = Board()
         agent = NNAgent(self.model, self.extract_features)
         
-        white_states = []
-        black_states = []
+        states = []
         
         move_count = 0
         max_moves = 200  # Prevent infinite games
@@ -920,11 +916,7 @@ class BackgammonTrainer:
             state_tensor = torch.tensor([features], dtype=torch.float32)
             
             # Store state
-            if board.turn == 1:
-                white_states.append(state_tensor)
-            else:
-                black_states.append(state_tensor)
-            
+            states.append(state_tensor)
             # Choose move
             move = agent.select_move(board)
             
