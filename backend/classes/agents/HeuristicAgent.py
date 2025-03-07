@@ -1,6 +1,4 @@
 from copy import deepcopy
-import random
-import math
 try:
     from Board import Board
 except:

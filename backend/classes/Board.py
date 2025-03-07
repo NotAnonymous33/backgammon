@@ -4,10 +4,10 @@ from itertools import permutations
 from copy import deepcopy
 import cython
 
-def sign(x: cython.int) -> cython.int:
+def sign(x: int) -> int:
     return -1 if x < 0 else (1 if x > 0 else 0)
 
-def list_diff(a, b):
+def list_diff(a: list, b: list) -> list:
     a_copy = a[:]
     for i in b:
         if i in a_copy:
@@ -30,9 +30,9 @@ class Board:
     invalid_dice: list[int]
     valid_moves: list[list[tuple[int, int]]]
     
-    def __init__(self, board_dict=None, board_db=None, copy=False, verbose=False):
+    def __init__(self, board_dict=None, board_db=None, copy=None, verbose=False):
+        self.verbose = verbose
         if copy:
-            self.verbose = verbose
             self.positions = copy.positions[:]
             self.dice = copy.dice[:]
             self.invalid_dice = copy.invalid_dice[:]
@@ -48,53 +48,7 @@ class Board:
             self.passed = copy.passed
             self.game_over = copy.game_over
             return
-            
-        self.verbose = False
-        if board_dict is None and board_db is None: # no params
-            self.positions = [0 for _ in range(24)]
-            initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
-            initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
-            
-            for pos, count in initial_white:
-                self.positions[pos] = count
-            for pos, count in initial_black:
-                self.positions[pos] = -count
-            
-            self.dice = []
-            self.invalid_dice = []
-            self.valid_moves = []
-            self.rolled = False
-            self.turn = 1
-            
-            self.white_off = 0
-            self.black_off = 0
-            
-            self.white_bar = 0
-            self.black_bar = 0
-            
-            self.white_left = self.calc_white_left()
-            self.black_left = self.calc_black_left()
-            self.passed = self.has_passed()
-            self.game_over = False
-        elif board_dict is not None: # board dict
-            try:
-                self.positions = board_dict["positions"]
-                self.dice = list(map(int, list(board_dict["dice"])))
-                self.rolled = board_dict["rolled"]
-                self.turn = board_dict["turn"]
-                self.white_bar = board_dict["white_bar"]
-                self.black_bar = board_dict["black_bar"]
-                self.white_off = board_dict["white_off"]
-                self.black_off = board_dict["black_off"]
-                self.valid_moves = self.set_valid_moves()
-                self.invalid_dice = self.get_invalid_dice()
-                self.white_left = self.calc_white_left()
-                self.black_left = self.calc_black_left()
-                self.passed = self.has_passed()
-                self.game_over = board_dict["game_over"]
-            except KeyError:
-                self.__init__()
-        else: # board db
+        if board_db:
             try:   
                 self.positions = board_db.positions
                 self.dice = list(map(int, list(board_db.dice)))
@@ -112,6 +66,52 @@ class Board:
                 self.passed = self.has_passed()
             except AttributeError:
                 self.__init__()
+            return
+        if board_dict:
+            try:
+                self.positions = board_dict["positions"]
+                self.dice = list(map(int, list(board_dict["dice"])))
+                self.rolled = board_dict["rolled"]
+                self.turn = board_dict["turn"]
+                self.white_bar = board_dict["white_bar"]
+                self.black_bar = board_dict["black_bar"]
+                self.white_off = board_dict["white_off"]
+                self.black_off = board_dict["black_off"]
+                self.set_valid_moves()
+                self.invalid_dice = self.get_invalid_dice()
+                self.white_left = self.calc_white_left()
+                self.black_left = self.calc_black_left()
+                self.passed = self.has_passed()
+                self.game_over = board_dict["game_over"]
+            except KeyError:
+                self.__init__()# board db
+            return
+        self.positions = [0 for _ in range(24)]
+        initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
+        initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
+        
+        for pos, count in initial_white:
+            self.positions[pos] = count
+        for pos, count in initial_black:
+            self.positions[pos] = -count
+        
+        self.dice = []
+        self.invalid_dice = []
+        self.valid_moves = []
+        self.rolled = False
+        self.turn = 1
+        
+        self.white_off = 0
+        self.black_off = 0
+        
+        self.white_bar = 0
+        self.black_bar = 0
+        
+        self.white_left = self.calc_white_left()
+        self.black_left = self.calc_black_left()
+        self.passed = self.has_passed()
+        self.game_over = False
+        
 
     def __deepcopy__(self, memo):
         return Board(copy=self)
@@ -149,21 +149,22 @@ class Board:
         # Off-board area
         off_board = f"\n\nOff-board:\nWhite: {self.white_off}, Black: {self.black_off}"
         dice = f"\n\nDice: {self.dice}"
-        invalid_dice = f"\n\nInvalid Dice: {self.invalid_dice}"
+        invalid_dice = f"\nInvalid Dice: {self.invalid_dice}"
         start = "\n\nTurn: " + ("White" if self.turn == 1 else "Black") + "-----------------------------------------------\n"
-        end = "\n\n-----------------------------------------------\n"
+        end = "\n-----------------------------------------------\n"
         left = f"\n\nWhite left: {self.white_left}, Black left: {self.black_left}"
         # Combine all parts
         return start + bar + bottom + top + off_board + dice + invalid_dice + left + end
 
-    def get_invalid_dice(self):
+    def get_invalid_dice(self) -> list[int]:
         self.verbose and print("Board:get_invalid_dice")
         invalid_dice = self.dice[:]
         max_length = 0
         max_die = 0
         
         # returns whether there is a valid move using all dice
-        def verify_permutation(board: Board, remaining_dice, move_sequence):
+        # if there is one dice i can make some optimisations similar to the other function
+        def verify_permutation(board: Board, remaining_dice: list[int], move_sequence: list[int]) -> bool:
             move_sequence = move_sequence[:]
             nonlocal max_length
             nonlocal max_die
@@ -192,14 +193,14 @@ class Board:
                     if board_copy.move(-1, i):
                         if verify_permutation(board_copy, board_copy.dice, move_sequence + list_diff(board.dice, board_copy.dice)):
                             return True
-                return
+                return False
             if board.turn == -1 and board.black_bar:
                 for i in range(23, 17, -1):
                     board_copy = deepcopy(board)
                     if board_copy.move(-1, i):
                         if verify_permutation(board_copy, board_copy.dice, move_sequence + list_diff(board.dice, board_copy.dice)):
                             return True
-                return
+                return False
             
             # bearing off
             if board.can_bearoff():
@@ -218,7 +219,8 @@ class Board:
                     board_copy = deepcopy(board)
                     if board_copy.move(start, end):
                         if verify_permutation(board_copy, remaining_dice[1:], move_sequence + [remaining_dice[0]]):
-                            return True         
+                            return True  
+            return False       
         
         if verify_permutation(deepcopy(self), self.dice, []):
             return []
@@ -227,7 +229,7 @@ class Board:
             self.dice.remove(die)
         return invalid_dice
     
-    def get_single_moves(self):
+    def get_single_moves(self) -> set[tuple[int, int]]:
         moves = set()
         if self.turn == 1:
             # reentering checkers
@@ -268,10 +270,10 @@ class Board:
                     moves.add((start, start - dice))
         return moves
         
-    def set_valid_moves(self):
+    def set_valid_moves(self) -> None:
         self.verbose and print("Board:get_valid_moves")
 
-        def dfs(board: Board, prev_moves):
+        def dfs(board: Board, prev_moves) -> list[list[tuple[int, int]]]:
             if not board.dice:
                 if prev_moves:
                     return [prev_moves]
@@ -290,7 +292,7 @@ class Board:
         
         self.valid_moves = dfs(deepcopy(self), [])
     
-    def can_bearoff(self):
+    def can_bearoff(self) -> bool:
         if self.turn == 1:
             if self.white_bar:
                 return False
@@ -305,7 +307,7 @@ class Board:
                     return False
         return True
         
-    def convert(self):
+    def convert(self) -> dict:
         ret = {
             "positions": self.positions, 
             "turn": self.turn, 
@@ -321,7 +323,7 @@ class Board:
         }        
         return ret
     
-    def has_passed(self):
+    def has_passed(self) -> bool:
         if self.white_bar > 0 or self.black_bar > 0:
             return False
         
@@ -346,24 +348,24 @@ class Board:
         # Check if all black pieces are past all white pieces
         return lowest_white > highest_black
     
-    def calc_white_left(self):
+    def calc_white_left(self) -> int:
         total = 0
         for i, pos in enumerate(self.positions):
             if pos > 0:
                 total += (24 - i) * pos
-        total += self.white_bar
+        total += self.white_bar * 24
         return total
             
     
-    def calc_black_left(self):
+    def calc_black_left(self) -> int:
         total = 0
         for i, pos in enumerate(self.positions):
             if pos < 0:
                 total += (i + 1) * pos * -1
-        total += self.black_bar
+        total += self.black_bar * 24
         return total
     
-    def move_from_sequence(self, sequence):
+    def move_from_sequence(self, sequence: list[tuple[int, int]]) -> bool | None:
         self.verbose and print("Board:move_from_sequence")
         # TODO ive had errors removing this before
         # seems to work fine now, no idea why
@@ -374,7 +376,8 @@ class Board:
             return False
         for move in sequence:
             self.move(*move, bypass=True)
-        self.passed = self.has_passed()
+        if not self.passed:
+            self.passed = self.has_passed()
         self.white_left = self.calc_white_left()
         self.black_left = self.calc_black_left()
         if self.has_won():
@@ -383,10 +386,10 @@ class Board:
         if self.rolled and len(self.dice) == 0:
             self.swap_turn()
     
-    def has_won(self):
+    def has_won(self) -> bool:
         return self.white_off == 15 or self.black_off == 15
     
-    def move(self, current, next, bypass=False):
+    def move(self, current: int, next: int, bypass: bool = False) -> bool:
         if not bypass and not self.is_valid(current, next):
             return False
         
@@ -435,7 +438,7 @@ class Board:
             self.dice.remove((next - current) * self.turn)
         return True
     
-    def swap_turn(self):
+    def swap_turn(self) -> None:
         self.verbose and print("Board:swap_turn")
         self.turn = self.turn * -1
         self.rolled = False
@@ -443,7 +446,7 @@ class Board:
         self.invalid_dice = []
         self.valid_moves = []
 
-    def is_valid(self, current, next): 
+    def is_valid(self, current: int, next: int) -> bool: 
         # TODO: unit tests
         # current can't be empty
         if current < -1 or current > 23:
@@ -518,7 +521,7 @@ class Board:
                 return True
         return False
     
-    def roll_dice(self):
+    def roll_dice(self) -> tuple[list[int], list[int], list[list[tuple[int, int]]]] | bool:
         self.verbose and print("Board:roll_dice")
         if self.game_over:
             return False
@@ -533,7 +536,7 @@ class Board:
         self.set_valid_moves()
         return self.dice, self.invalid_dice, self.valid_moves
     
-    def set_dice(self, dice) -> list[int]:
+    def set_dice(self, dice: list[int]) -> tuple[list[int], list[int], list[list[tuple[int, int]]]] | bool:
         self.verbose and print("Board:roll_dice")
         if self.game_over:
             return False
@@ -545,7 +548,7 @@ class Board:
         self.set_valid_moves()
         return self.dice, self.invalid_dice, self.valid_moves
     
-    def set_board(self, data):
+    def set_board(self, data: dict) -> dict:
         if "positions" in data:
             self.positions = data["positions"]
         if "dice" in data:

@@ -2,13 +2,17 @@ from copy import deepcopy
 import time
 import random
 import math
-try:
-    from Board import Board
-except:
-    from ..Board import Board
+import cython
 
 
-class Node:
+cdef class Node:
+    cdef public object state
+    cdef public list move_sequence
+    cdef public object parent
+    cdef public dict children
+    cdef public int N
+    cdef public float Q
+    cdef public list untried_moves
     def __init__(self, state=None, move_sequence=None, parent=None):
         """Initialize a node in the MCTS tree."""
         self.state = state
@@ -26,29 +30,34 @@ class Node:
         else:
             self.untried_moves = []
 
-    def value(self, exploration_weight):
+    @cython.ccall
+    @cython.cdivision(True)
+    def value(self, float exploration_weight):
         """Calculate the UCT value of this node."""
         if self.N == 0:
             return float('inf')
 
-        exploitation = self.Q / self.N
-        exploration = exploration_weight * math.sqrt(2 * math.log(self.parent.N) / self.N)
+        cdef float exploitation = self.Q / self.N
+        cdef float exploration = exploration_weight * math.sqrt(2 * math.log(self.parent.N) / self.N)
 
         return exploitation + exploration
 
+    @cython.ccall
     def is_fully_expanded(self):
         """Check if all valid moves have been expanded."""
-        return len(self.untried_moves) == 0
+        return not self.untried_moves
 
-    def best_child(self, exploration_weight):
+    @cython.ccall
+    def best_child(self, float exploration_weight):
         """Return the child with the highest UCT value."""
         if not self.children:
             return None
-
+        
         # Find child with highest UCT value
-        best_value = float('-inf')
-        best_children = []
-
+        cdef float best_value = float('-inf')
+        cdef list best_children = []
+        cdef object child
+        cdef float value
         for child in self.children.values():
             value = child.value(exploration_weight)
             if value > best_value:
@@ -61,8 +70,14 @@ class Node:
         return random.choice(best_children) if best_children else None
 
 
-class MCTSBackgammonAgent:
-    def __init__(self, exploration_weight=1.0, simulation_depth=50):
+cdef class MCTSBackgammonAgent:
+    cdef public float exploration_weight
+    cdef public int simulation_depth
+    cdef public object root
+    cdef public int player_color
+    cdef public int sim_count
+
+    def __init__(self, float exploration_weight=1.0, simulation_depth=50):
         """Initialize the MCTS agent."""
         self.exploration_weight = exploration_weight
         self.simulation_depth = simulation_depth
@@ -70,9 +85,17 @@ class MCTSBackgammonAgent:
         self.player_color = 0
         self.sim_count = 0
 
-    def search(self, time_budget):
-        """Run MCTS for the specified time."""
+    @cython.ccall
+    def search(self, float time_budget):
+        cdef object node
+        cdef list move
+        cdef object new_state
+        cdef object child
+        cdef tuple move_key
+        cdef float result
         start_time = time.time()
+        """Run MCTS for the specified time."""
+        # start_time = time.time()
 
         while time.time() - start_time < time_budget:
             # 1. Selection: traverse tree until we reach a leaf node
@@ -89,8 +112,10 @@ class MCTSBackgammonAgent:
                 new_state.move_from_sequence(move)
 
                 # Create a new child node
-                move_key = tuple(tuple(m) for m in move)
                 child = Node(state=new_state, move_sequence=move, parent=node)
+                move_key = ()
+                for m in move:
+                    move_key += (tuple(m),)
                 node.children[move_key] = child
 
                 # Use the new node for simulation
@@ -107,10 +132,10 @@ class MCTSBackgammonAgent:
         # print(f"Performed {num_simulations} simulations in {time.time() - start_time:.2f} seconds")
         # print(f"{self.sim_count=}")
 
-
+    @cython.ccall
     def select_node(self):
         """Select a node to expand using UCT."""
-        node = self.root
+        cdef object node = self.root
 
         # Keep selecting best child until reaching a leaf or unexpanded node
         while node.children and node.is_fully_expanded() and not node.state.game_over:
@@ -118,10 +143,13 @@ class MCTSBackgammonAgent:
 
         return node
 
-    def simulate(self, node):
+    @cython.ccall
+    @cython.cdivision(True)
+    def simulate(self, object node):
         """Simulate a random game from node and return the result."""
-        state = deepcopy(node.state)
-        depth = 0
+        cdef list move
+        cdef object state = deepcopy(node.state)
+        cdef int depth = 0
 
         # Simulate random play until terminal state or depth limit
         while not state.game_over and depth < self.simulation_depth:
@@ -152,10 +180,11 @@ class MCTSBackgammonAgent:
                 return 2 * (state.black_left / (state.white_left + state.black_left)) - 1
             return 2 * (state.white_left / (state.white_left + state.black_left)) - 1
 
-    def backpropagate(self, node, result):
+    @cython.ccall
+    def backpropagate(self, object node, float result):
         """Update statistics in all nodes along path from node to root."""
-        current = node
-        current_result = result
+        cdef object current = node
+        cdef float current_result = result
 
         while current is not None:
             current.N += 1
@@ -163,30 +192,41 @@ class MCTSBackgammonAgent:
             current = current.parent
             current_result = -current_result  # Negate result for parent (other player)
 
+    # @cython.ccall
     def best_move(self):
         """Return move with highest visit count from root's children."""
         if not self.root.children:
             return []
 
-        # Find children with highest visit count
-        max_visits = max(child.N for child in self.root.children.values())
+        # # Find children with highest visit count
+        # cdef object child
+        # cdef list best_children = []
+        # cdef int max_visits = -1
+        # for child in self.root.children.values():
+        #     max_visits = max(max_visits, child.N)
+        # for child in self.root.children.values():
+        #     if child.N == max_visits:
+        #         best_children.append(child) # 63 93 109 101 88 
+        max_visits = max(child.N for child in self.root.children.values()) # 77 96 82 73 98
         best_children = [child for child in self.root.children.values() if child.N == max_visits]
 
-        # Choose one randomly if there are multiple
-        best_child = random.choice(best_children)
-
-        return best_child.move_sequence
+        # choose random child
+        return random.choice(best_children).move_sequence
 
 
-class BackgammonMCTSAgent:
-    def __init__(self, exploration_weight=1.0, simulation_depth=50, time_budget=2.0):
+cdef class BackgammonMCTSAgent:
+    cdef public object mcts
+    cdef public float time_budget
+    def __init__(self, float exploration_weight=1.0, int simulation_depth=50, float time_budget=2.0):
         self.mcts = MCTSBackgammonAgent(
             exploration_weight=exploration_weight,
             simulation_depth=simulation_depth
         )
         self.time_budget = time_budget
 
-    def select_move(self, board):
+    @cython.ccall
+    @cython.boundscheck(False)
+    def select_move(self, object board):
         if not board.valid_moves:
             return []
 

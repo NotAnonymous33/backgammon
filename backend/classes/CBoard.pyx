@@ -10,6 +10,7 @@ def sign(x: cython.int) -> cython.int:
     return -1 if x < 0 else (1 if x > 0 else 0)
 
 @cython.ccall
+@cython.locals(i=cython.int, a_copy=cython.list)
 def list_diff(a, b):
     a_copy = a[:]
     for i in b:
@@ -36,6 +37,7 @@ cdef class Board:
     
 
     def __init__(self, board_dict=None, board_db=None, copy=False, bint verbose=False):
+        self.verbose = verbose
         if copy:
             self.verbose = verbose
             self.positions = copy.positions[:]
@@ -53,35 +55,7 @@ cdef class Board:
             self.passed = copy.passed
             self.game_over = copy.game_over
             return
-            
-        self.verbose = False
-        if board_dict is None and board_db is None: # no params
-            self.positions = [0 for _ in range(24)]
-            initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
-            initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
-            
-            for pos, count in initial_white:
-                self.positions[pos] = count
-            for pos, count in initial_black:
-                self.positions[pos] = -count
-            
-            self.dice = []
-            self.invalid_dice = []
-            self.valid_moves = []
-            self.rolled = False
-            self.turn = 1
-            
-            self.white_off = 0
-            self.black_off = 0
-            
-            self.white_bar = 0
-            self.black_bar = 0
-            
-            self.white_left = self.calc_white_left()
-            self.black_left = self.calc_black_left()
-            self.passed = self.has_passed()
-            self.game_over = False
-        elif board_dict is not None: # board dict
+        if board_dict: # board dict
             try:
                 self.positions = board_dict["positions"]
                 self.dice = list(map(int, list(board_dict["dice"])))
@@ -99,7 +73,8 @@ cdef class Board:
                 self.game_over = board_dict["game_over"]
             except KeyError:
                 self.__init__()
-        else: # board db
+            return
+        if board_db: # board db
             try:   
                 self.positions = board_db.positions
                 self.dice = list(map(int, list(board_db.dice)))
@@ -117,6 +92,35 @@ cdef class Board:
                 self.passed = self.has_passed()
             except AttributeError:
                 self.__init__()
+            return
+
+        # no params
+        self.positions = [0 for _ in range(24)]
+        initial_white = [(0, 2), (11, 5), (16, 3), (18, 5)]
+        initial_black = [(5, 5), (7, 3), (12, 5), (23, 2)]
+        
+        for pos, count in initial_white:
+            self.positions[pos] = count
+        for pos, count in initial_black:
+            self.positions[pos] = -count
+        
+        self.dice = []
+        self.invalid_dice = []
+        self.valid_moves = []
+        self.rolled = False
+        self.turn = 1
+        
+        self.white_off = 0
+        self.black_off = 0
+        
+        self.white_bar = 0
+        self.black_bar = 0
+        
+        self.white_left = self.calc_white_left()
+        self.black_left = self.calc_black_left()
+        self.passed = self.has_passed()
+        self.game_over = False
+            
 
     def __deepcopy__(self, memo):
         return Board(copy=self)
@@ -154,9 +158,9 @@ cdef class Board:
         # Off-board area
         off_board = f"\n\nOff-board:\nWhite: {self.white_off}, Black: {self.black_off}"
         dice = f"\n\nDice: {self.dice}"
-        invalid_dice = f"\n\nInvalid Dice: {self.invalid_dice}"
+        invalid_dice = f"\nInvalid Dice: {self.invalid_dice}"
         start = "\n\nTurn: " + ("White" if self.turn == 1 else "Black") + "-----------------------------------------------\n"
-        end = "\n\n-----------------------------------------------\n"
+        end = "\n-----------------------------------------------\n"
         left = f"\n\nWhite left: {self.white_left}, Black left: {self.black_left}"
         # Combine all parts
         return start + bar + bottom + top + off_board + dice + invalid_dice + left + end
@@ -199,14 +203,14 @@ cdef class Board:
                     if board_copy.move(-1, i):
                         if verify_permutation(board_copy, board_copy.dice, move_sequence + list_diff(board.dice, board_copy.dice)):
                             return True
-                return
+                return False
             if board.turn == -1 and board.black_bar:
                 for i in range(23, 17, -1):
                     board_copy = deepcopy(board)
                     if board_copy.move(-1, i):
                         if verify_permutation(board_copy, board_copy.dice, move_sequence + list_diff(board.dice, board_copy.dice)):
                             return True
-                return
+                return False
             
             # bearing off
             if board.can_bearoff():
@@ -225,7 +229,8 @@ cdef class Board:
                     board_copy = deepcopy(board)
                     if board_copy.move(start, end):
                         if verify_permutation(board_copy, remaining_dice[1:], move_sequence + [remaining_dice[0]]):
-                            return True         
+                            return True
+            return False      
         
         if verify_permutation(deepcopy(self), self.dice, []):
             return []
@@ -236,7 +241,8 @@ cdef class Board:
     
     @cython.ccall
     def get_single_moves(self):
-        moves = set()
+        cdef set moves = set()
+        cdef int start
         if self.turn == 1:
             # reentering checkers
             if self.white_bar:
@@ -246,8 +252,9 @@ cdef class Board:
                 return moves
             # bearing off
             for start in range(18, 24):
-                if self.is_valid(start, 100):
-                    moves.add((start, 100))
+                if self.positions[start] > 0:
+                    if self.is_valid(start, 100):
+                        moves.add((start, 100))
 
             # normal moves
             for start in range(24):
@@ -266,8 +273,9 @@ cdef class Board:
 
         # bearing off
         for start in range(5, -1, -1):
-            if self.is_valid(start, -100):
-                moves.add((start, -100))
+            if self.positions[start] < 0:
+                if self.is_valid(start, -100):
+                    moves.add((start, -100))
 
         # normal moves
         for start in range(23, -1, -1):
@@ -302,6 +310,7 @@ cdef class Board:
     
     @cython.ccall
     def can_bearoff(self):
+        cdef int i
         if self.turn == 1:
             if self.white_bar:
                 return False
@@ -334,6 +343,7 @@ cdef class Board:
     
     @cython.ccall
     def has_passed(self):
+        cdef int i, pos, lowest_white, highest_black
         if self.white_bar > 0 or self.black_bar > 0:
             return False
         
@@ -366,7 +376,7 @@ cdef class Board:
         for i, pos in enumerate(self.positions):
             if pos > 0:
                 total += (24 - i) * pos
-        total += self.white_bar
+        total += self.white_bar * 24
         return total
             
     @cython.ccall
@@ -377,7 +387,7 @@ cdef class Board:
         for i, pos in enumerate(self.positions):
             if pos < 0:
                 total += (i + 1) * pos * -1
-        total += self.black_bar
+        total += self.black_bar * 24
         return total
     
     @cython.ccall
@@ -393,7 +403,8 @@ cdef class Board:
             return False
         for move in sequence:
             self.move(*move, bypass=True)
-        self.passed = self.has_passed()
+        if not self.passed:
+            self.passed = self.has_passed()
         self.white_left = self.calc_white_left()
         self.black_left = self.calc_black_left()
         if self.has_won():
@@ -408,7 +419,7 @@ cdef class Board:
         return self.white_off == 15 or self.black_off == 15
     
     @cython.ccall
-    def move(self, current, next, bint bypass=False):
+    def move(self, int current, int next, bint bypass=False):
         if not bypass and not self.is_valid(current, next):
             return False
         
@@ -468,7 +479,8 @@ cdef class Board:
         self.valid_moves = []
 
     @cython.ccall
-    def is_valid(self, current, next): 
+    def is_valid(self, int current, int next):
+        cdef int dice, pos
         # TODO: unit tests
         # current can't be empty
         if current < -1 or current > 23:
