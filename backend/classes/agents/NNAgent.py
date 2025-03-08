@@ -637,12 +637,13 @@ class BackgammonNN(nn.Module):
         
         for size in hidden_sizes:
             layers.append(nn.Linear(prev_size, size))
+            layers.append(nn.BatchNorm1d(size))
             layers.append(nn.ReLU())
             prev_size = size
         
         # Output layer - single value representing winning probability
         layers.append(nn.Linear(prev_size, 1))
-        layers.append(nn.Sigmoid())  # Bound output between 0 and 1
+        layers.append(nn.Sigmoid()) 
         
         self.model = nn.Sequential(*layers)
     
@@ -795,7 +796,7 @@ class NNAgent:
 
 
 class BackgammonTrainer:
-    def __init__(self, model, extract_features_fn, td_lambda, games_per_epoch=1000):
+    def __init__(self, model, extract_features_fn, td_lambda, games_per_epoch=1000, eval_games=100):
         """
         Training pipeline for backgammon AI.
         
@@ -809,6 +810,7 @@ class BackgammonTrainer:
         self.extract_features = extract_features_fn
         self.td_lambda = td_lambda
         self.games_per_epoch = games_per_epoch
+        self.eval_games = eval_games
     
     def save_checkpoint(self, filename, epoch=0, optimizer_state=None):
         """
@@ -876,10 +878,9 @@ class BackgammonTrainer:
         
         for game_num in range(self.games_per_epoch):
             # Play a complete game
-            winner, white_states, black_states = self.play_game()
+            winner, states = self.play_game()
             
-            self.td_lambda.update(white_states, float(winner))
-            self.td_lambda.update(black_states, float(winner))
+            self.td_lambda.update(states, float(winner))
             if winner == 1:  # White won
                 wins_white += 1
 
@@ -896,8 +897,7 @@ class BackgammonTrainer:
         
         Returns:
             winner: The winner of the game (1 for white, -1 for black)
-            white_states: List of white player state tensors
-            black_states: List of black player state tensors
+            states: List of player state tensors
         """
         board = Board()
         agent = NNAgent(self.model, self.extract_features)
@@ -931,12 +931,10 @@ class BackgammonTrainer:
         else:
             winner = 1 if board.white_off == 15 else -1
         
-        if not white_states:
-            white_states.append(torch.zeros([1, self.extract_features(board).shape[0]], dtype=torch.float32))
-        if not black_states:
-            black_states.append(torch.zeros([1, self.extract_features(board).shape[0]], dtype=torch.float32))
+        if not states:
+            states.append(torch.zeros([1, self.extract_features(board).shape[0]], dtype=torch.float32))
             
-        return winner, white_states, black_states
+        return winner, states
     
     def train(self, num_epochs=100, resume_from=None, checkpoint_interval=5, name=""):
         """
@@ -971,9 +969,12 @@ class BackgammonTrainer:
             
             # Save checkpoint at regular intervals
             if (epoch + 1) % checkpoint_interval == 0:
-                self.save_checkpoint(f"backgammon_checkpoint_epoch_{name}{epoch+1}.pt", epoch=epoch+1)
+                if name != "":
+                    self.save_checkpoint(f"backgammon_checkpoint_epoch_{name}{epoch+1}.pt", epoch=epoch+1)
+                else:
+                    self.save_checkpoint(f"backgammon_checkpoint_epoch_{epoch+1}.pt", epoch=epoch+1)
             
-            e = Evaluator(NNAgent(self.model, self.extract_features, exploration_rate=0.0), opponent_agent=RandomAgent(), num_games=100)
+            e = Evaluator(NNAgent(self.model, self.extract_features, exploration_rate=0.0), opponent_agent=RandomAgent(), num_games=self.eval_games)
             eval_results = e.evaluate()                
 
             print("\nEvaluation Results:")
@@ -986,15 +987,18 @@ class BackgammonTrainer:
             self.plot_learning_curve(save_path=f"learning_curve{name}.png")
             self.save_checkpoint(f"backgammon_{name}latest.pt", epoch=epoch+1)
         
-        self.plot_eval_curve(f"eval_curve{name}.png")
+        self.plot_eval_curve(f"eval_results{name}.txt", f"eval_curve{name}.png")
         
         # Save final model
-        self.save_model(f"backgammon_final_model{name}.pt")
+        if name != "":
+            self.save_model(f"name/backgammon_final_model{name}.pt")
+        else:
+            self.save_model(f"backgammon_final_model.pt")
         
         return results
 
-    def plot_eval_curve(self, save_path=None):
-        with open(save_path, "r") as f:
+    def plot_eval_curve(self, txt_path, save_path=None):
+        with open(txt_path, "r") as f:
             lines = f.readlines()
             epochs = [int(line.split("\t")[0]) for line in lines]
             white_win_rates = [float(line.split("\t")[1]) for line in lines]
@@ -1002,9 +1006,9 @@ class BackgammonTrainer:
             win_rates = [float(line.split("\t")[3]) for line in lines]
         
         plt.figure(figsize=(10, 6))
-        plt.plot(epochs, white_win_rates, 'b-', label='White Win Rate')
-        plt.plot(epochs, black_win_rates, 'r-', label='Black Win Rate')
-        plt.plot(epochs, win_rates, 'g-', label='Total Win Rate')
+        plt.plot(epochs, white_win_rates, 'bo', label='White Win Rate')
+        plt.plot(epochs, black_win_rates, 'ro', label='Black Win Rate')
+        plt.plot(epochs, win_rates, 'go', label='Total Win Rate')
         plt.xlabel('Epoch')
         plt.ylabel('Win Rate')
         plt.title('Evaluation Progress / Win Rate against Random Agent')
@@ -1035,9 +1039,9 @@ class BackgammonTrainer:
         plt.grid(True)
         plt.legend()
         
-        
+
         if save_path:
-            plt.savefig(save_path)
+            plt.savefig(f"eval_curves/{save_path}")
             print(f"Evaluation curve saved to {save_path}")
     
     def plot_learning_curve(self, save_path=None):
@@ -1068,7 +1072,7 @@ class BackgammonTrainer:
             plt.plot(x, p(x), "r--", alpha=0.5)
         
         if save_path:
-            plt.savefig(save_path)
+            plt.savefig(f"learning_curves/{save_path}")
             print(f"Learning curve saved to {save_path}")
             
     
@@ -1308,7 +1312,7 @@ def longest_prime(board, color):
 class FinalNNAgent:
     def __init__(self, model_path, extract_features_fn=extract_features):
         self.extract_features = extract_features_fn
-        self.model = BackgammonNN(35)
+        self.model = BackgammonNN(len(extract_features(Board())))
         self.model.load_state_dict(torch.load(model_path))
         self.model.eval()
     
@@ -1337,7 +1341,7 @@ class FinalNNAgent:
         
 
 
-def main(resume=False, epochs=20, testing=False):
+def main(resume=False, epoch_count=20, testing=False):
     torch.autograd.set_detect_anomaly(True)
     """Main function to train and evaluate the backgammon AI."""
     # Assuming the extract_features function already exists
@@ -1353,82 +1357,77 @@ def main(resume=False, epochs=20, testing=False):
     # Initialize TD-Lambda learner
     td_lambda = TDLambda(model, learning_rate=0.05, lambda_param=0.7)
     
+    games_per_epoch = 2
+    epoch_count = 5
+    eval_games = 5
+    
     # Create trainer
     trainer = BackgammonTrainer(
         model=model,
         extract_features_fn=extract_features,
         td_lambda=td_lambda,
-        games_per_epoch=100
+        games_per_epoch=games_per_epoch,
+        eval_games=eval_games
     )
     
-    print("Starting training")
-    # Resume or start new training
-    
-    
-    # Optional: Create multiple models with different parameters for comparison
+    print("Starting training")    
+
     models = {
         "main_model": model,
     }
     
+    
     # Train a smaller model for comparison
     small_model = BackgammonNN(input_size=input_size, hidden_sizes=[64, 64])
     small_td = TDLambda(small_model, learning_rate=0.01, lambda_param=0.7)
-    small_trainer = BackgammonTrainer(small_model, extract_features, small_td, games_per_epoch=100)
+    small_trainer = BackgammonTrainer(small_model, extract_features, small_td, games_per_epoch=games_per_epoch, eval_games=eval_games)
     
     # Train a model with different lambda
     lambda_model = BackgammonNN(input_size=input_size)
     lambda_td = TDLambda(lambda_model, learning_rate=0.01, lambda_param=0.4)
-    lambda_trainer = BackgammonTrainer(lambda_model, extract_features, lambda_td, games_per_epoch=100)
+    lambda_trainer = BackgammonTrainer(lambda_model, extract_features, lambda_td, games_per_epoch=games_per_epoch, eval_games=eval_games)
     
     low_lambda_model = BackgammonNN(input_size=input_size)
     low_lambda_td = TDLambda(low_lambda_model, learning_rate=0.01, lambda_param=0.1)
-    low_lambda_trainer = BackgammonTrainer(low_lambda_model, extract_features, low_lambda_td, games_per_epoch=100)
+    low_lambda_trainer = BackgammonTrainer(low_lambda_model, extract_features, low_lambda_td, games_per_epoch=games_per_epoch, eval_games=eval_games)  # Added eval_games=5
     
 
     # Train a model with a higher learning rate
     high_lr_model = BackgammonNN(input_size=input_size)
     high_lr_td = TDLambda(high_lr_model, learning_rate=0.1, lambda_param=0.7)
-    high_lr_trainer = BackgammonTrainer(high_lr_model, extract_features, high_lr_td, games_per_epoch=100)
+    high_lr_trainer = BackgammonTrainer(high_lr_model, extract_features, high_lr_td, games_per_epoch=games_per_epoch, eval_games=eval_games)  # Added eval_games=5
     
     
     # Train a model with hidden sizes [128, 128], learning rate 0.05, and lambda 0.7
     hidden_128_model = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
     hidden_128_td = TDLambda(hidden_128_model, learning_rate=0.05, lambda_param=0.7)
-    hidden_128_trainer = BackgammonTrainer(hidden_128_model, extract_features, hidden_128_td, games_per_epoch=100)
-    
+    hidden_128_trainer = BackgammonTrainer(hidden_128_model, extract_features, hidden_128_td, games_per_epoch=games_per_epoch, eval_games=eval_games)
     
     # Define a function to train a model
-    def train_model(trainer, name, epochs):
-        trainer.train(num_epochs=epochs, name=name)
-        return trainer.model, name
+    def train_model(trainer: BackgammonTrainer, name, epochs, resume=False):
+        return trainer.train(num_epochs=epochs, name=name, resume_from="backgammon_latest.pt" if resume else None)
     
-    # Create a multiprocessing pool
-    pool = mp.Pool(processes=mp.cpu_count())  # Use all available CPUs
+    models["low_lambda"] = low_lambda_model
+    models["small"] = small_model
+    models["lambda_0.4"] = lambda_model
+    models["high_lr"] = high_lr_model
+    models["hidden_128"] = hidden_128_model
     
-    # Train models in parallel
-    results = [
-        pool.apply_async(train_model, args=(low_lambda_trainer, "low_lambda", 20)),
-        pool.apply_async(train_model, args=(small_trainer, "small", 20)),
-        pool.apply_async(train_model, args=(lambda_trainer, "lambda_0.4", 20)),
-        pool.apply_async(train_model, args=(high_lr_trainer, "high_lr", 20)),
-        pool.apply_async(train_model, args=(hidden_128_trainer, "hidden_128", 20))
-    ]
+    model_results = []
+    model_results.append(train_model(low_lambda_trainer, "low_lambda", epoch_count))
+    model_results.append(train_model(small_trainer, "small", epoch_count))
+    model_results.append(train_model(lambda_trainer, "lambda_0.4", epoch_count))
+    model_results.append(train_model(high_lr_trainer, "high_lr", epoch_count))
+    model_results.append(train_model(hidden_128_trainer, "hidden_128", epoch_count))
     
     
     
     if resume:
-        # Load the latest checkpoint
-        results.append(pool.apply_async(train_model, args=(trainer, "main", 20)))
-        # results = trainer.train(num_epochs=epochs, resume_from="backgammon_latest.pt")
+        model_results.append(train_model(trainer, "main", 20, resume=True))
     else:
-        # Start fresh training
-        print("Starting fresh training...")
-        # results = trainer.train(num_epochs=epochs)
-        results.append(pool.apply_async(train_model, args=(trainer, "main", 20)))
+        model_results.append(train_model(trainer, "main", 20))
     
-    # Close the pool and wait for all processes to complete
-    pool.close()
-    pool.join()
+
     print("after pool")
 
     trainer.plot_learning_curve(save_path="learning_curve.png")
@@ -1436,7 +1435,7 @@ def main(resume=False, epochs=20, testing=False):
     nn_agent = NNAgent(model, extract_features, exploration_rate=0.0) # Create neural network agent with the trained model
     # Evaluate against random agent
     print("Evaluating against random agent...")
-    evaluator = Evaluator(nn_agent, opponent_agent=RandomAgent(), num_games=200, name="final")
+    evaluator = Evaluator(nn_agent, opponent_agent=RandomAgent(), num_games=50, name="final")
     eval_results = evaluator.evaluate()
     
     # Print evaluation results
@@ -1445,14 +1444,10 @@ def main(resume=False, epochs=20, testing=False):
     for key, value in eval_results.items():
         print(f"{key}: {value}")
     
-    # Collect the trained models
-    for result in results:
-        model, name = result.get()
-        models[f"{name}_model"] = model
     
     # Run tournament between models
     print("\nRunning model tournament...")
-    comparator = ModelComparator(models, extract_features, num_games=100)
+    comparator = ModelComparator(models, extract_features, num_games=10)
     comparator.run_tournament()
     comparator.print_results()
 
@@ -1475,7 +1470,7 @@ if __name__ == "__main__":
         model.load_state_dict(torch.load(args.model))
         nn_agent = NNAgent(model, extract_features, exploration_rate=0.0)
         
-        evaluator = Evaluator(nn_agent, opponent_agent=RandomAgent(), num_games=200)
+        evaluator = Evaluator(nn_agent, opponent_agent=RandomAgent(), num_games=50)
         eval_results = evaluator.evaluate()
         
         print("\nEvaluation Results:")
@@ -1484,5 +1479,5 @@ if __name__ == "__main__":
             print(f"{key}: {value}")
     else:
         # Run training
-        main(resume=args.resume, epochs=args.epochs, testing=args.testing)
+        main(resume=args.resume, epoch_count=args.epochs, testing=args.testing)
 
