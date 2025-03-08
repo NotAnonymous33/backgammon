@@ -768,31 +768,47 @@ class NNAgent:
         # Occasionally make a random move for exploration
         if random.random() < self.exploration_rate:
             return random.choice(board.valid_moves)
-            
-        best_move = None
-        best_value = float('-inf') if board.turn == 1 else float('inf')
         
-        # Evaluate each possible move
-        for move in board.valid_moves:
-            # Create a copy of the board and apply the move
-            board_copy = deepcopy(board)
-            board_copy.move_from_sequence(move)
+        board_copies = [deepcopy(board) for _ in board.valid_moves]
+        for i, move in enumerate(board.valid_moves):
+            board_copies[i].move_from_sequence(move)
+        
+        features_batch = torch.stack([torch.tensor(self.extract_features(b), dtype=torch.float32) for b in board_copies])
+        
+        with torch.no_grad():
+            self.model.eval()
+            values = self.model(features_batch).squeeze()
+        
+        if board.turn == 1:
+            best_idx = values.argmax().item()
+        else:
+            best_idx = values.argmin().item()
+        return board.valid_moves[best_idx]
+        
+        # best_move = None
+        # best_value = float('-inf') if board.turn == 1 else float('inf')
+        
+        # # Evaluate each possible move
+        # for move in board.valid_moves:
+        #     # Create a copy of the board and apply the move
+        #     board_copy = deepcopy(board)
+        #     board_copy.move_from_sequence(move)
             
-            # Extract features from the resulting position
-            features = self.extract_features(board_copy)
-            state_tensor = torch.tensor([features], dtype=torch.float32)
+        #     # Extract features from the resulting position
+        #     features = self.extract_features(board_copy)
+        #     state_tensor = torch.tensor([features], dtype=torch.float32)
             
-            # Get model prediction
-            with torch.no_grad():
-                self.model.eval()
-                value = self.model(state_tensor).item()
+        #     # Get model prediction
+        #     with torch.no_grad():
+        #         self.model.eval()
+        #         value = self.model(state_tensor).item()
             
-            # Select the best move based on the player's perspective
-            if (board.turn == 1 and value > best_value) or (board.turn == -1 and value < best_value):
-                best_value = value
-                best_move = move
+        #     # Select the best move based on the player's perspective
+        #     if (board.turn == 1 and value > best_value) or (board.turn == -1 and value < best_value):
+        #         best_value = value
+        #         best_move = move
                 
-        return best_move
+        # return best_move
 
 
 class BackgammonTrainer:
@@ -1320,24 +1336,47 @@ class FinalNNAgent:
         if not board.valid_moves:
             return []
         
-        best_move = None
-        best_value = float('-inf') if board.turn == 1 else float('inf')
+        if not board.valid_moves:
+            return []
+            
+        # Occasionally make a random move for exploration
+        if random.random() < self.exploration_rate:
+            return random.choice(board.valid_moves)
         
-        for move in board.valid_moves:
-            board_copy = deepcopy(board)
-            board_copy.move_from_sequence(move)
-            
-            features = self.extract_features(board_copy)
-            state_tensor = torch.tensor([features], dtype=torch.float32)
-            
-            with torch.no_grad():
-                value = self.model(state_tensor).item()
-            
-            if (board.turn == 1 and value > best_value) or (board.turn == -1 and value < best_value):
-                best_value = value
-                best_move = move
+        board_copies = [deepcopy(board) for _ in board.valid_moves]
+        for i, move in enumerate(board.valid_moves):
+            board_copies[i].move_from_sequence(move)
         
-        return best_move
+        features_batch = torch.stack([torch.tensor(self.extract_features(b), dtype=torch.float32) for b in board_copies])
+        
+        with torch.no_grad():
+            self.model.eval()
+            values = self.model(features_batch).squeeze()
+        
+        if board.turn == 1:
+            best_idx = values.argmax().item()
+        else:
+            best_idx = values.argmin().item()
+        return board.valid_moves[best_idx]
+        
+        # best_move = None
+        # best_value = float('-inf') if board.turn == 1 else float('inf')
+        
+        # for move in board.valid_moves:
+        #     board_copy = deepcopy(board)
+        #     board_copy.move_from_sequence(move)
+            
+        #     features = self.extract_features(board_copy)
+        #     state_tensor = torch.tensor([features], dtype=torch.float32)
+            
+        #     with torch.no_grad():
+        #         value = self.model(state_tensor).item()
+            
+        #     if (board.turn == 1 and value > best_value) or (board.turn == -1 and value < best_value):
+        #         best_value = value
+        #         best_move = move
+        
+        # return best_move
         
 
 
