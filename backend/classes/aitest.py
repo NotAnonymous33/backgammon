@@ -1,10 +1,11 @@
-from CBoard import Board # type: ignore
-# from Board import Board
+# from CBoard import Board # type: ignore
+from Board import Board
+# from board_cpp import Board # type: ignore
 from agents.FirstAgent import FirstAgent
 from agents.RandomAgent import RandomAgent
 # from agents.MCTS import BackgammonMCTSAgent # 1v1 117 52 89 82 117
 from agents.CMCTS import BackgammonMCTSAgent # type: ignore
-from agents.NNAgent import FinalNNAgent, extract_features
+# from agents.NNAgent import FinalNNAgent, extract_features
 
 from agents.HeuristicAgent import HeuristicBackgammonAgent
 from time import perf_counter, sleep
@@ -16,12 +17,12 @@ start = perf_counter()
 # white = HeuristicBackgammonAgent([1 for i in range(10)])
 # black = HeuristicBackgammonAgent([i for i in range(10)])
 # black = HeuristicBackgammonAgent()
-# white = RandomAgent()
+white = RandomAgent()
 black = RandomAgent()
-white = FinalNNAgent("../backgammon_final_model.pt")
+# white = FinalNNAgent("../backgammon_final_model.pt")
 # black = FinalNNAgent()
 count = 0
-N = 10000
+N = 1000 # 16 seconds (1 game a second) cpp
 # 24.4 simulations per second time3 vs time3
 white_win = 0
 black_win = 0

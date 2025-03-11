@@ -18,6 +18,30 @@ def list_diff(a, b):
             a_copy.remove(i)
     return a_copy
 
+@cython.ccall
+@cython.locals(move=cython.tuple, board_copy=cython.object)
+def dfs(object board, list prev_moves, int min_point=-1):
+    if min_point == -1:
+        min_point = 0 if board.turn == 1 else 23
+    
+    if not board.dice:
+        if prev_moves:
+            return [prev_moves]
+        return []
+    
+    moves = []
+    if len(board.dice) == 1:
+        for move in board.get_single_moves(min_point):
+            moves.append(prev_moves + [move])
+        return moves
+    
+    board_copy = deepcopy(board)
+    for move in board.get_single_moves(min_point):
+        board_copy.copy_state_from(board)
+        board_copy.move(*move, bypass=True)
+        moves.extend(dfs(board_copy, prev_moves + [move], move[0] if move[0] != -1 else min_point))
+    return moves
+
 cdef class Board:
     cdef public bint rolled
     cdef public int turn
@@ -124,6 +148,26 @@ cdef class Board:
 
     def __deepcopy__(self, memo):
         return Board(copy=self)
+    
+    @cython.ccall
+    def copy_state_from(self, object board):
+        '''
+        Copies the state of the board from another board object
+        '''
+        self.positions = board.positions[:]
+        self.dice = board.dice[:]
+        self.invalid_dice = board.invalid_dice[:]
+        self.valid_moves = board.valid_moves[:]
+        self.rolled = board.rolled
+        self.turn = board.turn
+        self.white_off = board.white_off
+        self.black_off = board.black_off
+        self.white_bar = board.white_bar
+        self.black_bar = board.black_bar
+        self.white_left = board.white_left
+        self.black_left = board.black_left
+        self.passed = board.passed
+        self.game_over = board.game_over
 
     def __str__(self):
         """
@@ -174,8 +218,8 @@ cdef class Board:
         max_die = 0
         
         # returns whether there is a valid move using all dice
-        def verify_permutation(board, remaining_dice, move_sequence):
-            move_sequence = move_sequence[:]
+        def verify_permutation(board, remaining_dice, used_dice):
+            used_dice = used_dice[:]
             nonlocal max_length
             nonlocal max_die
             nonlocal invalid_dice
@@ -187,38 +231,46 @@ cdef class Board:
             # there are dice remaining
             
             # if you can move more dice than current best, replace
-            if len(move_sequence) > max_length:
-                max_length = len(move_sequence)
+            if len(used_dice) > max_length:
+                max_length = len(used_dice)
                 invalid_dice = remaining_dice
 
             # if you can move the same number of dice but the max die is greater, replace
-            if len(move_sequence) == max_length and move_sequence and max(move_sequence) > max_die:
-                max_die = max(move_sequence)
+            if len(used_dice) == max_length and used_dice and max(used_dice) > max_die:
+                max_die = max(used_dice)
                 invalid_dice = remaining_dice
             
+            board_copy = deepcopy(board)
             # reentering moves
             if board.turn == 1 and board.white_bar:
                 for i in range(6):
-                    board_copy = deepcopy(board)
+                    board_copy.copy_state_from(board)
                     if board_copy.move(-1, i):
-                        if verify_permutation(board_copy, board_copy.dice, move_sequence + list_diff(board.dice, board_copy.dice)):
+                        if verify_permutation(board_copy, board_copy.dice, used_dice + list_diff(board.dice, board_copy.dice)):
                             return True
                 return False
             if board.turn == -1 and board.black_bar:
                 for i in range(23, 17, -1):
-                    board_copy = deepcopy(board)
+                    board_copy.copy_state_from(board)
                     if board_copy.move(-1, i):
-                        if verify_permutation(board_copy, board_copy.dice, move_sequence + list_diff(board.dice, board_copy.dice)):
+                        if verify_permutation(board_copy, board_copy.dice, used_dice + list_diff(board.dice, board_copy.dice)):
                             return True
                 return False
             
             # bearing off
             if board.can_bearoff():
-                for i in range(24):
-                    board_copy = deepcopy(board)
-                    if board_copy.move(i, 100 * board.turn):
-                        if verify_permutation(board_copy, remaining_dice[1:], move_sequence + [remaining_dice[0]]):
-                            return True
+                if board.turn == 1:
+                    board_copy.copy_state_from(board)
+                    for i in range(18, 24):
+                        if board_copy.move(i, 100):
+                            if verify_permutation(board_copy, remaining_dice[1:], used_dice + [remaining_dice[0]]):
+                                return True
+                else:
+                    board_copy.copy_state_from(board)
+                    for i in range(6):
+                        if board_copy.move(i, -100):
+                            if verify_permutation(board_copy, remaining_dice[1:], used_dice + [remaining_dice[0]]):
+                                return True
                 
             # normal moves
             for start in range(24):
@@ -226,9 +278,9 @@ cdef class Board:
                     continue
                 end = start + remaining_dice[0] * self.turn
                 if board.is_valid(start, end):
-                    board_copy = deepcopy(board)
+                    board_copy.copy_state_from(board)
                     if board_copy.move(start, end):
-                        if verify_permutation(board_copy, remaining_dice[1:], move_sequence + [remaining_dice[0]]):
+                        if verify_permutation(board_copy, remaining_dice[1:], used_dice + [remaining_dice[0]]):
                             return True
             return False      
         
@@ -240,9 +292,11 @@ cdef class Board:
         return invalid_dice
     
     @cython.ccall
-    def get_single_moves(self):
+    def get_single_moves(self, int min_point=-1):
         cdef set moves = set()
         cdef int start
+        if min_point == -1:
+            min_point = 0 if self.turn == 1 else 23
         if self.turn == 1:
             # reentering checkers
             if self.white_bar:
@@ -257,7 +311,7 @@ cdef class Board:
                         moves.add((start, 100))
 
             # normal moves
-            for start in range(24):
+            for start in range(min_point, 24):
                 for dice in self.dice:
                     if self.is_valid(start, start + dice):
                         moves.add((start, start + dice))
@@ -278,32 +332,16 @@ cdef class Board:
                     moves.add((start, -100))
 
         # normal moves
-        for start in range(23, -1, -1):
+        for start in range(min_point, -1, -1):
             for dice in self.dice:
                 if self.is_valid(start, start - dice):
                     moves.add((start, start - dice))
         return moves
-        
+    
+    @cython.ccall
     def set_valid_moves(self):
         if self.verbose:
             print("Board:get_valid_moves")
-
-        def dfs(board, prev_moves):
-            if not board.dice:
-                if prev_moves:
-                    return [prev_moves]
-                return []
-            moves = []
-            if len(board.dice) == 1:
-                for move in board.get_single_moves():
-                    if board.is_valid(*move):
-                        moves.append(prev_moves + [move])
-                return moves
-            for move in board.get_single_moves():
-                board_copy = deepcopy(board)
-                board_copy.move(*move, bypass=True)
-                moves += dfs(board_copy, prev_moves + [move])
-            return moves
         
         self.valid_moves = dfs(deepcopy(self), [])
         return self.valid_moves

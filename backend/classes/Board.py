@@ -112,6 +112,25 @@ class Board:
         self.passed = self.has_passed()
         self.game_over = False
         
+    def copy_state_from(self, board):
+        '''
+        Copies the state of the board from another board object
+        '''
+        self.positions = board.positions[:]
+        self.dice = board.dice[:]
+        self.invalid_dice = board.invalid_dice[:]
+        self.valid_moves = board.valid_moves[:]
+        self.rolled = board.rolled
+        self.turn = board.turn
+        self.white_off = board.white_off
+        self.black_off = board.black_off
+        self.white_bar = board.white_bar
+        self.black_bar = board.black_bar
+        self.white_left = board.white_left
+        self.black_left = board.black_left
+        self.passed = board.passed
+        self.game_over = board.game_over
+                
 
     def __deepcopy__(self, memo):
         return Board(copy=self)
@@ -164,8 +183,8 @@ class Board:
         
         # returns whether there is a valid move using all dice
         # if there is one dice i can make some optimisations similar to the other function
-        def verify_permutation(board: Board, remaining_dice: list[int], move_sequence: list[int]) -> bool:
-            move_sequence = move_sequence[:]
+        def verify_permutation(board: Board, remaining_dice: list[int], used_dice: list[int]) -> bool:
+            used_dice = used_dice[:]
             nonlocal max_length
             nonlocal max_die
             nonlocal invalid_dice
@@ -177,38 +196,96 @@ class Board:
             # there are dice remaining
             
             # if you can move more dice than current best, replace
-            if len(move_sequence) > max_length:
-                max_length = len(move_sequence)
+            if len(used_dice) > max_length:
+                max_length = len(used_dice)
                 invalid_dice = remaining_dice
 
             # if you can move the same number of dice but the max die is greater, replace
-            if len(move_sequence) == max_length and move_sequence and max(move_sequence) > max_die:
-                max_die = max(move_sequence)
+            if len(used_dice) == max_length and used_dice and max(used_dice) > max_die:
+                max_die = max(used_dice)
                 invalid_dice = remaining_dice
             
-            # reentering moves
+            if len(remaining_dice) == 1:
+                # reentering move white
+                if board.turn == 1 and board.white_bar:
+                    for i in range(6):
+                        if board.is_valid(-1, i):
+                            max_die = max(remaining_dice[0], max_die)
+                            invalid_dice = []
+                            max_length = len(used_dice) + 1
+                            return True
+                    return False
+                # reentering move black
+                if board.turn == -1 and board.black_bar:
+                    for i in range(23, 17, -1):
+                        if board.is_valid(-1, i):
+                            max_die = max(remaining_dice[0], max_die)
+                            invalid_dice = []
+                            max_length = len(used_dice) + 1
+                            return True
+                    return False    
+                # normal moves
+                for start in range(24):
+                    if sign(board.positions[start]) != board.turn:
+                        continue
+                    end = start + remaining_dice[0] * board.turn
+                    if board.is_valid(start, end):
+                        max_die = max(remaining_dice[0], max_die)
+                        invalid_dice = []
+                        max_length = len(used_dice) + 1
+                        return True
+                
+                if board.can_bearoff():
+                    if board.turn == 1:
+                        for i in range(18, 24):
+                            if board.is_valid(i, 100):
+                                max_die = max(remaining_dice[0], max_die)
+                                invalid_dice = []
+                                max_length = len(used_dice) + 1
+                                return True
+                    else:
+                        for i in range(6):
+                            if board.is_valid(i, -100):
+                                max_die = max(remaining_dice[0], max_die)
+                                invalid_dice = []
+                                max_length = len(used_dice) + 1
+                                return True
+                return False
+                
+            
+            # reentering moves white
+            board_copy = deepcopy(board)
             if board.turn == 1 and board.white_bar:
                 for i in range(6):
-                    board_copy = deepcopy(board)
+                    board_copy.copy_state_from(board)
                     if board_copy.move(-1, i):
-                        if verify_permutation(board_copy, board_copy.dice, move_sequence + list_diff(board.dice, board_copy.dice)):
+                        if verify_permutation(board_copy, board_copy.dice, used_dice + list_diff(board.dice, board_copy.dice)):
                             return True
                 return False
+            
+            # reentering moves black
             if board.turn == -1 and board.black_bar:
                 for i in range(23, 17, -1):
-                    board_copy = deepcopy(board)
+                    board_copy.copy_state_from(board)
                     if board_copy.move(-1, i):
-                        if verify_permutation(board_copy, board_copy.dice, move_sequence + list_diff(board.dice, board_copy.dice)):
+                        if verify_permutation(board_copy, board_copy.dice, used_dice + list_diff(board.dice, board_copy.dice)):
                             return True
                 return False
             
             # bearing off
             if board.can_bearoff():
-                for i in range(24):
-                    board_copy = deepcopy(board)
-                    if board_copy.move(i, 100 * board.turn):
-                        if verify_permutation(board_copy, remaining_dice[1:], move_sequence + [remaining_dice[0]]):
-                            return True
+                if board.turn == 1:
+                    for i in range(18, 24):
+                        board_copy.copy_state_from(board)
+                        if board_copy.move(i, 100):
+                            if verify_permutation(board_copy, remaining_dice[1:], used_dice + [remaining_dice[0]]):
+                                return True
+                else:
+                    for i in range(6):
+                        board_copy.copy_state_from(board)
+                        if board_copy.move(i, -100):
+                            if verify_permutation(board_copy, remaining_dice[1:], used_dice + [remaining_dice[0]]):
+                                return True
                 
             # normal moves
             for start in range(24):
@@ -216,9 +293,9 @@ class Board:
                     continue
                 end = start + remaining_dice[0] * self.turn
                 if board.is_valid(start, end):
-                    board_copy = deepcopy(board)
-                    if board_copy.move(start, end):
-                        if verify_permutation(board_copy, remaining_dice[1:], move_sequence + [remaining_dice[0]]):
+                    board_copy.copy_state_from(board)
+                    if board_copy.move(start, end, bypass=True):
+                        if verify_permutation(board_copy, remaining_dice[1:], used_dice + [remaining_dice[0]]):
                             return True  
             return False       
         
@@ -229,7 +306,10 @@ class Board:
             self.dice.remove(die)
         return invalid_dice
     
-    def get_single_moves(self) -> set[tuple[int, int]]:
+    def get_single_moves(self, min_point=None) -> set[tuple[int, int]]:
+        if min_point is None:
+            min_point = 0 if self.turn == 1 else 23
+            
         moves = set()
         if self.turn == 1:
             # reentering checkers
@@ -238,19 +318,21 @@ class Board:
                     if self.is_valid(-1, dice - 1):
                         moves.add((-1, dice - 1))
                 return moves
+
             # bearing off
             for start in range(18, 24):
                 if self.is_valid(start, 100):
                     moves.add((start, 100))
 
             # normal moves
-            for start in range(24):
+            for start in range(max(0, min_point), 24):
                 for dice in self.dice:
-                    if self.is_valid(start, start + dice):
+                    if start + dice < 24 and self.is_valid(start, start + dice):
                         moves.add((start, start + dice))
 
             return moves
 
+        # turn == -1
         # reentering checkers
         if self.black_bar:
             for i in range(23, 17, -1):
@@ -262,36 +344,42 @@ class Board:
         for start in range(5, -1, -1):
             if self.is_valid(start, -100):
                 moves.add((start, -100))
-
-        # normal moves
-        for start in range(23, -1, -1):
+               
+        # normal moves 
+        for start in range(min(23, min_point), -1, -1):
             for dice in self.dice:
-                if self.is_valid(start, start - dice):
+                if start - dice >= 0 and self.is_valid(start, start - dice):
                     moves.add((start, start - dice))
-        return moves
         
+        return moves
+    
     def set_valid_moves(self) -> None:
         self.verbose and print("Board:get_valid_moves")
 
-        def dfs(board: Board, prev_moves) -> list[list[tuple[int, int]]]:
+        def dfs(board: Board, prev_moves, min_point=None) -> list[list[tuple[int, int]]]:
+            if min_point is None:
+                min_point = 0 if board.turn == 1 else 23
+                
             if not board.dice:
                 if prev_moves:
                     return [prev_moves]
                 return []
+                
             moves = []
             if len(board.dice) == 1:
-                for move in board.get_single_moves():
-                    if board.is_valid(*move):
-                        moves.append(prev_moves + [move])
+                for move in board.get_single_moves(min_point):
+                    moves.append(prev_moves + [move])
                 return moves
-            for move in board.get_single_moves():
-                board_copy = deepcopy(board)
-                board_copy.move(*move, bypass=True)
-                moves += dfs(board_copy, prev_moves + [move])
+                
+            board_copy = deepcopy(board)
+            for move in board.get_single_moves(min_point):
+                board_copy.copy_state_from(board)
+                board_copy.move(*move, bypass=True)                    
+                moves.extend(dfs(board_copy, prev_moves + [move], move[0] if move[0] != -1 else min_point))
             return moves
         
         self.valid_moves = dfs(deepcopy(self), [])
-    
+        
     def can_bearoff(self) -> bool:
         if self.turn == 1:
             if self.white_bar:
@@ -306,7 +394,7 @@ class Board:
                 if self.positions[i] < 0:
                     return False
         return True
-        
+            
     def convert(self) -> dict:
         ret = {
             "positions": self.positions, 
