@@ -152,6 +152,16 @@ public:
         game_over = false;
     }
 
+    py::object __deepcopy__(py::dict memo)
+    {
+        // Create a new Board
+        Board *new_board = new Board();
+        // Copy all state from this board to the new one
+        new_board->copy_state_from(*this);
+        // Return the new board with proper ownership management
+        return py::cast(new_board, py::return_value_policy::take_ownership);
+    }
+
     std::string __str__() const
     {
         std::stringstream ss;
@@ -167,18 +177,8 @@ public:
             return pos_ss.str();
         };
 
-        // Top row (positions 12-23)
-        ss << "\n\n 13  14  15  16  17  18 | 19  20  21  22  23  24 \n";
-        ss << "-------------------------------------------------\n";
-        for (int i = 12; i < 18; i++)
-        {
-            ss << format_position(positions[i]);
-        }
-        ss << " |";
-        for (int i = 18; i < 24; i++)
-        {
-            ss << format_position(positions[i]);
-        }
+        // Turn info (moved to the beginning to match Python)
+        ss << "\n\nTurn: " << (turn == 1 ? "White" : "Black") << "-----------------------------------------------\n";
 
         // Middle section (bar)
         ss << "\n\nBar:\nWhite: " << white_bar << ", Black: " << black_bar << "\n";
@@ -196,10 +196,23 @@ public:
             ss << format_position(positions[i]);
         }
 
+        // Top row (positions 12-23)
+        ss << "\n\n 13  14  15  16  17  18 | 19  20  21  22  23  24 \n";
+        ss << "-------------------------------------------------\n";
+        for (int i = 12; i < 18; i++)
+        {
+            ss << format_position(positions[i]);
+        }
+        ss << " |";
+        for (int i = 18; i < 24; i++)
+        {
+            ss << format_position(positions[i]);
+        }
+
         // Off-board area
         ss << "\n\nOff-board:\nWhite: " << white_off << ", Black: " << black_off;
 
-        // Dice and turn info
+        // Dice info
         ss << "\n\nDice: [";
         for (size_t i = 0; i < dice.size(); i++)
         {
@@ -218,8 +231,10 @@ public:
         }
         ss << "]";
 
-        ss << "\n\nTurn: " << (turn == 1 ? "White" : "Black") << "-----------------------------------------------\n";
+        // White and Black left counts
         ss << "\n\nWhite left: " << white_left << ", Black left: " << black_left;
+
+        // End separator
         ss << "\n-----------------------------------------------\n";
 
         return ss.str();
@@ -244,13 +259,31 @@ public:
         return a_copy;
     }
 
+    void copy_state_from(const Board &board)
+    {
+        positions = board.positions;
+        dice = board.dice;
+        invalid_dice = board.invalid_dice;
+        valid_moves = board.valid_moves;
+        rolled = board.rolled;
+        turn = board.turn;
+        white_off = board.white_off;
+        black_off = board.black_off;
+        white_bar = board.white_bar;
+        black_bar = board.black_bar;
+        white_left = board.white_left;
+        black_left = board.black_left;
+        passed = board.passed;
+        game_over = board.game_over;
+    }
+
     bool verify_permutation(Board &board,
                             const std::vector<int> &remaining_dice,
-                            const std::vector<int> &move_sequence,
+                            const std::vector<int> &used_dice,
                             int &max_length, int &max_die,
                             std::vector<int> &invalid_dice)
     {
-        std::vector<int> move_seq_copy = move_sequence;
+        std::vector<int> used_dice_copy = used_dice;
 
         // base case: all dice are useable
         if (remaining_dice.empty())
@@ -260,16 +293,16 @@ public:
         }
 
         // if you can move more dice than current best, replace
-        if (move_seq_copy.size() > max_length)
+        if (used_dice_copy.size() > max_length)
         {
-            max_length = move_seq_copy.size();
+            max_length = used_dice_copy.size();
             invalid_dice = remaining_dice;
         }
 
         // if you can move the same number of dice but the max die is greater, replace
-        if (move_seq_copy.size() == max_length && !move_seq_copy.empty())
+        if (used_dice_copy.size() == max_length && !used_dice_copy.empty())
         {
-            int current_max = *std::max_element(move_seq_copy.begin(), move_seq_copy.end());
+            int current_max = *std::max_element(used_dice_copy.begin(), used_dice_copy.end());
             if (current_max > max_die)
             {
                 max_die = current_max;
@@ -277,18 +310,106 @@ public:
             }
         }
 
-        // reentering moves
+        // Optimization for when only one die remains
+        if (remaining_dice.size() == 1)
+        {
+            // reentering move white
+            if (board.turn == 1 && board.white_bar)
+            {
+                for (int i = 0; i < 6; i++)
+                {
+                    if (board.is_valid(-1, i))
+                    {
+                        max_die = std::max(remaining_dice[0], max_die);
+                        invalid_dice.clear();
+                        max_length = used_dice_copy.size() + 1;
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            // reentering move black
+            if (board.turn == -1 && board.black_bar)
+            {
+                for (int i = 23; i > 17; i--)
+                {
+                    if (board.is_valid(-1, i))
+                    {
+                        max_die = std::max(remaining_dice[0], max_die);
+                        invalid_dice.clear();
+                        max_length = used_dice_copy.size() + 1;
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            // normal moves
+            for (int start = 0; start < 24; start++)
+            {
+                if (sign(board.positions[start]) != board.turn)
+                {
+                    continue;
+                }
+                int end = start + remaining_dice[0] * board.turn;
+                if (board.is_valid(start, end))
+                {
+                    max_die = std::max(remaining_dice[0], max_die);
+                    invalid_dice.clear();
+                    max_length = used_dice_copy.size() + 1;
+                    return true;
+                }
+            }
+
+            // bearing off
+            if (board.can_bearoff())
+            {
+                if (board.turn == 1)
+                {
+                    for (int i = 18; i < 24; i++)
+                    {
+                        if (board.is_valid(i, 100))
+                        {
+                            max_die = std::max(remaining_dice[0], max_die);
+                            invalid_dice.clear();
+                            max_length = used_dice_copy.size() + 1;
+                            return true;
+                        }
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < 6; i++)
+                    {
+                        if (board.is_valid(i, -100))
+                        {
+                            max_die = std::max(remaining_dice[0], max_die);
+                            invalid_dice.clear();
+                            max_length = used_dice_copy.size() + 1;
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        Board board_copy = board;
+
+        // reentering moves white
         if (board.turn == 1 && board.white_bar)
         {
             for (int i = 0; i < 6; i++)
             {
-                Board board_copy = board;
-                if (board_copy.move(-1, i))
+                if (board.is_valid(-1, i))
                 {
+                    board_copy.copy_state_from(board);
+                    board_copy.move(-1, i, true);
                     std::vector<int> diff = list_diff(board.dice, board_copy.dice);
-                    std::vector<int> new_seq = move_seq_copy;
-                    new_seq.insert(new_seq.end(), diff.begin(), diff.end());
-                    if (verify_permutation(board_copy, board_copy.dice, new_seq, max_length, max_die, invalid_dice))
+                    std::vector<int> new_used = used_dice_copy;
+                    new_used.insert(new_used.end(), diff.begin(), diff.end());
+                    if (verify_permutation(board_copy, board_copy.dice, new_used, max_length, max_die, invalid_dice))
                     {
                         return true;
                     }
@@ -297,17 +418,19 @@ public:
             return false;
         }
 
+        // reentering moves black
         if (board.turn == -1 && board.black_bar)
         {
             for (int i = 23; i > 17; i--)
             {
-                Board board_copy = board;
-                if (board_copy.move(-1, i))
+                if (board.is_valid(-1, i))
                 {
+                    board_copy.copy_state_from(board);
+                    board_copy.move(-1, i, true);
                     std::vector<int> diff = list_diff(board.dice, board_copy.dice);
-                    std::vector<int> new_seq = move_seq_copy;
-                    new_seq.insert(new_seq.end(), diff.begin(), diff.end());
-                    if (verify_permutation(board_copy, board_copy.dice, new_seq, max_length, max_die, invalid_dice))
+                    std::vector<int> new_used = used_dice_copy;
+                    new_used.insert(new_used.end(), diff.begin(), diff.end());
+                    if (verify_permutation(board_copy, board_copy.dice, new_used, max_length, max_die, invalid_dice))
                     {
                         return true;
                     }
@@ -319,24 +442,41 @@ public:
         // bearing off
         if (board.can_bearoff())
         {
-            for (int i = 0; i < 24; i++)
+            if (board.turn == 1)
             {
-                Board board_copy = board;
-                if (board_copy.move(i, 100 * board.turn))
+                for (int i = 18; i < 24; i++)
                 {
-                    std::vector<int> new_remaining_dice = remaining_dice;
-                    if (!new_remaining_dice.empty())
+                    if (board.is_valid(i, 100))
                     {
-                        new_remaining_dice.erase(new_remaining_dice.begin());
+                        board_copy.copy_state_from(board);
+                        board_copy.move(i, 100, true);
+                        std::vector<int> new_remaining = remaining_dice;
+                        new_remaining.erase(new_remaining.begin());
+                        std::vector<int> new_used = used_dice_copy;
+                        new_used.push_back(remaining_dice[0]);
+                        if (verify_permutation(board_copy, new_remaining, new_used, max_length, max_die, invalid_dice))
+                        {
+                            return true;
+                        }
                     }
-                    std::vector<int> new_seq = move_seq_copy;
-                    if (!remaining_dice.empty())
+                }
+            }
+            else
+            {
+                for (int i = 0; i < 6; i++)
+                {
+                    if (board.is_valid(i, -100))
                     {
-                        new_seq.push_back(remaining_dice[0]);
-                    }
-                    if (verify_permutation(board_copy, new_remaining_dice, new_seq, max_length, max_die, invalid_dice))
-                    {
-                        return true;
+                        board_copy.copy_state_from(board);
+                        board_copy.move(i, -100, true);
+                        std::vector<int> new_remaining = remaining_dice;
+                        new_remaining.erase(new_remaining.begin());
+                        std::vector<int> new_used = used_dice_copy;
+                        new_used.push_back(remaining_dice[0]);
+                        if (verify_permutation(board_copy, new_remaining, new_used, max_length, max_die, invalid_dice))
+                        {
+                            return true;
+                        }
                     }
                 }
             }
@@ -345,21 +485,21 @@ public:
         // normal moves
         for (int start = 0; start < 24; start++)
         {
-            if (sign(board.positions[start]) != board.turn || remaining_dice.empty())
+            if (sign(board.positions[start]) != board.turn)
             {
                 continue;
             }
             int end = start + remaining_dice[0] * board.turn;
             if (board.is_valid(start, end))
             {
-                Board board_copy = board;
-                if (board_copy.move(start, end))
+                board_copy.copy_state_from(board);
+                if (board_copy.move(start, end, true))
                 {
-                    std::vector<int> new_remaining_dice = remaining_dice;
-                    new_remaining_dice.erase(new_remaining_dice.begin());
-                    std::vector<int> new_seq = move_seq_copy;
-                    new_seq.push_back(remaining_dice[0]);
-                    if (verify_permutation(board_copy, new_remaining_dice, new_seq, max_length, max_die, invalid_dice))
+                    std::vector<int> new_remaining = remaining_dice;
+                    new_remaining.erase(new_remaining.begin());
+                    std::vector<int> new_used = used_dice_copy;
+                    new_used.push_back(remaining_dice[0]);
+                    if (verify_permutation(board_copy, new_remaining, new_used, max_length, max_die, invalid_dice))
                     {
                         return true;
                     }
@@ -632,7 +772,7 @@ public:
         }
 
         // If all pieces are borne off for one color
-        if (lowest_white == 24 || highest_black == -1)
+        if (lowest_white == -1 || highest_black == 24)
         {
             return true;
         }
@@ -1105,7 +1245,7 @@ PYBIND11_MODULE(board_cpp, m)
              py::arg("verbose") = false)
         .def("__str__", &Board::__str__)
         .def("get_invalid_dice", &Board::get_invalid_dice)
-        .def("get_single_moves", &Board::get_single_moves)
+        .def("get_single_moves", &Board::get_single_moves, py::arg("min_point") = -1)
         .def("set_valid_moves", &Board::set_valid_moves)
         .def("can_bearoff", &Board::can_bearoff)
         .def("convert", &Board::convert)
@@ -1120,6 +1260,7 @@ PYBIND11_MODULE(board_cpp, m)
         .def("roll_dice", &Board::roll_dice)
         .def("set_dice", &Board::set_dice)
         .def("set_board", &Board::set_board)
+        .def("__deepcopy__", &Board::__deepcopy__, py::arg("memo"))
         .def_readwrite("rolled", &Board::rolled)
         .def_readwrite("turn", &Board::turn)
         .def_readwrite("white_off", &Board::white_off)

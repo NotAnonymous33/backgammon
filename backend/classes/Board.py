@@ -252,13 +252,14 @@ class Board:
                                 return True
                 return False
                 
-            
+                
             # reentering moves white
             board_copy = deepcopy(board)
             if board.turn == 1 and board.white_bar:
                 for i in range(6):
-                    board_copy.copy_state_from(board)
-                    if board_copy.move(-1, i):
+                    if board.is_valid(-1, i):
+                        board_copy.copy_state_from(board)
+                        board_copy.move(-1, i, bypass=True)
                         if verify_permutation(board_copy, board_copy.dice, used_dice + list_diff(board.dice, board_copy.dice)):
                             return True
                 return False
@@ -266,8 +267,9 @@ class Board:
             # reentering moves black
             if board.turn == -1 and board.black_bar:
                 for i in range(23, 17, -1):
-                    board_copy.copy_state_from(board)
-                    if board_copy.move(-1, i):
+                    if board.is_valid(-1, i):
+                        board_copy.copy_state_from(board)
+                        board_copy.move(-1, i, bypass=True)
                         if verify_permutation(board_copy, board_copy.dice, used_dice + list_diff(board.dice, board_copy.dice)):
                             return True
                 return False
@@ -276,14 +278,16 @@ class Board:
             if board.can_bearoff():
                 if board.turn == 1:
                     for i in range(18, 24):
-                        board_copy.copy_state_from(board)
-                        if board_copy.move(i, 100):
+                        if board.is_valid(i, 100):
+                            board_copy.copy_state_from(board)
+                            board_copy.move(i, 100, bypass=True)
                             if verify_permutation(board_copy, remaining_dice[1:], used_dice + [remaining_dice[0]]):
                                 return True
                 else:
                     for i in range(6):
-                        board_copy.copy_state_from(board)
-                        if board_copy.move(i, -100):
+                        if board.is_valid(i, -100):
+                            board_copy.copy_state_from(board)
+                            board_copy.move(i, -100)
                             if verify_permutation(board_copy, remaining_dice[1:], used_dice + [remaining_dice[0]]):
                                 return True
                 

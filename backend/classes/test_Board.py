@@ -1,5 +1,7 @@
 import unittest
-from Board import Board
+# from Board import Board
+# from CBoard import Board
+from board_cpp import Board
 
 class TestBoard(unittest.TestCase):
 
@@ -27,12 +29,14 @@ class TestBoard(unittest.TestCase):
         self.board.turn = -1
         self.board.black_bar = 2
         
-        self.board.positions = [0 for _ in range(24)]
-        self.board.positions[2] = 2
-        self.board.positions[4] = -1
-        self.board.positions[5] = 2
-        self.board.positions[9] = -1
-        self.board.positions[20] = 2    
+        positions = [0 for _ in range(24)]
+        positions[0] = -2
+        positions[2] = 2
+        positions[4] = -1
+        positions[5] = 2
+        positions[9] = -1
+        positions[20] = 2    
+        self.board.positions = positions
         
         self.board.set_dice([2, 2, 2, 2])
         self.assertEqual(self.board.invalid_dice, [2])
@@ -90,13 +94,7 @@ class TestBoard(unittest.TestCase):
         self.assertEqual(single_moves, expected_moves)
     
     def test_get_single_moves_bearing_off(self):
-        self.board.positions = [0 for _ in range(24)]
-        self.board.positions[18] = 2
-        self.board.positions[19] = 2
-        self.board.positions[20] = 2
-        self.board.positions[21] = 2
-        self.board.positions[22] = 2
-        self.board.positions[23] = 2
+        self.board.positions = [0 if i < 18 else 2 for i in range(24)]
         self.board.turn = 1
         self.board.set_dice([1, 2])
         single_moves = self.board.get_single_moves()
@@ -158,18 +156,20 @@ class TestBoard(unittest.TestCase):
         self.assertFalse(self.board.has_passed())
 
     def test_has_passed_all_black_past_white(self):
-        self.board.positions = [0 for _ in range(24)]
-        self.board.positions[0] = -2
-        self.board.positions[1] = -2
-        self.board.positions[22] = 2
-        self.board.positions[23] = 2
+        positions = [0 for _ in range(24)]
+        positions[0] = -2
+        positions[1] = -2
+        positions[22] = 2
+        positions[23] = 2
+        self.board.positions = positions
         self.assertTrue(self.board.has_passed())
 
     def test_has_passed_not_all_black_past_white(self):
-        self.board.positions = [0 for _ in range(24)]
-        self.board.positions[0] = -2
-        self.board.positions[2] = -2
-        self.board.positions[1] = 2
+        positions = [0 for _ in range(24)]
+        positions[0] = -2
+        positions[2] = -2
+        positions[1] = 2
+        self.board.positions = positions
         self.assertFalse(self.board.has_passed())
 
     def test_has_passed_white_off(self):

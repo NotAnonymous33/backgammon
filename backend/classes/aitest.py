@@ -1,6 +1,6 @@
 # from CBoard import Board # type: ignore
-from Board import Board
-# from board_cpp import Board # type: ignore
+# from Board import Board
+from board_cpp import Board # type: ignore
 from agents.FirstAgent import FirstAgent
 from agents.RandomAgent import RandomAgent
 # from agents.MCTS import BackgammonMCTSAgent # 1v1 117 52 89 82 117
@@ -12,17 +12,17 @@ from time import perf_counter, sleep
 
 
 start = perf_counter()
-# white = BackgammonMCTSAgent(time_budget=1)
-# black = BackgammonMCTSAgent(time_budget=10)
+white = BackgammonMCTSAgent(time_budget=3)
+black = BackgammonMCTSAgent(time_budget=3)
 # white = HeuristicBackgammonAgent([1 for i in range(10)])
 # black = HeuristicBackgammonAgent([i for i in range(10)])
 # black = HeuristicBackgammonAgent()
-white = RandomAgent()
-black = RandomAgent()
+# white = RandomAgent()
+# black = RandomAgent()
 # white = FinalNNAgent("../backgammon_final_model.pt")
 # black = FinalNNAgent()
 count = 0
-N = 1000 # 16 seconds (1 game a second) cpp
+N = 1 # 1000 games 2.1 seconds (500 game a second) cpp
 # 24.4 simulations per second time3 vs time3
 white_win = 0
 black_win = 0
@@ -36,14 +36,14 @@ for i in range(N):
             pass
         if board.turn == 1:
             agent = white
-            # simulations.append(white.mcts.sim_count)
+            simulations.append(white.mcts.sim_count)
         else:
             agent = black
-            # simulations.append(black.mcts.sim_count)
+            simulations.append(black.mcts.sim_count)
         dice, invdice, moves, = board.roll_dice()
         move = agent.select_move(board)
-        # print(board)
-        # print(move)
+        print(board)
+        print(move)
         board.move_from_sequence(move)
         count += 1
         cur_count += 1
@@ -59,8 +59,8 @@ end = perf_counter()
 print("Time: ", (end - start))
 print("Games played: ", N)
 print("Time per game: ", (end - start)/N)
-# print("Simulations per second first half: ", (simulations[len(simulations) // 2])/((end - start)/2))
-# print("Simulations per second second half: ", (simulations[-1] - simulations[len(simulations) // 2])/((end - start)/2))
+print("Simulations per second first half: ", (simulations[len(simulations) // 2])/((end - start)/2))
+print("Simulations per second second half: ", (simulations[-1] - simulations[len(simulations) // 2])/((end - start)/2))
 
 print("White wins: ", white_win)
 print("Black wins: ", black_win)

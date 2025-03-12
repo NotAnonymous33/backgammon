@@ -218,7 +218,7 @@ cdef class Board:
         max_die = 0
         
         # returns whether there is a valid move using all dice
-        def verify_permutation(board, remaining_dice, used_dice):
+        def verify_permutation(board: Board, remaining_dice: list[int], used_dice: list[int]) -> bool:
             used_dice = used_dice[:]
             nonlocal max_length
             nonlocal max_die
@@ -240,19 +240,71 @@ cdef class Board:
                 max_die = max(used_dice)
                 invalid_dice = remaining_dice
             
+            if len(remaining_dice) == 1:
+                # reentering move white
+                if board.turn == 1 and board.white_bar:
+                    for i in range(6):
+                        if board.is_valid(-1, i):
+                            max_die = max(remaining_dice[0], max_die)
+                            invalid_dice = []
+                            max_length = len(used_dice) + 1
+                            return True
+                    return False
+                # reentering move black
+                if board.turn == -1 and board.black_bar:
+                    for i in range(23, 17, -1):
+                        if board.is_valid(-1, i):
+                            max_die = max(remaining_dice[0], max_die)
+                            invalid_dice = []
+                            max_length = len(used_dice) + 1
+                            return True
+                    return False    
+                # normal moves
+                for start in range(24):
+                    if sign(board.positions[start]) != board.turn:
+                        continue
+                    end = start + remaining_dice[0] * board.turn
+                    if board.is_valid(start, end):
+                        max_die = max(remaining_dice[0], max_die)
+                        invalid_dice = []
+                        max_length = len(used_dice) + 1
+                        return True
+                
+                if board.can_bearoff():
+                    if board.turn == 1:
+                        for i in range(18, 24):
+                            if board.is_valid(i, 100):
+                                max_die = max(remaining_dice[0], max_die)
+                                invalid_dice = []
+                                max_length = len(used_dice) + 1
+                                return True
+                    else:
+                        for i in range(6):
+                            if board.is_valid(i, -100):
+                                max_die = max(remaining_dice[0], max_die)
+                                invalid_dice = []
+                                max_length = len(used_dice) + 1
+                                return True
+                return False
+                
+                
+            # reentering moves white
             board_copy = deepcopy(board)
-            # reentering moves
             if board.turn == 1 and board.white_bar:
                 for i in range(6):
-                    board_copy.copy_state_from(board)
-                    if board_copy.move(-1, i):
+                    if board.is_valid(-1, i):
+                        board_copy.copy_state_from(board)
+                        board_copy.move(-1, i, bypass=True)
                         if verify_permutation(board_copy, board_copy.dice, used_dice + list_diff(board.dice, board_copy.dice)):
                             return True
                 return False
+            
+            # reentering moves black
             if board.turn == -1 and board.black_bar:
                 for i in range(23, 17, -1):
-                    board_copy.copy_state_from(board)
-                    if board_copy.move(-1, i):
+                    if board.is_valid(-1, i):
+                        board_copy.copy_state_from(board)
+                        board_copy.move(-1, i, bypass=True)
                         if verify_permutation(board_copy, board_copy.dice, used_dice + list_diff(board.dice, board_copy.dice)):
                             return True
                 return False
@@ -260,15 +312,17 @@ cdef class Board:
             # bearing off
             if board.can_bearoff():
                 if board.turn == 1:
-                    board_copy.copy_state_from(board)
                     for i in range(18, 24):
-                        if board_copy.move(i, 100):
+                        if board.is_valid(i, 100):
+                            board_copy.copy_state_from(board)
+                            board_copy.move(i, 100, bypass=True)
                             if verify_permutation(board_copy, remaining_dice[1:], used_dice + [remaining_dice[0]]):
                                 return True
                 else:
-                    board_copy.copy_state_from(board)
                     for i in range(6):
-                        if board_copy.move(i, -100):
+                        if board.is_valid(i, -100):
+                            board_copy.copy_state_from(board)
+                            board_copy.move(i, -100)
                             if verify_permutation(board_copy, remaining_dice[1:], used_dice + [remaining_dice[0]]):
                                 return True
                 
@@ -279,9 +333,9 @@ cdef class Board:
                 end = start + remaining_dice[0] * self.turn
                 if board.is_valid(start, end):
                     board_copy.copy_state_from(board)
-                    if board_copy.move(start, end):
+                    if board_copy.move(start, end, bypass=True):
                         if verify_permutation(board_copy, remaining_dice[1:], used_dice + [remaining_dice[0]]):
-                            return True
+                            return True  
             return False      
         
         if verify_permutation(deepcopy(self), self.dice, []):
