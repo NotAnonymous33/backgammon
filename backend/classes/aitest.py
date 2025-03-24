@@ -7,7 +7,7 @@ from agents.RandomAgent import RandomAgent
 from agents.CMCTS import BackgammonMCTSAgent # type: ignore
 # from agents.NNAgent import FinalNNAgent, extract_features
 
-from agents.HeuristicAgent import HeuristicBackgammonAgent
+from agents.HeuristicAgent import HeuristicAgent
 from time import perf_counter, sleep
 
 
@@ -15,8 +15,8 @@ start = perf_counter()
 # white = BackgammonMCTSAgent(time_budget=1)
 # black = BackgammonMCTSAgent(time_budget=1)
 # [2**i for i in range(10)] beats [i for i in range(10)] 77% of the time
-white = HeuristicBackgammonAgent([100, 1, 100, 1, 100, 1, 100, 1, 100, 1])
-black = HeuristicBackgammonAgent([1, 100, 1, 100, 1, 100, 1, 100, 1, 100])
+white = HeuristicAgent([100, 1, 100, 1, 100, 1, 100, 1, 100, 1])
+black = HeuristicAgent([1, 100, 1, 100, 1, 100, 1, 100, 1, 100])
 # black = HeuristicBackgammonAgent()
 # white = RandomAgent()
 # black = RandomAgent()

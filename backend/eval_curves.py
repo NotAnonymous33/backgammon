@@ -17,7 +17,7 @@ def plot_eval_curve(txt_path, save_path=None):
         plt.plot(epochs, black_win_rates, '-o', color='#d62728', label='Black Win Rate') 
         plt.plot(epochs, win_rates, '-o', color='#2ca02c', label='Total Win Rate')   
         
-        plt.ylim(0.2, 1.1)
+        plt.ylim(0, 1.1)
         plt.xlabel('Epoch')
         plt.ylabel('Win Rate vs Random Agent')
         plt.title(f'Evaluation Progress / Win Rate of {txt_path[21:-4]} against Random Agent')
@@ -29,7 +29,7 @@ def plot_eval_curve(txt_path, save_path=None):
             print(f"Evaluation curve saved to {save_path}")
     
     
-names = ["low_lambda", "small", "lambda_0.4", "high_lr", "hidden_128", "main"]
+names = ["high_lr"]
 for name in names:
     plot_eval_curve(f"eval_results/results_{name}.txt", f"graph_{name}.png")
 

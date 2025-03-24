@@ -1,11 +1,8 @@
 from copy import deepcopy
-try:
-    from Board import Board
-except:
-    from ..Board import Board
 
 
-class HeuristicBackgammonAgent:
+
+class HeuristicAgent:
     def __init__(self, weights=None):
         if weights:
             self.off_weight = weights[0]
@@ -30,7 +27,7 @@ class HeuristicBackgammonAgent:
             self.anchor_weight = 8
             self.bar_weight = 15
         
-    def evaluate_board(self, board: Board):
+    def evaluate_board(self, board):
         score = 0
         
         # 1. Material advantage (pieces off the board)
@@ -123,7 +120,7 @@ class HeuristicBackgammonAgent:
                     current = 0
         return longest
         
-    def select_move(self, board: Board):
+    def select_move(self, board):
         """Select the best move based on heuristic evaluation."""
         # Return empty list if no valid moves
         if not board.valid_moves:

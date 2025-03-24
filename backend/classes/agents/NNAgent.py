@@ -1,9 +1,11 @@
 try:
     from classes.board_cpp import Board # type: ignore
     from classes.agents.RandomAgent import RandomAgent
+    from classes.agents.HeuristicAgent import HeuristicAgent
 except ImportError:
     from board_cpp import Board # type: ignore
     from RandomAgent import RandomAgent
+    from HeuristicAgent import HeuristicAgent
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -451,37 +453,16 @@ class BackgammonTrainer:
             black_win_rates = [float(line.split("\t")[2]) for line in lines]
             win_rates = [float(line.split("\t")[3]) for line in lines]
         
+        plt.style.use('seaborn-v0_8-talk')
         plt.figure(figsize=(10, 6))
-        plt.plot(epochs, white_win_rates, 'bo', label='White Win Rate')
-        plt.plot(epochs, black_win_rates, 'ro', label='Black Win Rate')
-        plt.plot(epochs, win_rates, 'go', label='Total Win Rate')
+        plt.plot(epochs, white_win_rates, '-o', color='#1f77b4', label='White Win Rate') 
+        plt.plot(epochs, black_win_rates, '-o', color='#d62728', label='Black Win Rate') 
+        plt.plot(epochs, win_rates, '-o', color='#2ca02c', label='Total Win Rate')   
+        
+        plt.ylim(0, 1.1)
         plt.xlabel('Epoch')
-        plt.ylabel('Win Rate')
-        plt.title('Evaluation Progress / Win Rate against Random Agent')
-        plt.grid(True)
-        plt.legend()
-        
-        # Add trend lines
-        x = np.arange(len(epochs))
-        
-        # Trend line for White Win Rate
-        z_white = np.polyfit(x, white_win_rates, 1)
-        p_white = np.poly1d(z_white)
-        plt.plot(epochs, p_white(x), "b--", alpha=0.5, label='White Trend')
-        
-        # Trend line for Black Win Rate
-        z_black = np.polyfit(x, black_win_rates, 1)
-        p_black = np.poly1d(z_black)
-        plt.plot(epochs, p_black(x), "r--", alpha=0.5, label='Black Trend')
-        
-        # Trend line for Total Win Rate
-        z_total = np.polyfit(x, win_rates, 1)
-        p_total = np.poly1d(z_total)
-        plt.plot(epochs, p_total(x), "g--", alpha=0.5, label='Total Trend')
-        
-        plt.xlabel('Epoch')
-        plt.ylabel('Win Rate')
-        plt.title('Evaluation Progress')
+        plt.ylabel('Win Rate vs Random Agent')
+        plt.title(f'Evaluation Progress / Win Rate of {txt_path[21:-4]} against Random Agent')
         plt.grid(True)
         plt.legend()
         
@@ -793,98 +774,67 @@ def main(resume=False, epoch_count=20):
     print(f"Feature vector size: {input_size}")
     
     # Create neural network model
-    model = BackgammonNN(input_size=input_size)
+    # model = BackgammonNN(input_size=input_size)
     
     # Initialize TD-Lambda learner
-    td_lambda = TDLambda(model, learning_rate=0.05, lambda_param=0.9)
+    # td_lambda = TDLambda(model, learning_rate=0.05, lambda_param=0.9)
+    
+    # # Create trainer
+    # trainer = BackgammonTrainer(
+    #     model=model,
+    #     extract_features_fn=extract_features,
+    #     td_lambda=td_lambda,
+    #     games_per_epoch=games_per_epoch,
+    #     eval_games=eval_games
+    # )
+    
+    print("Starting training")    
+
+    models = {
+        # "main_model": model,
+    }
     
     games_per_epoch = 300 # 100 10 100
     epoch_count = 30
     eval_games = 200
     
-    # Create trainer
-    trainer = BackgammonTrainer(
-        model=model,
-        extract_features_fn=extract_features,
-        td_lambda=td_lambda,
-        games_per_epoch=games_per_epoch,
-        eval_games=eval_games
-    )
-    
-    print("Starting training")    
-
-    models = {
-        "main_model": model,
-    }
-    
-    
-    # Train a smaller model for comparison
-    small_model = BackgammonNN(input_size=input_size, hidden_sizes=[64, 64])
-    small_td = TDLambda(small_model, learning_rate=0.01, lambda_param=0.7)
-    small_trainer = BackgammonTrainer(small_model, extract_features, small_td, games_per_epoch=games_per_epoch, eval_games=eval_games)
-    
-    # Train a model with different lambda
-    lambda_model = BackgammonNN(input_size=input_size)
-    lambda_td = TDLambda(lambda_model, learning_rate=0.01, lambda_param=0.4)
-    lambda_trainer = BackgammonTrainer(lambda_model, extract_features, lambda_td, games_per_epoch=games_per_epoch, eval_games=eval_games)
-    
-    low_lambda_model = BackgammonNN(input_size=input_size)
-    low_lambda_td = TDLambda(low_lambda_model, learning_rate=0.01, lambda_param=0.1)
-    low_lambda_trainer = BackgammonTrainer(low_lambda_model, extract_features, low_lambda_td, games_per_epoch=games_per_epoch, eval_games=eval_games)  # Added eval_games=5
-    
-
     # Train a model with a higher learning rate
     high_lr_model = BackgammonNN(input_size=input_size)
     high_lr_td = TDLambda(high_lr_model, learning_rate=0.1, lambda_param=0.7)
     high_lr_trainer = BackgammonTrainer(high_lr_model, extract_features, high_lr_td, games_per_epoch=games_per_epoch, eval_games=eval_games)  # Added eval_games=5
     
-    # TODO test a high lambda model maybe 0.9
     # Train a model with hidden sizes [128, 128], learning rate 0.05, and lambda 0.7
     hidden_128_model = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
     hidden_128_td = TDLambda(hidden_128_model, learning_rate=0.05, lambda_param=0.7)
     hidden_128_trainer = BackgammonTrainer(hidden_128_model, extract_features, hidden_128_td, games_per_epoch=games_per_epoch, eval_games=eval_games)
     
+    # Train a model with hidden sizes [128, 128], learning rate 0.1, and lambda 0.7
+    hidden_128_model_v2 = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
+    hidden_128_td_v2 = TDLambda(hidden_128_model_v2, learning_rate=0.1, lambda_param=0.7)
+    hidden_128_trainer_v2 = BackgammonTrainer(hidden_128_model_v2, extract_features, hidden_128_td_v2, games_per_epoch=games_per_epoch, eval_games=eval_games)
+
+    
     # Define a function to train a model
     def train_model(trainer: BackgammonTrainer, name, num_epochs, resume=False):
         return trainer.train(num_epochs=num_epochs, name=name, resume_from="backgammon_latest.pt" if resume else None)
     
-    models["low_lambda"] = low_lambda_model
-    models["small"] = small_model
-    models["lambda_0.4"] = lambda_model
     models["high_lr"] = high_lr_model
     models["hidden_128"] = hidden_128_model
+    models["hidden_128_v2"] = hidden_128_model_v2
     
     model_results = []
-    model_results.append(train_model(low_lambda_trainer, "low_lambda", epoch_count))
-    model_results.append(train_model(small_trainer, "small", epoch_count))
-    model_results.append(train_model(lambda_trainer, "lambda_0.4", epoch_count))
     model_results.append(train_model(high_lr_trainer, "high_lr", epoch_count))
     model_results.append(train_model(hidden_128_trainer, "hidden_128", epoch_count))
+    model_results.append(train_model(hidden_128_trainer_v2, "hidden_128_v2", epoch_count))
     
-    
-    
-    if resume:
-        model_results.append(train_model(trainer, "main", epoch_count, resume=True))
-    else:
-        model_results.append(train_model(trainer, "main", epoch_count))
+    # if resume:
+    #     model_results.append(train_model(trainer, "main", epoch_count, resume=True))
+    # else:
+    #     model_results.append(train_model(trainer, "main", epoch_count))
     
 
-    print("after pool")
-
-    trainer.plot_learning_curve(save_path="learning_curve.png")
-    trainer.save_model("backgammon_final_model.pt")    
-    nn_agent = NNAgent(model, extract_features, exploration_rate=0.0) # Create neural network agent with the trained model
-    # Evaluate against random agent
-    print("Evaluating against random agent...")
-    evaluator = Evaluator(nn_agent, opponent_agent=RandomAgent(), num_games=50, name="final")
-    eval_results = evaluator.evaluate()
-    
-    # Print evaluation results
-    print("\nEvaluation Results:")
-    print("-" * 50)
-    for key, value in eval_results.items():
-        print(f"{key}: {value}")
-    
+    # trainer.plot_learning_curve(save_path="learning_curve.png")
+    # trainer.save_model("backgammon_final_model.pt")    
     
     # Run tournament between models
     print("\nRunning model tournament...")
