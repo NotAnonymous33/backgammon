@@ -170,7 +170,7 @@ public:
         auto format_position = [](int position) -> std::string
         {
             if (position == 0)
-                return " . ";
+                return "  .  ";
             char color = position > 0 ? 'W' : 'B';
             std::stringstream pos_ss;
             pos_ss << " " << color << std::abs(position);

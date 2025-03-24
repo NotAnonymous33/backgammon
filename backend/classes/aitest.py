@@ -12,38 +12,40 @@ from time import perf_counter, sleep
 
 
 start = perf_counter()
-white = BackgammonMCTSAgent(time_budget=3)
-black = BackgammonMCTSAgent(time_budget=3)
-# white = HeuristicBackgammonAgent([1 for i in range(10)])
-# black = HeuristicBackgammonAgent([i for i in range(10)])
+# white = BackgammonMCTSAgent(time_budget=1)
+# black = BackgammonMCTSAgent(time_budget=1)
+# [2**i for i in range(10)] beats [i for i in range(10)] 77% of the time
+white = HeuristicBackgammonAgent([100, 1, 100, 1, 100, 1, 100, 1, 100, 1])
+black = HeuristicBackgammonAgent([1, 100, 1, 100, 1, 100, 1, 100, 1, 100])
 # black = HeuristicBackgammonAgent()
 # white = RandomAgent()
 # black = RandomAgent()
 # white = FinalNNAgent("../backgammon_final_model.pt")
 # black = FinalNNAgent()
 count = 0
-N = 1 # 1000 games 2.1 seconds (500 game a second) cpp
+N = 1000 # 1000 games 2.1 seconds (500 game a second) cpp
 # 24.4 simulations per second time3 vs time3
 white_win = 0
 black_win = 0
 simulations = []
+total_diff = 0
+with open("simulations1s150.txt", "w") as f:
+    pass
 #while True:
 for i in range(N):
     board = Board()
     cur_count = 0
     while not board.game_over:
-        if len(simulations) == 10:
-            pass
         if board.turn == 1:
             agent = white
-            simulations.append(white.mcts.sim_count)
+            # simulations.append(white.mcts.sim_count)
         else:
             agent = black
-            simulations.append(black.mcts.sim_count)
+            # simulations.append(black.mcts.sim_count)
         dice, invdice, moves, = board.roll_dice()
+        # print(board)
         move = agent.select_move(board)
-        print(board)
-        print(move)
+        # print(move)
         board.move_from_sequence(move)
         count += 1
         cur_count += 1
@@ -52,15 +54,24 @@ for i in range(N):
         white_win += 1
     else:
         black_win += 1
-    if i % 100 == 99:
-        print(white_win, black_win, white_win + black_win)
+    diff = board.black_left - board.white_left # positive if white wins
+    total_diff += diff
+    
+    # if True:
+    if (i+1) % 10 == 0:
+        print(white_win + black_win, white_win, black_win, diff, total_diff)
+
+    with open("simulations3s.txt", "a") as f:
+        f.write(f"{white_win + black_win} {white_win} {black_win} {diff} \n")
 
 end = perf_counter()
 print("Time: ", (end - start))
 print("Games played: ", N)
 print("Time per game: ", (end - start)/N)
-print("Simulations per second first half: ", (simulations[len(simulations) // 2])/((end - start)/2))
-print("Simulations per second second half: ", (simulations[-1] - simulations[len(simulations) // 2])/((end - start)/2))
+simulations.sort()
+# print("Lowest simulations: ", simulations[1])
+# print("First quartile simulations per second: ", simulations[len(simulations)//4])
+# print("Median simulations per second: ", simulations[len(simulations) // 2])
 
 print("White wins: ", white_win)
 print("Black wins: ", black_win)

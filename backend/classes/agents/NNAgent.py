@@ -1,8 +1,8 @@
 try:
-    from classes.CBoard import Board # type: ignore
+    from classes.board_cpp import Board # type: ignore
     from classes.agents.RandomAgent import RandomAgent
-except:
-    from CBoard import Board # type: ignore
+except ImportError:
+    from board_cpp import Board # type: ignore
     from RandomAgent import RandomAgent
 import torch
 import torch.nn as nn
@@ -13,7 +13,18 @@ from copy import deepcopy
 import os
 import matplotlib.pyplot as plt
 import multiprocessing as mp
+from time import perf_counter
+from tqdm import tqdm
 
+import torch._dynamo as dynamo
+
+# Enable verbose logging to understand why compilation fails
+dynamo.config.verbose = True
+
+# Raise an error instead of falling back to eager mode
+dynamo.config.suppress_errors = False
+
+torch.set_float32_matmul_precision('medium')
 
 def extract_features(board):
     """    
@@ -67,7 +78,7 @@ def extract_features(board):
 class BackgammonNN(nn.Module):
     def __init__(self, input_size, hidden_sizes=[128, 64]):
         super(BackgammonNN, self).__init__()
-        
+                
         # Build layers
         layers = []
         prev_size = input_size
@@ -110,6 +121,7 @@ class TDLambda:
         for name, param in self.model.named_parameters():
             self.eligibility[name] = torch.zeros_like(param, dtype=torch.float32)
     
+    @torch.compile(mode="reduce-overhead")
     def update(self, states, reward):
         """
         Update model parameters using TD(λ) with eligibility traces.
@@ -187,6 +199,7 @@ class NNAgent:
         self.extract_features = extract_features_fn
         self.exploration_rate = exploration_rate
         
+        
     def select_move(self, board):
         if not board.valid_moves:
             return []
@@ -210,31 +223,6 @@ class NNAgent:
         else:
             best_idx = values.argmin().item()
         return board.valid_moves[best_idx]
-        
-        # best_move = None
-        # best_value = float('-inf') if board.turn == 1 else float('inf')
-        
-        # # Evaluate each possible move
-        # for move in board.valid_moves:
-        #     # Create a copy of the board and apply the move
-        #     board_copy = deepcopy(board)
-        #     board_copy.move_from_sequence(move)
-            
-        #     # Extract features from the resulting position
-        #     features = self.extract_features(board_copy)
-        #     state_tensor = torch.tensor([features], dtype=torch.float32)
-            
-        #     # Get model prediction
-        #     with torch.no_grad():
-        #         self.model.eval()
-        #         value = self.model(state_tensor).item()
-            
-        #     # Select the best move based on the player's perspective
-        #     if (board.turn == 1 and value > best_value) or (board.turn == -1 and value < best_value):
-        #         best_value = value
-        #         best_move = move
-                
-        # return best_move
 
 
 class BackgammonTrainer:
@@ -318,20 +306,17 @@ class BackgammonTrainer:
         """Train the model for one epoch (multiple games)."""
         wins_white = 0
         
-        for game_num in range(self.games_per_epoch):
+        for game_num in tqdm(range(self.games_per_epoch)):
             # Play a complete game
             winner, states = self.play_game()
             
             self.td_lambda.update(states, float(winner))
             if winner == 1:  # White won
                 wins_white += 1
-
-            
-            if (game_num + 1) % 20 == 0:
-                print(f"Completed game {game_num + 1}/{self.games_per_epoch}")
                 
         win_rate = wins_white / self.games_per_epoch
         return win_rate
+    
     
     def play_game(self):
         """
@@ -402,8 +387,8 @@ class BackgammonTrainer:
             results = prev_results
         
         # Training loop
-        for epoch in range(start_epoch, start_epoch + num_epochs):
-            print(f"\nEpoch {epoch+1}/{start_epoch + num_epochs}")
+        for epoch in tqdm(range(start_epoch, start_epoch + num_epochs)):
+            print(f"\nEpoch {start_epoch + epoch + 1}/{start_epoch + num_epochs}")
             win_rate = self.train_epoch()
             
             results.append(win_rate)
@@ -415,9 +400,11 @@ class BackgammonTrainer:
             # Save checkpoint at regular intervals
             if (epoch + 1) % checkpoint_interval == 0:
                 if name != "":
-                    self.save_checkpoint(f"backgammon_checkpoint_epoch_{name}{epoch+1}.pt", epoch=epoch+1)
+                    if not os.path.exists(name): # TODO i might want to remove this
+                        os.makedirs(name)
+                    self.save_checkpoint(f"models/{name}/backgammon_checkpoint_epoch_{name}{epoch+1}.pt", epoch=epoch+1)
                 else:
-                    self.save_checkpoint(f"backgammon_checkpoint_epoch_{epoch+1}.pt", epoch=epoch+1)
+                    self.save_checkpoint(f"models/backgammon_checkpoint_epoch_{epoch+1}.pt", epoch=epoch+1)
             
             e = Evaluator(NNAgent(self.model, self.extract_features, exploration_rate=0.0), opponent_agent=RandomAgent(), num_games=self.eval_games)
             eval_results = e.evaluate()                
@@ -425,18 +412,32 @@ class BackgammonTrainer:
             print("\nEvaluation Results:")
             for key, value in eval_results.items():
                 print(f"{key}: {value}")
-            with open(f"eval_results{name}.txt", "a") as f:
+            if not os.path.exists("eval_results"):
+                os.makedirs("eval_results")
+            with open(f"eval_results/results_{name}.txt", "a") as f:
                 f.write(f"{epoch}\t{eval_results['white_win_rate']}\t{eval_results['black_win_rate']}\t{eval_results['win_rate']}\n")
             
             # Always save latest model
-            self.plot_learning_curve(save_path=f"learning_curve{name}.png")
-            self.save_checkpoint(f"backgammon_{name}latest.pt", epoch=epoch+1)
+            self.plot_learning_curve(save_path=f"learning_curve_{name}.png")
+            # if models does not exist create
+            if not os.path.exists("models"):
+                os.makedirs("models")
+            if name != "":
+                if not os.path.exists("models/" + name):
+                    os.makedirs("models/" + name)
+                self.save_checkpoint(f"models/{name}/backgammon_{name}_latest.pt", epoch=epoch+1)
+            else:
+                self.save_checkpoint("models/backgammon_latest.pt", epoch=epoch+1)
+
         
-        self.plot_eval_curve(f"eval_results{name}.txt", f"eval_curve{name}.png")
+        self.plot_eval_curve(f"eval_results/results_{name}.txt", f"graph_{name}.png")
         
         # Save final model
         if name != "":
-            self.save_model(f"name/backgammon_final_model{name}.pt")
+            # create dir if it does not exist
+            if not os.path.exists("models/" + name):
+                os.makedirs("models/" + name)
+            self.save_model(f"{name}/backgammon_{name}_final.pt")
         else:
             self.save_model(f"backgammon_final_model.pt")
         
@@ -484,9 +485,8 @@ class BackgammonTrainer:
         plt.grid(True)
         plt.legend()
         
-
         if save_path:
-            plt.savefig(f"eval_curves/{save_path}")
+            plt.savefig(f"eval_results/{save_path}")
             print(f"Evaluation curve saved to {save_path}")
     
     def plot_learning_curve(self, save_path=None):
@@ -507,14 +507,7 @@ class BackgammonTrainer:
         plt.ylabel('Win Rate as White')
         plt.title('Training Progress / Win Rate against itself')
         plt.grid(True)
-        
-        # Add trend line
-        if len(self.training_results) > 1:
-            import numpy as np
-            x = np.arange(len(self.training_results))
-            z = np.polyfit(x, self.training_results, 1)
-            p = np.poly1d(z)
-            plt.plot(x, p(x), "r--", alpha=0.5)
+
         
         if save_path:
             plt.savefig(f"learning_curves/{save_path}")
@@ -537,7 +530,11 @@ class BackgammonTrainer:
             print(f"{key}: {value}")
         
     def save_model(self, filename):
+        filename = "models/" + filename
         """Save the model to a file."""
+        # create file if it does not exist
+        with open(filename, 'w') as f:
+            pass
         torch.save(self.model.state_dict(), filename)
         
     def load_model(self, filename):
@@ -783,28 +780,7 @@ class FinalNNAgent:
             best_idx = values.argmax().item()
         else:
             best_idx = values.argmin().item()
-        return board.valid_moves[best_idx]
-        
-        # best_move = None
-        # best_value = float('-inf') if board.turn == 1 else float('inf')
-        
-        # for move in board.valid_moves:
-        #     board_copy = deepcopy(board)
-        #     board_copy.move_from_sequence(move)
-            
-        #     features = self.extract_features(board_copy)
-        #     state_tensor = torch.tensor([features], dtype=torch.float32)
-            
-        #     with torch.no_grad():
-        #         value = self.model(state_tensor).item()
-            
-        #     if (board.turn == 1 and value > best_value) or (board.turn == -1 and value < best_value):
-        #         best_value = value
-        #         best_move = move
-        
-        # return best_move
-        
-
+        return board.valid_moves[best_idx] 
 
 def main(resume=False, epoch_count=20):
     torch.autograd.set_detect_anomaly(True)
@@ -822,9 +798,9 @@ def main(resume=False, epoch_count=20):
     # Initialize TD-Lambda learner
     td_lambda = TDLambda(model, learning_rate=0.05, lambda_param=0.9)
     
-    games_per_epoch = 2
-    epoch_count = 5
-    eval_games = 5
+    games_per_epoch = 300 # 100 10 100
+    epoch_count = 30
+    eval_games = 200
     
     # Create trainer
     trainer = BackgammonTrainer(
@@ -862,15 +838,15 @@ def main(resume=False, epoch_count=20):
     high_lr_td = TDLambda(high_lr_model, learning_rate=0.1, lambda_param=0.7)
     high_lr_trainer = BackgammonTrainer(high_lr_model, extract_features, high_lr_td, games_per_epoch=games_per_epoch, eval_games=eval_games)  # Added eval_games=5
     
-    
+    # TODO test a high lambda model maybe 0.9
     # Train a model with hidden sizes [128, 128], learning rate 0.05, and lambda 0.7
     hidden_128_model = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
     hidden_128_td = TDLambda(hidden_128_model, learning_rate=0.05, lambda_param=0.7)
     hidden_128_trainer = BackgammonTrainer(hidden_128_model, extract_features, hidden_128_td, games_per_epoch=games_per_epoch, eval_games=eval_games)
     
     # Define a function to train a model
-    def train_model(trainer: BackgammonTrainer, name, epochs, resume=False):
-        return trainer.train(num_epochs=epochs, name=name, resume_from="backgammon_latest.pt" if resume else None)
+    def train_model(trainer: BackgammonTrainer, name, num_epochs, resume=False):
+        return trainer.train(num_epochs=num_epochs, name=name, resume_from="backgammon_latest.pt" if resume else None)
     
     models["low_lambda"] = low_lambda_model
     models["small"] = small_model
@@ -888,9 +864,9 @@ def main(resume=False, epoch_count=20):
     
     
     if resume:
-        model_results.append(train_model(trainer, "main", 20, resume=True))
+        model_results.append(train_model(trainer, "main", epoch_count, resume=True))
     else:
-        model_results.append(train_model(trainer, "main", 20))
+        model_results.append(train_model(trainer, "main", epoch_count))
     
 
     print("after pool")

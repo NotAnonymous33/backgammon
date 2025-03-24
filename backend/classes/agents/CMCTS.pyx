@@ -3,6 +3,7 @@ import time
 import random
 import math
 import cython
+from HeuristicAgent import HeuristicAgent
 
 
 cdef class Node:
@@ -84,6 +85,7 @@ cdef class MCTSBackgammonAgent:
         self.root = None
         self.player_color = 0
         self.sim_count = 0
+        self.heuristic_agent = HeuristicAgent()
 
     @cython.ccall
     def search(self, float time_budget):
@@ -94,8 +96,8 @@ cdef class MCTSBackgammonAgent:
         cdef tuple move_key
         cdef float result
         start_time = time.time()
+        self.sim_count = 0
         """Run MCTS for the specified time."""
-        # start_time = time.time()
 
         while time.time() - start_time < time_budget:
             # 1. Selection: traverse tree until we reach a leaf node
@@ -113,10 +115,7 @@ cdef class MCTSBackgammonAgent:
 
                 # Create a new child node
                 child = Node(state=new_state, move_sequence=move, parent=node)
-                move_key = ()
-                for m in move:
-                    move_key += (tuple(m),)
-                node.children[move_key] = child
+                node.children[tuple(move)] = child
 
                 # Use the new node for simulation
                 node = child
@@ -172,7 +171,7 @@ cdef class MCTSBackgammonAgent:
 
         # Return result or heuristic evaluation
         if state.game_over:
-            if self.player_color == 1 and state.white_off == 15:
+            if (self.player_color == 1 and state.white_off == 15) or (self.player_color == -1 and state.black_off == 15):
                 return 1
             return -1
         else:
@@ -198,16 +197,7 @@ cdef class MCTSBackgammonAgent:
         if not self.root.children:
             return []
 
-        # # Find children with highest visit count
-        # cdef object child
-        # cdef list best_children = []
-        # cdef int max_visits = -1
-        # for child in self.root.children.values():
-        #     max_visits = max(max_visits, child.N)
-        # for child in self.root.children.values():
-        #     if child.N == max_visits:
-        #         best_children.append(child) # 63 93 109 101 88 
-        max_visits = max(child.N for child in self.root.children.values()) # 77 96 82 73 98
+        max_visits = max(child.N for child in self.root.children.values())
         best_children = [child for child in self.root.children.values() if child.N == max_visits]
 
         # choose random child
