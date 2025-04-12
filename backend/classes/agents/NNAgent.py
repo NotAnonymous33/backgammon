@@ -426,9 +426,11 @@ class BackgammonTrainer:
             if name != "":
                 if not os.path.exists("models/" + name):
                     os.makedirs("models/" + name)
-                self.save_checkpoint(f"models/{name}/backgammon_{name}_latest.pt", epoch=epoch+1)
+                self.save_checkpoint(f"models/{name}/backgammon_{name}_checkpoint_latest.pt", epoch=epoch+1)
+                self.save_model(f"models/{name}/backgammon_{name}_model_latest.pt")
             else:
                 self.save_checkpoint("models/backgammon_latest.pt", epoch=epoch+1)
+                self.save_model("models/backgammon_latest.pt")
 
         
         self.plot_eval_curve(f"eval_results/results_{name}.txt", f"graph_{name}.png")
@@ -492,27 +494,7 @@ class BackgammonTrainer:
         if save_path:
             plt.savefig(f"learning_curves/{save_path}")
             print(f"Learning curve saved to {save_path}")
-            
-    # TODO: remove
-    # def evaluate(self):
-    #     """Evaluate the model against a random agent."""
-    #     nn_agent = NNAgent(self.model, self.extract_features, exploration_rate=0.0)
-    
-    #     # # Evaluate against random agent
-    #     # print("Evaluating against random agent...")
-    #     # evaluator = Evaluator(nn_agent, opponent_agent=RandomAgent(), num_games=50)
-    #     # eval_results = evaluator.evaluate()
-        
-    #     # Evaluate against heuristic agent
-    #     print("Evaluating against heuristic agent...")
-    #     evaluator = Evaluator(nn_agent, opponent_agent=HeuristicAgent(), num_games=50)
-    #     eval_results = evaluator.evaluate()
-        
-    #     # Print evaluation results
-    #     print("\nEvaluation Results:")
-    #     print("-" * 50)
-    #     for key, value in eval_results.items():
-    #         print(f"{key}: {value}")
+
         
     def save_model(self, filename):
         filename = "models/" + filename
@@ -808,11 +790,6 @@ def main(resume=False, epoch_count=20):
     hidden_128_td = TDLambda(hidden_128_model, learning_rate=0.05, lambda_param=0.7)
     hidden_128_trainer = BackgammonTrainer(hidden_128_model, extract_features, hidden_128_td, games_per_epoch=games_per_epoch, eval_games=eval_games)
     
-    # Train a model with hidden sizes [128, 128], learning rate 0.05, and lambda 0.9
-    hidden_128_model_lambda = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
-    hidden_128_td_lambda = TDLambda(hidden_128_model_lambda, learning_rate=0.05, lambda_param=0.9)
-    hidden_128_trainer_lambda = BackgammonTrainer(hidden_128_model_lambda, extract_features, hidden_128_td_lambda, games_per_epoch=games_per_epoch, eval_games=eval_games)
-
     # Train a model with hidden sizes [128, 128], learning rate 0.1, and lambda 0.7
     hidden_128_model_learning = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
     hidden_128_td_learning = TDLambda(hidden_128_model_learning, learning_rate=0.1, lambda_param=0.7)
@@ -829,13 +806,11 @@ def main(resume=False, epoch_count=20):
         return trainer.train(num_epochs=num_epochs, name=name, resume_from="backgammon_latest.pt" if resume else None)
     
     models["hidden_128"] = hidden_128_model
-    models["hidden_128_lambda"] = hidden_128_model_lambda
     models["hidden_128_learning"] = hidden_128_model_learning
-    models["hidden_128_learning_lambda"] = hidden_128_model_learning
+    models["hidden_128_learning_lambda"] = hidden_128_model_learning_lambda
     
     trainer_list = [
         (hidden_128_trainer, "hidden_128"),
-        (hidden_128_trainer_lambda, "hidden_128_lambda"),
         (hidden_128_trainer_learning, "hidden_128_learning"),
         (hidden_128_trainer_learning_lambda, "hidden_128_learning_lambda"),
     ]
