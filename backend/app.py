@@ -1,12 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_cors import CORS
-from classes.Board import Board
-from models import Game, db
+from .classes.Board import Board
+from .models import Game, db
 from random import randint
-from classes.agents.FirstAgent import FirstAgent
-from classes.agents.RandomAgent import RandomAgent
-from backend.classes.agents.MCTS import BackgammonMCTSAgent
+from .classes.agents.FirstAgent import FirstAgent
+from .classes.agents.RandomAgent import RandomAgent
+from .classes.agents.MCTS import BackgammonMCTSAgent
 # from werkzeug.middleware.profiler import ProfilerMiddleware
 
 app = Flask(__name__)
@@ -163,7 +163,7 @@ def move(data):
     board = Board(board_db=db_board)
     
     # Determine which side is supposed to move.
-    current_side = "white" if board.turn.value == 1 else "black"
+    current_side = "white" if board.turn == 1 else "black"
     room_info = rooms.get(room_code, {}).get("players", {})
     player_info = room_info.get(current_side)
     
@@ -191,7 +191,7 @@ def move(data):
         
     
     # If the next turn belongs to an AI, trigger an AI move.
-    next_side = "white" if board.turn.value == 1 else "black"
+    next_side = "white" if board.turn == 1 else "black"
     next_player = rooms.get(room_code, {}).get("players", {}).get(next_side)
     if next_player and next_player.get("type") == "ai":
         #socketio.start_background_task(ai_move, room_code) # TODO check this
@@ -224,7 +224,7 @@ def ai_move(room_code):
         verbose and print("Dice has already been rolled")
     
     # Determine current side based on board.turn.
-    current_side = "white" if board.turn.value == 1 else "black"
+    current_side = "white" if board.turn == 1 else "black"
     room_info = rooms.get(room_code, {}).get("players", {})
     player_info = room_info.get(current_side)
     ai_model = player_info.get("ai_model") if player_info and player_info.get("type") == "ai" else "random"
@@ -256,7 +256,7 @@ def ai_move(room_code):
         return
     
     # If the next turn is also an AI turn, trigger another move after a brief delay.
-    next_side = "white" if board.turn.value == 1 else "black"
+    next_side = "white" if board.turn == 1 else "black"
     next_player = rooms.get(room_code, {}).get("players", {}).get(next_side)
     if next_player and next_player.get("type") == "ai":
         #socketio.sleep(1)  # Short delay so moves are visible.
@@ -273,7 +273,7 @@ def roll_dice(data):
         return
     board = Board(board_db=db_board)
     
-    current_side = "white" if board.turn.value == 1 else "black"
+    current_side = "white" if board.turn == 1 else "black"
     room_info = rooms.get(room_code, {}).get("players", {})
     player_info = room_info.get(current_side)
 
@@ -301,7 +301,7 @@ def roll_dice(data):
     emit("update_dice", update_data, room=room_code)
     
     # If it is now an AI turn, trigger the AI move.
-    next_side = "white" if board.turn.value == 1 else "black"
+    next_side = "white" if board.turn == 1 else "black"
     next_player = rooms.get(room_code, {}).get("players", {}).get(next_side)
     if next_player and next_player.get("type") == "ai":
         #socketio.start_background_task(ai_move, room_code)

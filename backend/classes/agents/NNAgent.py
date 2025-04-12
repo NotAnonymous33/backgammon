@@ -3,9 +3,10 @@ try:
     from classes.agents.RandomAgent import RandomAgent
     from classes.agents.HeuristicAgent import HeuristicAgent
 except ImportError:
+    
     from board_cpp import Board # type: ignore
-    from RandomAgent import RandomAgent
-    from HeuristicAgent import HeuristicAgent
+    from .RandomAgent import RandomAgent
+    from .HeuristicAgent import HeuristicAgent
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -402,13 +403,11 @@ class BackgammonTrainer:
             # Save checkpoint at regular intervals
             if (epoch + 1) % checkpoint_interval == 0:
                 if name != "":
-                    if not os.path.exists(name): # TODO i might want to remove this
-                        os.makedirs(name)
                     self.save_checkpoint(f"models/{name}/backgammon_checkpoint_epoch_{name}{epoch+1}.pt", epoch=epoch+1)
                 else:
                     self.save_checkpoint(f"models/backgammon_checkpoint_epoch_{epoch+1}.pt", epoch=epoch+1)
             
-            e = Evaluator(NNAgent(self.model, self.extract_features, exploration_rate=0.0), opponent_agent=RandomAgent(), num_games=self.eval_games)
+            e = Evaluator(NNAgent(self.model, self.extract_features, exploration_rate=0.0), opponent_agent=HeuristicAgent(), num_games=self.eval_games)
             eval_results = e.evaluate()                
 
             print("\nEvaluation Results:")
@@ -455,14 +454,14 @@ class BackgammonTrainer:
         
         plt.style.use('seaborn-v0_8-talk')
         plt.figure(figsize=(10, 6))
-        plt.plot(epochs, white_win_rates, '-o', color='#1f77b4', label='White Win Rate') 
-        plt.plot(epochs, black_win_rates, '-o', color='#d62728', label='Black Win Rate') 
+        plt.plot(epochs, white_win_rates, '-o', color='#1f77b4', alpha=0.6, label='White Win Rate') 
+        plt.plot(epochs, black_win_rates, '-o', color='#d62728', alpha=0.6, label='Black Win Rate') 
         plt.plot(epochs, win_rates, '-o', color='#2ca02c', label='Total Win Rate')   
         
         plt.ylim(0, 1.1)
         plt.xlabel('Epoch')
-        plt.ylabel('Win Rate vs Random Agent')
-        plt.title(f'Evaluation Progress / Win Rate of {txt_path[21:-4]} against Random Agent')
+        plt.ylabel('Win Rate vs Heuristic Agent')
+        plt.title(f'Evaluation Progress / Win Rate of {txt_path[21:-4]} against Heuristic Agent')
         plt.grid(True)
         plt.legend()
         
@@ -494,21 +493,26 @@ class BackgammonTrainer:
             plt.savefig(f"learning_curves/{save_path}")
             print(f"Learning curve saved to {save_path}")
             
+    # TODO: remove
+    # def evaluate(self):
+    #     """Evaluate the model against a random agent."""
+    #     nn_agent = NNAgent(self.model, self.extract_features, exploration_rate=0.0)
     
-    def evaluate(self):
-        """Evaluate the model against a random agent."""
-        nn_agent = NNAgent(self.model, self.extract_features, exploration_rate=0.0)
-    
-        # Evaluate against random agent
-        print("Evaluating against random agent...")
-        evaluator = Evaluator(nn_agent, opponent_agent=RandomAgent(), num_games=50)
-        eval_results = evaluator.evaluate()
+    #     # # Evaluate against random agent
+    #     # print("Evaluating against random agent...")
+    #     # evaluator = Evaluator(nn_agent, opponent_agent=RandomAgent(), num_games=50)
+    #     # eval_results = evaluator.evaluate()
         
-        # Print evaluation results
-        print("\nEvaluation Results:")
-        print("-" * 50)
-        for key, value in eval_results.items():
-            print(f"{key}: {value}")
+    #     # Evaluate against heuristic agent
+    #     print("Evaluating against heuristic agent...")
+    #     evaluator = Evaluator(nn_agent, opponent_agent=HeuristicAgent(), num_games=50)
+    #     eval_results = evaluator.evaluate()
+        
+    #     # Print evaluation results
+    #     print("\nEvaluation Results:")
+    #     print("-" * 50)
+    #     for key, value in eval_results.items():
+    #         print(f"{key}: {value}")
         
     def save_model(self, filename):
         filename = "models/" + filename
@@ -798,39 +802,51 @@ def main(resume=False, epoch_count=20):
     epoch_count = 30
     eval_games = 200
     
-    # Train a model with a higher learning rate
-    high_lr_model = BackgammonNN(input_size=input_size)
-    high_lr_td = TDLambda(high_lr_model, learning_rate=0.1, lambda_param=0.7)
-    high_lr_trainer = BackgammonTrainer(high_lr_model, extract_features, high_lr_td, games_per_epoch=games_per_epoch, eval_games=eval_games)  # Added eval_games=5
     
     # Train a model with hidden sizes [128, 128], learning rate 0.05, and lambda 0.7
     hidden_128_model = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
     hidden_128_td = TDLambda(hidden_128_model, learning_rate=0.05, lambda_param=0.7)
     hidden_128_trainer = BackgammonTrainer(hidden_128_model, extract_features, hidden_128_td, games_per_epoch=games_per_epoch, eval_games=eval_games)
     
-    # Train a model with hidden sizes [128, 128], learning rate 0.1, and lambda 0.7
-    hidden_128_model_v2 = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
-    hidden_128_td_v2 = TDLambda(hidden_128_model_v2, learning_rate=0.1, lambda_param=0.7)
-    hidden_128_trainer_v2 = BackgammonTrainer(hidden_128_model_v2, extract_features, hidden_128_td_v2, games_per_epoch=games_per_epoch, eval_games=eval_games)
+    # Train a model with hidden sizes [128, 128], learning rate 0.05, and lambda 0.9
+    hidden_128_model_lambda = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
+    hidden_128_td_lambda = TDLambda(hidden_128_model_lambda, learning_rate=0.05, lambda_param=0.9)
+    hidden_128_trainer_lambda = BackgammonTrainer(hidden_128_model_lambda, extract_features, hidden_128_td_lambda, games_per_epoch=games_per_epoch, eval_games=eval_games)
 
+    # Train a model with hidden sizes [128, 128], learning rate 0.1, and lambda 0.7
+    hidden_128_model_learning = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
+    hidden_128_td_learning = TDLambda(hidden_128_model_learning, learning_rate=0.1, lambda_param=0.7)
+    hidden_128_trainer_learning = BackgammonTrainer(hidden_128_model_learning, extract_features, hidden_128_td_learning, games_per_epoch=games_per_epoch, eval_games=eval_games)
+
+    # Train a model with hidden sizes [128, 128], learning rate 0.1, and lambda 0.9
+    hidden_128_model_learning_lambda = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
+    hidden_128_td_learning_lambda = TDLambda(hidden_128_model_learning_lambda, learning_rate=0.1, lambda_param=0.9)
+    hidden_128_trainer_learning_lambda = BackgammonTrainer(hidden_128_model_learning_lambda, extract_features, hidden_128_td_learning_lambda, games_per_epoch=games_per_epoch, eval_games=eval_games)
+    
     
     # Define a function to train a model
     def train_model(trainer: BackgammonTrainer, name, num_epochs, resume=False):
         return trainer.train(num_epochs=num_epochs, name=name, resume_from="backgammon_latest.pt" if resume else None)
     
-    models["high_lr"] = high_lr_model
     models["hidden_128"] = hidden_128_model
-    models["hidden_128_v2"] = hidden_128_model_v2
+    models["hidden_128_lambda"] = hidden_128_model_lambda
+    models["hidden_128_learning"] = hidden_128_model_learning
+    models["hidden_128_learning_lambda"] = hidden_128_model_learning
     
-    model_results = []
-    model_results.append(train_model(high_lr_trainer, "high_lr", epoch_count))
-    model_results.append(train_model(hidden_128_trainer, "hidden_128", epoch_count))
-    model_results.append(train_model(hidden_128_trainer_v2, "hidden_128_v2", epoch_count))
+    trainer_list = [
+        (hidden_128_trainer, "hidden_128"),
+        (hidden_128_trainer_lambda, "hidden_128_lambda"),
+        (hidden_128_trainer_learning, "hidden_128_learning"),
+        (hidden_128_trainer_learning_lambda, "hidden_128_learning_lambda"),
+    ]
+    
+    for trainer, name in tqdm(trainer_list, desc="Training models"):
+        train_model(trainer, name, epoch_count)
     
     # if resume:
-    #     model_results.append(train_model(trainer, "main", epoch_count, resume=True))
+    #     train_model(trainer, "main", epoch_count, resume=True)
     # else:
-    #     model_results.append(train_model(trainer, "main", epoch_count))
+    #     train_model(trainer, "main", epoch_count)
     
 
     # trainer.plot_learning_curve(save_path="learning_curve.png")
@@ -838,7 +854,7 @@ def main(resume=False, epoch_count=20):
     
     # Run tournament between models
     print("\nRunning model tournament...")
-    comparator = ModelComparator(models, extract_features, num_games=10)
+    comparator = ModelComparator(models, extract_features, num_games=100)
     comparator.run_tournament()
     comparator.print_results()
 

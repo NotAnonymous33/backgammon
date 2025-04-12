@@ -1,13 +1,13 @@
 # from CBoard import Board # type: ignore
 # from Board import Board
 from board_cpp import Board # type: ignore
-from agents.FirstAgent import FirstAgent
-from agents.RandomAgent import RandomAgent
+from .agents.FirstAgent import FirstAgent
+from .agents.RandomAgent import RandomAgent
 # from agents.MCTS import BackgammonMCTSAgent # 1v1 117 52 89 82 117
-from agents.CMCTS import BackgammonMCTSAgent # type: ignore
-# from agents.NNAgent import FinalNNAgent, extract_features
+# from .agents.CMCTS import MCTSBackgammonAgent # type: ignore
+from .agents.NNAgent import FinalNNAgent
 
-from agents.HeuristicAgent import HeuristicAgent
+from .agents.HeuristicAgent import HeuristicAgent
 from time import perf_counter, sleep
 
 
@@ -15,13 +15,13 @@ start = perf_counter()
 # white = BackgammonMCTSAgent(time_budget=1)
 # black = BackgammonMCTSAgent(time_budget=1)
 # [2**i for i in range(10)] beats [i for i in range(10)] 77% of the time
-white = HeuristicAgent([100, 1, 100, 1, 100, 1, 100, 1, 100, 1])
-black = HeuristicAgent([1, 100, 1, 100, 1, 100, 1, 100, 1, 100])
+# white = HeuristicAgent([100, 1, 100, 1, 100, 1, 100, 1, 100, 1])
+# black = HeuristicAgent([1, 100, 1, 100, 1, 100, 1, 100, 1, 100])
 # black = HeuristicBackgammonAgent()
-# white = RandomAgent()
+white = RandomAgent()
 # black = RandomAgent()
 # white = FinalNNAgent("../backgammon_final_model.pt")
-# black = FinalNNAgent()
+black = FinalNNAgent("models/backgammon_final_model.pt")
 count = 0
 N = 1000 # 1000 games 2.1 seconds (500 game a second) cpp
 # 24.4 simulations per second time3 vs time3
