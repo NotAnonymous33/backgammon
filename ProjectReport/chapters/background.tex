@@ -1,0 +1,87 @@
+
+\chapter{Background}
+\section{Backgammon Rules}
+To create a backgammon system, the rules and terminology must first be defined.
+Backgammon is played by two opponents on a board consisting of 24 triangles called points. 
+The points alternate in color and are grouped into four quadrants of six points each. 
+These quadrants are the player's home board and outer board, and the opponent's home board and outer board. 
+A region down the center of the board, called the bar, separates the home and outer boards.
+
+% Objective
+The objective of the game is for a player to move all 15 of their checkers into their home board and then bear them off (remove them from the board). 
+The first player to bear off all their checkers wins the game.
+
+% Setup
+Each player begins with 15 checkers, which are placed on the board in a specific starting position, as shown in figure TODO.
+Checkers move in opposite directions towards their respective home boards. White's home board consists of points 1 through 6. Black's home board consists of points 19 through 24.
+
+% Starting the game
+\subsection{Movement}
+To start the game, each player rolls a die. 
+The player with the higher number goes first and uses the numbers rolled by both players for their initial move. 
+If they roll the same number, they roll again until different numbers appear.
+
+% Turns
+After the start, players alternate turns, rolling two dice at the beginning of each turn.
+
+% Using the dice
+A player must move their checkers according to the numbers shown on the dice. 
+The two dice rolls represent two separate moves. 
+For example, a roll of 4 and 2 (written as 4-2) means the player can move one checker 4 points and another checker 2 points, or move a single checker a total of 6 points (by moving it 4 points to an intermediate point, then 2 points further, or vice-versa), provided the intermediate landing point is valid (not blocked by the opponent).
+
+% Doubles
+If a player rolls doubles (the same number on both dice), they can move four times the number shown on the dice. 
+For example, a roll of 5-5 allows the player four moves of 5 points each.
+
+% Valid moves
+A checker may only land on an open point, one not occupied by two or more opposing checkers. 
+Points occupied by zero or one opposing checker are open. Any number of checkers of the same color can occupy a single point.
+
+If a player has legal moves available according to the dice roll, they must make them. 
+If only one of the dice numbers allows a legal move, that move must be made. 
+If either die allows a legal move but not both, the higher number must be played if possible. 
+If neither die allows a legal move, the player forfeits their turn. 
+If doubles are rolled and not all four moves can be made, the player must make as many moves as possible.
+
+% Hitting
+\subsection{Hitting and Re-entering}
+If a checker lands on a point occupied by exactly one opposing checker (a blot), the opposing checker is hit and placed on the bar.
+A player with one or more checkers on the bar cannot make any other moves until all their checkers on the bar have re-entered the game. 
+Re-entry occurs into the opponent's home board. 
+A checker re-enters on the point corresponding to the number rolled on a die, provided that point is open. 
+For example, if White has a checker on the bar and rolls a 3-5, they can re-enter on Black's 3-point (point 22 for White) if it's open, or on Black's 5-point (point 20 for White) if it's open. 
+If neither corresponding point is open, the player forfeits their turn.
+
+\subsection{Bearing off}
+A player can only begin bearing off checkers once all 15 of their checkers are within their own home board.
+
+A checker can be borne off a point if the number rolled on a die matches the point number (e.g., rolling a 4 allows bearing off a checker from the 4-point).
+If a die roll is higher than the highest point on which the player has a checker, they may bear off a checker from the highest occupied point. 
+For example, if a player rolls a 6 but has no checkers on the 6-point, but does have checkers on the 5-point, they can use the 6 to bear off a checker from the 5-point.
+
+If a player can make a legal move using a die roll within their home board instead of bearing off, they are allowed to do so. However, if a checker can be borne off legally using a die roll, the player cannot choose to move a checker on a lower point if there are no checkers on points higher than the die roll. (Essentially, the full value of the die must be used if possible, prioritizing bearing off or moving from the highest points).
+
+If a player's checker is hit while they are bearing off, they must re-enter that checker onto the bar and bring it back to their home board before they can resume bearing off.
+
+\subsection{Doubling Cube}
+TODO: move this to the future work section
+Backgammon is often played with a doubling cube, a six-sided die marked with the numbers 2, 4, 8, 16, 32, and 64.
+
+At the beginning of the game, the cube is placed centered with the 64 face up (representing a value of 1). The game starts at a stake of one point.
+
+Before rolling the dice on their turn, a player who believes they have an advantage may propose doubling the stakes. 
+They turn the cube to the next highest value (e.g., from 1 to 2) and offer it to the opponent.
+
+The opponent must either accept (take) the double or reject (pass/drop) the cube.
+
+If the opponent accepts, the game continues at the new, doubled stake. The player who accepted the double now owns the cube and only they have the option to offer the next double.
+
+If the opponent rejects, they concede the game immediately and lose the number of points that were at stake before the double was offered (i.e. the current value of the cube).
+
+The player who last accepted a double may, on their turn before rolling, offer to redouble the stakes again (e.g., from 2 to 4, then 4 to 8, and so on). The opponent must again choose to accept or reject. If accepted, ownership of the cube passes back to the player accepting the redouble.
+\section{Existing Work}
+\section{Game Design}
+
+
+
+

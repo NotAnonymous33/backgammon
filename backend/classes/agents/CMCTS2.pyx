@@ -2,13 +2,19 @@ from copy import deepcopy
 import time
 import random
 import math
-try:
-    from Board import Board
-except:
-    from ..Board import Board
+import cython
+from .HeuristicAgent import HeuristicAgent
 
 
-class Node:
+cdef class Node:
+    cdef public object state
+    cdef public list move_sequence
+    cdef public object parent
+    cdef public dict children
+    cdef public int N
+    cdef public float Q
+    cdef public float Q2  # Sum of squared rewards for variance calculation
+    cdef public list untried_moves
     def __init__(self, state=None, move_sequence=None, parent=None):
         """Initialize a node in the MCTS tree."""
         self.state = state
@@ -17,7 +23,7 @@ class Node:
         self.children = {}  # Map move sequences to child nodes
         self.N = 0  # Visit count
         self.Q = 0  # Total reward
-        self.Q2 = 0  # Sum of squared rewards (for UCB1 Tuned)
+        self.Q2 = 0  # Sum of squared rewards for UCB1 Tuned
 
         # Get valid moves if state is provided
         if state:
@@ -27,40 +33,46 @@ class Node:
         else:
             self.untried_moves = []
 
-    def value(self, exploration_weight):
+    @cython.ccall
+    @cython.cdivision(True)
+    def value(self, float exploration_weight):
         """Calculate the UCB1 Tuned value of this node."""
         if self.N == 0:
             return float('inf')
 
         # Exploitation term (average reward)
-        exploitation = self.Q / self.N
+        cdef float exploitation = self.Q / self.N
         
         # Calculate variance estimate
-        variance = (self.Q2 / self.N) - (exploitation ** 2)
+        cdef float variance = (self.Q2 / self.N) - (exploitation * exploitation)
         variance = max(0, variance)  # Ensure variance is non-negative
         
         # Calculate the upper bound on variance (V)
-        log_parent = math.log(self.parent.N) if self.parent.N > 1 else 0
-        V = variance + math.sqrt(2 * log_parent / self.N)
+        cdef float log_parent = math.log(self.parent.N) if self.parent.N > 1 else 0
+        cdef float V = variance + math.sqrt(2 * log_parent / self.N)
         
         # Use min(1/4, V) in the exploration term (UCB1 Tuned formula)
-        exploration = exploration_weight * math.sqrt(log_parent / self.N * min(0.25, V))
+        cdef float min_term = min(0.25, V)
+        cdef float exploration = exploration_weight * math.sqrt(log_parent / self.N * min_term)
 
         return exploitation + exploration
 
+    @cython.ccall
     def is_fully_expanded(self):
         """Check if all valid moves have been expanded."""
-        return len(self.untried_moves) == 0
+        return not self.untried_moves
 
-    def best_child(self, exploration_weight):
-        """Return the child with the highest UCB1 Tuned value."""
+    @cython.ccall
+    def best_child(self, float exploration_weight):
+        """Return the child with the highest UCT value."""
         if not self.children:
             return None
-
-        # Find child with highest UCB1 Tuned value
-        best_value = float('-inf')
-        best_children = []
-
+        
+        # Find child with highest UCT value
+        cdef float best_value = float('-inf')
+        cdef list best_children = []
+        cdef object child
+        cdef float value
         for child in self.children.values():
             value = child.value(exploration_weight)
             if value > best_value:
@@ -73,14 +85,24 @@ class Node:
         return random.choice(best_children) if best_children else None
 
 
-class MCTSBackgammonAgent:
-    def __init__(self, exploration_weight=1.0, simulation_depth=50):
+cdef class MCTSBackgammonAgent:
+    cdef public float exploration_weight
+    cdef public int simulation_depth
+    cdef public object root
+    cdef public int player_color
+    cdef public int sim_count
+    cdef public object heuristic_agent
+    cdef public list probability_table
+    cdef public list ratio_table
+
+    def __init__(self, float exploration_weight=1.0, simulation_depth=50):
         """Initialize the MCTS agent."""
         self.exploration_weight = exploration_weight
         self.simulation_depth = simulation_depth
         self.root = None
         self.player_color = 0
         self.sim_count = 0
+        self.heuristic_agent = HeuristicAgent()
         
         # Probability table for D²/S method (probability, ratio) pairs
         self.probability_table = [
@@ -102,9 +124,17 @@ class MCTSBackgammonAgent:
         # Reorganize the table for easier lookup - (ratio, probability) pairs sorted by ratio
         self.ratio_table = sorted([(ratio, prob) for prob, ratio in self.probability_table])
 
-    def search(self, time_budget):
-        """Run MCTS for the specified time."""
+    @cython.ccall
+    def search(self, float time_budget):
+        cdef object node
+        cdef list move
+        cdef object new_state
+        cdef object child
+        cdef tuple move_key
+        cdef float result
         start_time = time.time()
+        self.sim_count = 0
+        """Run MCTS for the specified time."""
 
         while time.time() - start_time < time_budget:
             # 1. Selection: traverse tree until we reach a leaf node
@@ -121,9 +151,8 @@ class MCTSBackgammonAgent:
                 new_state.move_from_sequence(move)
 
                 # Create a new child node
-                move_key = tuple(tuple(m) for m in move)
                 child = Node(state=new_state, move_sequence=move, parent=node)
-                node.children[move_key] = child
+                node.children[tuple(move)] = child
 
                 # Use the new node for simulation
                 node = child
@@ -136,9 +165,10 @@ class MCTSBackgammonAgent:
 
             self.sim_count += 1
 
+    @cython.ccall
     def select_node(self):
         """Select a node to expand using UCB1 Tuned."""
-        node = self.root
+        cdef object node = self.root
 
         # Keep selecting best child until reaching a leaf, unexpanded node, or passed state
         while node.children and node.is_fully_expanded() and not node.state.game_over and not node.state.passed:
@@ -146,10 +176,13 @@ class MCTSBackgammonAgent:
 
         return node
 
-    def simulate(self, node):
+    @cython.ccall
+    @cython.cdivision(True)
+    def simulate(self, object node):
         """Simulate a random game from node and return the result."""
-        state = deepcopy(node.state)
-        depth = 0
+        cdef list move
+        cdef object state = deepcopy(node.state)
+        cdef int depth = 0
         
         # If the board is already in a passed state, use D²/S method
         if state.passed:
@@ -174,13 +207,11 @@ class MCTSBackgammonAgent:
             state.move_from_sequence(move)
             depth += 1
 
-        # Return result for terminal state, D²/S probability for passed state, 
-        # or heuristic evaluation for depth limit
+        # Return result or heuristic evaluation
         if state.game_over:
-            if (self.player_color == 1 and state.white_off == 15) or \
-               (self.player_color == 0 and state.black_off == 15):
-                return 1  # Win for the current player
-            return -1  # Loss for the current player
+            if (self.player_color == 1 and state.white_off == 15) or (self.player_color == 0 and state.black_off == 15):
+                return 1
+            return -1
         elif state.passed:
             # Use D²/S method to estimate win probability
             return self.calculate_d2s_win_probability(state)
@@ -190,11 +221,16 @@ class MCTSBackgammonAgent:
                 return 2 * (state.black_left / (state.white_left + state.black_left)) - 1
             else:  # Black player
                 return 2 * (state.white_left / (state.white_left + state.black_left)) - 1
-
-    def calculate_d2s_win_probability(self, state):
+    
+    @cython.ccall
+    @cython.cdivision(True)
+    def calculate_d2s_win_probability(self, object state):
         """Calculate win probability using the adjusted D²/S method for a passed board."""
-        white_pips = state.white_left
-        black_pips = state.black_left
+        cdef int white_pips = state.white_left
+        cdef int black_pips = state.black_left
+        cdef int X, Y
+        cdef bint white_is_ahead
+        cdef float delta, S, numerator, denominator, ratio, win_prob_ahead
         
         # Determine which player has fewer pips (ahead) and which has more (behind)
         if white_pips <= black_pips:
@@ -213,7 +249,7 @@ class MCTSBackgammonAgent:
         S = Y + X
         
         # Calculate Numerator Value: Δ² + Δ/7
-        numerator = delta**2 + delta/7
+        numerator = delta*delta + delta/7
         
         # Calculate Denominator Value: S - 25
         denominator = max(1, S - 25)  # Ensure denominator is not zero
@@ -235,9 +271,14 @@ class MCTSBackgammonAgent:
                 return 2 * (1 - win_prob_ahead) - 1  # Black is behind
             else:
                 return 2 * win_prob_ahead - 1  # Black is ahead
-
-    def lookup_win_probability(self, ratio):
+    
+    @cython.ccall
+    @cython.cdivision(True)
+    def lookup_win_probability(self, float ratio):
         """Lookup win probability based on D²/S ratio using the provided table."""
+        cdef int i
+        cdef float r1, p1, r2, p2
+        
         # If ratio is below the minimum in the table, return the minimum probability
         if ratio <= self.ratio_table[0][0]:
             return self.ratio_table[0][1]
@@ -258,49 +299,55 @@ class MCTSBackgammonAgent:
         # This should not happen, but return 0.5 as a fallback
         return 0.5
 
-    def backpropagate(self, node, result):
+    @cython.ccall
+    def backpropagate(self, object node, float result):
         """Update statistics in all nodes along path from node to root."""
-        current = node
-        current_result = result
+        cdef object current = node
+        cdef float current_result = result
+        cdef float squared_result
 
         while current is not None:
             current.N += 1
             current.Q += current_result
-            current.Q2 += current_result ** 2  # Update sum of squared rewards for variance calculation
+            squared_result = current_result * current_result
+            current.Q2 += squared_result  # Update sum of squared results for variance calculation
             current = current.parent
             current_result = -current_result  # Negate result for parent (other player)
 
+    # @cython.ccall
     def best_move(self):
         """Return move with highest visit count from root's children."""
         if not self.root.children:
             return []
 
-        # Find children with highest visit count
         max_visits = max(child.N for child in self.root.children.values())
+        print([child.N for child in self.root.children.values()])
         best_children = [child for child in self.root.children.values() if child.N == max_visits]
 
-        # Choose one randomly if there are multiple
-        best_child = random.choice(best_children)
-
-        return best_child.move_sequence
+        # choose random child
+        return random.choice(best_children).move_sequence
 
 
-class BackgammonMCTSAgent:
-    def __init__(self, exploration_weight=1.0, simulation_depth=50, time_budget=2.0):
+cdef class MCTSAgent2:
+    cdef public object mcts
+    cdef public float time_budget
+    def __init__(self, float exploration_weight=1.0, int simulation_depth=50, float time_budget=2.0):
         self.mcts = MCTSBackgammonAgent(
             exploration_weight=exploration_weight,
             simulation_depth=simulation_depth
         )
         self.time_budget = time_budget
 
-    def select_move(self, board):
+    @cython.ccall
+    @cython.boundscheck(False)
+    def select_move(self, object board):
         if not board.valid_moves:
             return []
 
         # If we only have one valid move, no need to run MCTS
         if len(board.valid_moves) == 1:
             return board.valid_moves[0]
-            
+
         # If the board is already in a passed state, pick the move that minimizes pip count
         if board.passed:
             return self.select_move_for_passed_board(board)
@@ -312,12 +359,16 @@ class BackgammonMCTSAgent:
         self.mcts.search(self.time_budget)
 
         return self.mcts.best_move()
-        
-    def select_move_for_passed_board(self, board):
+    
+    @cython.ccall
+    def select_move_for_passed_board(self, object board):
         """Select a move for a board that's already in a passed state.
         Choose the move that minimizes the player's pip count."""
-        best_move = None
-        min_pips = float('inf')
+        cdef list best_move = None
+        cdef int min_pips = 999999  # Very large number
+        cdef int pips
+        cdef list move
+        cdef object test_board
         
         for move in board.valid_moves:
             # Create a copy and apply the move

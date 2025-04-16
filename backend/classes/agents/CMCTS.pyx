@@ -3,7 +3,7 @@ import time
 import random
 import math
 import cython
-from HeuristicAgent import HeuristicAgent
+from .HeuristicAgent import HeuristicAgent
 
 
 cdef class Node:
@@ -77,6 +77,7 @@ cdef class MCTSBackgammonAgent:
     cdef public object root
     cdef public int player_color
     cdef public int sim_count
+    cdef public object heuristic_agent
 
     def __init__(self, float exploration_weight=1.0, simulation_depth=50):
         """Initialize the MCTS agent."""
@@ -204,7 +205,7 @@ cdef class MCTSBackgammonAgent:
         return random.choice(best_children).move_sequence
 
 
-cdef class BackgammonMCTSAgent:
+cdef class MCTSAgent:
     cdef public object mcts
     cdef public float time_budget
     def __init__(self, float exploration_weight=1.0, int simulation_depth=50, float time_budget=2.0):
@@ -231,6 +232,3 @@ cdef class BackgammonMCTSAgent:
         self.mcts.search(self.time_budget)
 
         return self.mcts.best_move()
-
-# TODO: try different exploration weights and simulation depths
-# could do self play to find best params

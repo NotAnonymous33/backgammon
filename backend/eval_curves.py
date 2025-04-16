@@ -12,14 +12,14 @@ def plot_eval_curve(txt_path, save_path=None):
         
         plt.style.use('seaborn-v0_8-talk')
         plt.figure(figsize=(10, 6))
-        plt.plot(epochs, white_win_rates, '-o', color='#1f77b4', alpha=0.3, label='White Win Rate') 
-        plt.plot(epochs, black_win_rates, '-o', color='#d62728', alpha=0.3, label='Black Win Rate') 
-        plt.plot(epochs, win_rates, '-o', color='#2ca02c', label='Total Win Rate')     
+        plt.plot(epochs, white_win_rates, '-', color='#1f77b4', alpha=0.3, label='White Win Rate') 
+        plt.plot(epochs, black_win_rates, '-', color='#d62728', alpha=0.3, label='Black Win Rate') 
+        plt.plot(epochs, win_rates, '-', color='#2ca02c', label='Total Win Rate')     
         
         plt.ylim(0, 1.1)
         plt.xlabel('Epoch')
-        plt.ylabel('Win Rate vs Random Agent')
-        plt.title(f'Evaluation Progress / Win Rate of {txt_path[21:-4]} against Random Agent')
+        plt.ylabel('Win Rate vs Heuristic Agent')
+        plt.title(f'Evaluation Progress / Win Rate of {txt_path[21:-4]} against Heuristic Agent')
         plt.grid(True)
         plt.legend()
         
@@ -28,7 +28,7 @@ def plot_eval_curve(txt_path, save_path=None):
             print(f"Evaluation curve saved to {save_path}")
     
     
-names = ["hidden_128", "hidden_128_lambda", "hidden_128_learning", "hidden_128_learning_lambda"]
+names = ["main"]
 for name in names:
     plot_eval_curve(f"eval_results/results_{name}.txt", f"graph_{name}.png")
 

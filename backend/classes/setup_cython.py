@@ -10,6 +10,10 @@ extensions = [
     Extension(
         "agents.CMCTS",
         ["agents/CMCTS.pyx"],
+    ),
+    Extension(
+        "agents.CMCTS2",
+        ["agents/CMCTS2.pyx"],
     )
 ]
 

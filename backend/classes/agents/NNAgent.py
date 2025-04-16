@@ -102,7 +102,7 @@ class BackgammonNN(nn.Module):
 
 
 class TDLambda:
-    def __init__(self, model, learning_rate=0.01, lambda_param=0.7, gamma=0.99):
+    def __init__(self, model, learning_rate=0.1, lambda_param=0.7, gamma=0.99):
         """
         TD(λ) with explicit eligibility traces for updating a value function.
         
@@ -113,7 +113,7 @@ class TDLambda:
             gamma: Discount factor.
         """
         self.model = model
-        self.learning_rate = learning_rate
+        self.initial_learning_rate = learning_rate
         self.lambda_param = lambda_param
         self.gamma = gamma
         # Using SGD because we update parameters manually with eligibility traces.
@@ -125,7 +125,7 @@ class TDLambda:
             self.eligibility[name] = torch.zeros_like(param, dtype=torch.float32)
     
     @torch.compile(mode="reduce-overhead")
-    def update(self, states, reward):
+    def update(self, states, reward, epoch_num=0):
         """
         Update model parameters using TD(λ) with eligibility traces.
         Assumes a single episode with final reward provided.
@@ -182,7 +182,7 @@ class TDLambda:
                             self.gamma * self.lambda_param * self.eligibility[name] + param.grad
                         )
                         # Update parameters using the TD error weighted by the eligibility trace.
-                        param.add_(self.learning_rate * delta.item() * self.eligibility[name])
+                        param.add_((self.initial_learning_rate * 0.999 ** epoch_num) * delta.item() * self.eligibility[name])
             
             # Zero gradients before next iteration.
             self.optimizer.zero_grad()
@@ -305,7 +305,7 @@ class BackgammonTrainer:
             print(f"Error loading checkpoint: {e}")
             return 0, []
     
-    def train_epoch(self):
+    def train_epoch(self, epoch_num=0):
         """Train the model for one epoch (multiple games)."""
         wins_white = 0
         
@@ -313,7 +313,7 @@ class BackgammonTrainer:
             # Play a complete game
             winner, states = self.play_game()
             
-            self.td_lambda.update(states, float(winner))
+            self.td_lambda.update(states, float(winner), epoch_num)
             if winner == 1:  # White won
                 wins_white += 1
                 
@@ -392,7 +392,7 @@ class BackgammonTrainer:
         # Training loop
         for epoch in tqdm(range(start_epoch, start_epoch + num_epochs)):
             print(f"\nEpoch {start_epoch + epoch + 1}/{start_epoch + num_epochs}")
-            win_rate = self.train_epoch()
+            win_rate = self.train_epoch(start_epoch + epoch)
             
             results.append(win_rate)
             self.last_win_rate = win_rate
@@ -497,7 +497,6 @@ class BackgammonTrainer:
 
         
     def save_model(self, filename):
-        filename = "models/" + filename
         """Save the model to a file."""
         # create file if it does not exist
         with open(filename, 'w') as f:
@@ -759,79 +758,54 @@ def main(resume=False, epoch_count=20):
     
     print(f"Feature vector size: {input_size}")
     
+    # 9k games / 2 hours
+    # 4.5k games / 1 hours
+    
+    num_hours = 12
+    games_per_epoch = 500
+    epoch_per_hour = 37
+    epoch_count = epoch_per_hour * num_hours
+    eval_games = 500
+    
     # Create neural network model
-    # model = BackgammonNN(input_size=input_size)
+    model = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
     
     # Initialize TD-Lambda learner
-    # td_lambda = TDLambda(model, learning_rate=0.05, lambda_param=0.9)
+    td_lambda = TDLambda(model, learning_rate=0.1, lambda_param=0.7)
     
-    # # Create trainer
-    # trainer = BackgammonTrainer(
-    #     model=model,
-    #     extract_features_fn=extract_features,
-    #     td_lambda=td_lambda,
-    #     games_per_epoch=games_per_epoch,
-    #     eval_games=eval_games
-    # )
+    # Create trainer
+    trainer = BackgammonTrainer(
+        model=model,
+        extract_features_fn=extract_features,
+        td_lambda=td_lambda,
+        games_per_epoch=games_per_epoch,
+        eval_games=eval_games
+    )
     
     print("Starting training")    
 
-    models = {
-        # "main_model": model,
-    }
-    
-    games_per_epoch = 300 # 100 10 100
-    epoch_count = 30
-    eval_games = 200
-    
-    
-    # Train a model with hidden sizes [128, 128], learning rate 0.05, and lambda 0.7
-    hidden_128_model = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
-    hidden_128_td = TDLambda(hidden_128_model, learning_rate=0.05, lambda_param=0.7)
-    hidden_128_trainer = BackgammonTrainer(hidden_128_model, extract_features, hidden_128_td, games_per_epoch=games_per_epoch, eval_games=eval_games)
-    
-    # Train a model with hidden sizes [128, 128], learning rate 0.1, and lambda 0.7
-    hidden_128_model_learning = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
-    hidden_128_td_learning = TDLambda(hidden_128_model_learning, learning_rate=0.1, lambda_param=0.7)
-    hidden_128_trainer_learning = BackgammonTrainer(hidden_128_model_learning, extract_features, hidden_128_td_learning, games_per_epoch=games_per_epoch, eval_games=eval_games)
-
-    # Train a model with hidden sizes [128, 128], learning rate 0.1, and lambda 0.9
-    hidden_128_model_learning_lambda = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
-    hidden_128_td_learning_lambda = TDLambda(hidden_128_model_learning_lambda, learning_rate=0.1, lambda_param=0.9)
-    hidden_128_trainer_learning_lambda = BackgammonTrainer(hidden_128_model_learning_lambda, extract_features, hidden_128_td_learning_lambda, games_per_epoch=games_per_epoch, eval_games=eval_games)
-    
+    # models = {
+    #     "main_model": model,
+    # }
     
     # Define a function to train a model
     def train_model(trainer: BackgammonTrainer, name, num_epochs, resume=False):
         return trainer.train(num_epochs=num_epochs, name=name, resume_from="backgammon_latest.pt" if resume else None)
     
-    models["hidden_128"] = hidden_128_model
-    models["hidden_128_learning"] = hidden_128_model_learning
-    models["hidden_128_learning_lambda"] = hidden_128_model_learning_lambda
-    
-    trainer_list = [
-        (hidden_128_trainer, "hidden_128"),
-        (hidden_128_trainer_learning, "hidden_128_learning"),
-        (hidden_128_trainer_learning_lambda, "hidden_128_learning_lambda"),
-    ]
-    
-    for trainer, name in tqdm(trainer_list, desc="Training models"):
-        train_model(trainer, name, epoch_count)
-    
-    # if resume:
-    #     train_model(trainer, "main", epoch_count, resume=True)
-    # else:
-    #     train_model(trainer, "main", epoch_count)
+    if resume:
+        train_model(trainer, "main", epoch_count, resume=True)
+    else:
+        train_model(trainer, "main", epoch_count)
     
 
     # trainer.plot_learning_curve(save_path="learning_curve.png")
     # trainer.save_model("backgammon_final_model.pt")    
     
     # Run tournament between models
-    print("\nRunning model tournament...")
-    comparator = ModelComparator(models, extract_features, num_games=100)
-    comparator.run_tournament()
-    comparator.print_results()
+    # print("\nRunning model tournament...")
+    # comparator = ModelComparator(models, extract_features, num_games=100)
+    # comparator.run_tournament()
+    # comparator.print_results()
 
 if __name__ == "__main__":
     import argparse
