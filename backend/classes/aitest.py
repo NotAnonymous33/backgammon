@@ -49,7 +49,7 @@ try:
                 # simulations.append(black.mcts.sim_count)
                 black_sims.append(black.mcts.sim_count)
             dice, invdice, moves, = board.roll_dice()
-            print(board)
+            # print(board)
             move = agent.select_move(board)
             # print(agent.mcts.sim_count)
             print(move)

@@ -26,6 +26,23 @@ class Node:
             self.untried_moves = state.valid_moves
         else:
             self.untried_moves = []
+            
+    def get_board_hash(self):
+        """Generate a hash representation of the board state for comparison."""
+        if not self.state:
+            return None
+        
+        # Create a tuple of all the important board state components
+        board_tuple = (
+            tuple(self.state.positions),
+            self.state.turn,
+            tuple(sorted(self.state.dice)),
+            self.state.white_bar,
+            self.state.black_bar,
+            self.state.white_off,
+            self.state.black_off
+        )
+        return hash(board_tuple)
 
     def value(self, exploration_weight):
         """Calculate the UCB1 Tuned value of this node."""
@@ -283,6 +300,29 @@ class MCTSBackgammonAgent:
         best_child = random.choice(best_children)
 
         return best_child.move_sequence
+        
+    def find_matching_child(self, board):
+        """Find a child node that matches the given board state."""
+        if not self.root:
+            return None
+            
+        # Create a hash of the current board state
+        board_hash = hash((
+            tuple(board.positions),
+            board.turn,
+            tuple(sorted(board.dice)),
+            board.white_bar,
+            board.black_bar,
+            board.white_off,
+            board.black_off
+        ))
+        
+        # Check all children for a matching state
+        for child in self.root.children.values():
+            if child.get_board_hash() == board_hash:
+                return child
+                
+        return None
 
 
 class BackgammonMCTSAgent:
@@ -292,6 +332,7 @@ class BackgammonMCTSAgent:
             simulation_depth=simulation_depth
         )
         self.time_budget = time_budget
+        self.previous_tree = None  # Store the MCTS tree between moves
 
     def select_move(self, board):
         if not board.valid_moves:
@@ -299,18 +340,44 @@ class BackgammonMCTSAgent:
 
         # If we only have one valid move, no need to run MCTS
         if len(board.valid_moves) == 1:
+            # Reset the tree since we didn't use MCTS
+            self.previous_tree = None
             return board.valid_moves[0]
             
         # If the board is already in a passed state, pick the move that minimizes pip count
         if board.passed:
+            # Reset the tree for passed boards (using direct evaluation)
+            self.previous_tree = None
             return self.select_move_for_passed_board(board)
 
-        # Use MCTS to find the best move
+        # Set the player color for the MCTS agent
         self.mcts.player_color = board.turn
-        self.mcts.root = Node(state=deepcopy(board))
+        
+        # Check if we can reuse the previous tree
+        if self.previous_tree:
+            # Look for a matching child node from the previous root
+            matching_child = self.mcts.find_matching_child(board)
+            
+            if matching_child:
+                # We found a matching child, use it as the new root
+                matching_child.parent = None  # Detach from parent
+                self.mcts.root = matching_child
+                print("Reusing subtree")
+            else:
+                # No matching child found, create a new tree
+                self.mcts.root = Node(state=deepcopy(board))
+                print("Creating new tree - no matching child")
+        else:
+            # No previous tree, create a new one
+            self.mcts.root = Node(state=deepcopy(board))
+            print("Creating new tree - no previous tree")
 
+        # Run MCTS search
         self.mcts.search(self.time_budget)
-
+        
+        # Store the current tree for next time
+        self.previous_tree = self.mcts.root
+        
         return self.mcts.best_move()
         
     def select_move_for_passed_board(self, board):

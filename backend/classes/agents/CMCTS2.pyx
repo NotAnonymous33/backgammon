@@ -15,6 +15,7 @@ cdef class Node:
     cdef public float Q
     cdef public float Q2  # Sum of squared rewards for variance calculation
     cdef public list untried_moves
+    
     def __init__(self, state=None, move_sequence=None, parent=None):
         """Initialize a node in the MCTS tree."""
         self.state = state
@@ -33,6 +34,24 @@ cdef class Node:
         else:
             self.untried_moves = []
 
+    @cython.ccall
+    def get_board_hash(self):
+        """Generate a hash representation of the board state for comparison."""
+        if not self.state:
+            return None
+        
+        # Create a tuple of all the important board state components
+        board_tuple = (
+            tuple(self.state.positions),
+            self.state.turn,
+            tuple(sorted(self.state.dice)),
+            self.state.white_bar,
+            self.state.black_bar,
+            self.state.white_off,
+            self.state.black_off
+        )
+        return hash(board_tuple)
+        
     @cython.ccall
     @cython.cdivision(True)
     def value(self, float exploration_weight):
@@ -130,8 +149,8 @@ cdef class MCTSBackgammonAgent:
         cdef list move
         cdef object new_state
         cdef object child
-        cdef tuple move_key
         cdef float result
+        cdef list tuple_list
         start_time = time.time()
         self.sim_count = 0
         """Run MCTS for the specified time."""
@@ -152,7 +171,10 @@ cdef class MCTSBackgammonAgent:
 
                 # Create a new child node
                 child = Node(state=new_state, move_sequence=move, parent=node)
-                node.children[tuple(move)] = child
+                tuple_list = []
+                for m in move:
+                    tuple_list.append(tuple(m))
+                node.children[tuple(tuple_list)] = child  # Use tuple_list instead of tuple(m) for clarity
 
                 # Use the new node for simulation
                 node = child
@@ -326,17 +348,44 @@ cdef class MCTSBackgammonAgent:
 
         # choose random child
         return random.choice(best_children).move_sequence
+        
+    @cython.ccall
+    def find_matching_child(self, object board):
+        """Find a child node that matches the given board state."""
+        if not self.root:
+            return None
+            
+        # Create a hash of the current board state
+        board_hash = hash((
+            tuple(board.positions),
+            board.turn,
+            tuple(sorted(board.dice)),
+            board.white_bar,
+            board.black_bar,
+            board.white_off,
+            board.black_off
+        ))
+        
+        # Check all children for a matching state
+        for child in self.root.children.values():
+            if child.get_board_hash() == board_hash:
+                return child
+                
+        return None
 
 
 cdef class MCTSAgent2:
     cdef public object mcts
     cdef public float time_budget
+    cdef public object previous_tree
+    
     def __init__(self, float exploration_weight=1.0, int simulation_depth=50, float time_budget=2.0):
         self.mcts = MCTSBackgammonAgent(
             exploration_weight=exploration_weight,
             simulation_depth=simulation_depth
         )
         self.time_budget = time_budget
+        self.previous_tree = None  # Store the MCTS tree between moves
 
     @cython.ccall
     @cython.boundscheck(False)
@@ -346,18 +395,44 @@ cdef class MCTSAgent2:
 
         # If we only have one valid move, no need to run MCTS
         if len(board.valid_moves) == 1:
+            # Reset the tree since we didn't use MCTS
+            self.previous_tree = None
             return board.valid_moves[0]
 
         # If the board is already in a passed state, pick the move that minimizes pip count
         if board.passed:
+            # Reset the tree for passed boards (using direct evaluation)
+            self.previous_tree = None
             return self.select_move_for_passed_board(board)
 
-        # Use MCTS to find the best move
+        # Set the player color for the MCTS agent
         self.mcts.player_color = board.turn
-        self.mcts.root = Node(state=deepcopy(board))
+        
+        # Check if we can reuse the previous tree
+        if self.previous_tree:
+            # Look for a matching child node from the previous root
+            matching_child = self.mcts.find_matching_child(board)
+            
+            if matching_child:
+                # We found a matching child, use it as the new root
+                matching_child.parent = None  # Detach from parent
+                self.mcts.root = matching_child
+                print("Reusing subtree")
+            else:
+                # No matching child found, create a new tree
+                self.mcts.root = Node(state=deepcopy(board))
+                print("Creating new tree - no matching child")
+        else:
+            # No previous tree, create a new one
+            self.mcts.root = Node(state=deepcopy(board))
+            print("Creating new tree - no previous tree")
 
+        # Run MCTS search
         self.mcts.search(self.time_budget)
-
+        
+        # Store the current tree for next time
+        self.previous_tree = self.mcts.root
+        
         return self.mcts.best_move()
     
     @cython.ccall
