@@ -1,4 +1,3 @@
-from copy import deepcopy
 import time
 import random
 import math
@@ -44,7 +43,7 @@ cdef class Node:
         board_tuple = (
             tuple(self.state.positions),
             self.state.turn,
-            tuple(sorted(self.state.dice)),
+            tuple(sorted(self.state.dice)) if self.state.dice else tuple(),
             self.state.white_bar,
             self.state.black_bar,
             self.state.white_off,
@@ -150,7 +149,7 @@ cdef class MCTSBackgammonAgent:
         cdef object new_state
         cdef object child
         cdef float result
-        cdef list tuple_list
+        cdef tuple tuple_move
         start_time = time.time()
         self.sim_count = 0
         """Run MCTS for the specified time."""
@@ -166,15 +165,15 @@ cdef class MCTSBackgammonAgent:
                 node.untried_moves.remove(move)
 
                 # Create a new state by applying the move
-                new_state = deepcopy(node.state)
+                new_state = node.state.clone()
                 new_state.move_from_sequence(move)
 
                 # Create a new child node
                 child = Node(state=new_state, move_sequence=move, parent=node)
-                tuple_list = []
-                for m in move:
-                    tuple_list.append(tuple(m))
-                node.children[tuple(tuple_list)] = child  # Use tuple_list instead of tuple(m) for clarity
+                
+                # Convert move to tuple for dict key
+                tuple_move = self.move_to_tuple(move)
+                node.children[tuple_move] = child
 
                 # Use the new node for simulation
                 node = child
@@ -186,7 +185,15 @@ cdef class MCTSBackgammonAgent:
             self.backpropagate(node, result)
 
             self.sim_count += 1
-
+            
+    @cython.ccall
+    def move_to_tuple(self, list move):
+        """Convert a move (list of lists) to a tuple format suitable for dictionary keys."""
+        result = []
+        for m in move:
+            result.append(tuple(m))
+        return tuple(result)
+        
     @cython.ccall
     def select_node(self):
         """Select a node to expand using UCB1 Tuned."""
@@ -200,10 +207,10 @@ cdef class MCTSBackgammonAgent:
 
     @cython.ccall
     @cython.cdivision(True)
-    def simulate(self, object node):
+    cdef float simulate(self, object node):
         """Simulate a random game from node and return the result."""
         cdef list move
-        cdef object state = deepcopy(node.state)
+        cdef object state = node.state.clone()
         cdef int depth = 0
         
         # If the board is already in a passed state, use D²/S method
@@ -231,7 +238,7 @@ cdef class MCTSBackgammonAgent:
 
         # Return result or heuristic evaluation
         if state.game_over:
-            if (self.player_color == 1 and state.white_off == 15) or (self.player_color == 0 and state.black_off == 15):
+            if (self.player_color == 1 and state.white_off == 15) or (self.player_color == -1 and state.black_off == 15):
                 return 1
             return -1
         elif state.passed:
@@ -336,7 +343,6 @@ cdef class MCTSBackgammonAgent:
             current = current.parent
             current_result = -current_result  # Negate result for parent (other player)
 
-    # @cython.ccall
     def best_move(self):
         """Return move with highest visit count from root's children."""
         if not self.root.children:
@@ -346,38 +352,16 @@ cdef class MCTSBackgammonAgent:
         print([child.N for child in self.root.children.values()])
         best_children = [child for child in self.root.children.values() if child.N == max_visits]
 
-        # choose random child
-        return random.choice(best_children).move_sequence
+        return_move = random.choice(best_children).move_sequence
+        self.root = self.root.children[self.move_to_tuple(return_move)]
+
+        return return_move
         
-    @cython.ccall
-    def find_matching_child(self, object board):
-        """Find a child node that matches the given board state."""
-        if not self.root:
-            return None
-            
-        # Create a hash of the current board state
-        board_hash = hash((
-            tuple(board.positions),
-            board.turn,
-            tuple(sorted(board.dice)),
-            board.white_bar,
-            board.black_bar,
-            board.white_off,
-            board.black_off
-        ))
-        
-        # Check all children for a matching state
-        for child in self.root.children.values():
-            if child.get_board_hash() == board_hash:
-                return child
-                
-        return None
 
 
 cdef class MCTSAgent2:
     cdef public object mcts
     cdef public float time_budget
-    cdef public object previous_tree
     
     def __init__(self, float exploration_weight=1.0, int simulation_depth=50, float time_budget=2.0):
         self.mcts = MCTSBackgammonAgent(
@@ -385,69 +369,51 @@ cdef class MCTSAgent2:
             simulation_depth=simulation_depth
         )
         self.time_budget = time_budget
-        self.previous_tree = None  # Store the MCTS tree between moves
+
 
     @cython.ccall
     @cython.boundscheck(False)
     def select_move(self, object board):
+        if not board.rolled:
+            board.roll_dice()
         if not board.valid_moves:
             return []
 
         # If we only have one valid move, no need to run MCTS
         if len(board.valid_moves) == 1:
-            # Reset the tree since we didn't use MCTS
-            self.previous_tree = None
             return board.valid_moves[0]
 
         # If the board is already in a passed state, pick the move that minimizes pip count
         if board.passed:
-            # Reset the tree for passed boards (using direct evaluation)
-            self.previous_tree = None
             return self.select_move_for_passed_board(board)
 
         # Set the player color for the MCTS agent
         self.mcts.player_color = board.turn
         
-        # Check if we can reuse the previous tree
-        if self.previous_tree:
-            # Look for a matching child node from the previous root
-            matching_child = self.mcts.find_matching_child(board)
-            
-            if matching_child:
-                # We found a matching child, use it as the new root
-                matching_child.parent = None  # Detach from parent
-                self.mcts.root = matching_child
-                print("Reusing subtree")
-            else:
-                # No matching child found, create a new tree
-                self.mcts.root = Node(state=deepcopy(board))
-                print("Creating new tree - no matching child")
-        else:
-            # No previous tree, create a new one
-            self.mcts.root = Node(state=deepcopy(board))
-            print("Creating new tree - no previous tree")
-
+        new_root = Node(state=board.clone())
+        # search for new root has to see if it has been expanded already
+        # if self.mcts.root is not None:
+        #     print(f"Looking for {new_root.get_board_hash()} in {self.mcts.root.children.keys()}")
+        self.mcts.root = new_root
         # Run MCTS search
         self.mcts.search(self.time_budget)
         
-        # Store the current tree for next time
-        self.previous_tree = self.mcts.root
-        
-        return self.mcts.best_move()
+        best_move = self.mcts.best_move()
+        return best_move 
     
     @cython.ccall
     def select_move_for_passed_board(self, object board):
         """Select a move for a board that's already in a passed state.
         Choose the move that minimizes the player's pip count."""
         cdef list best_move = None
-        cdef int min_pips = 999999  # Very large number
+        cdef int min_pips = 999999 
         cdef int pips
         cdef list move
         cdef object test_board
         
         for move in board.valid_moves:
             # Create a copy and apply the move
-            test_board = deepcopy(board)
+            test_board = board.clone()
             test_board.move_from_sequence(move)
             
             # Get the player's pip count after the move

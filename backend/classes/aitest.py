@@ -24,7 +24,7 @@ black = MCTSAgent2(time_budget=1)
 # white = FinalNNAgent("../backgammon_final_model.pt")
 # black = FinalNNAgent("models/backgammon_final_model.pt")
 count = 0
-N = 10 # 1000 games 2.1 seconds (500 game a second) cpp
+N = 5 # 1000 games 2.1 seconds (500 game a second) cpp
 # 24.4 simulations per second time3 vs time3
 white_win = 0
 black_win = 0
@@ -51,8 +51,7 @@ try:
             dice, invdice, moves, = board.roll_dice()
             # print(board)
             move = agent.select_move(board)
-            # print(agent.mcts.sim_count)
-            print(move)
+            print("white" if board.turn == 1 else "black", move)
             board.move_from_sequence(move)
             count += 1
             cur_count += 1
