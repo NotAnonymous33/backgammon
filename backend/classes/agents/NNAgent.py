@@ -722,10 +722,40 @@ def longest_prime(board, color):
         return longest
 
 class FinalNNAgent:
-    def __init__(self, model_path, extract_features_fn=extract_features):
+    def __init__(self, model_path: str = None, checkpoint_path: str = None,extract_features_fn=extract_features):
+        """
+        Args:
+            model_path (str): Path to a raw model state_dict (.pt/.pth).
+            checkpoint_path (str, optional): Full checkpoint file (with optimizer, epoch, etc.).
+                                             If provided, this is used instead of `model_path`.
+            extract_features_fn: function(Board) -> feature vector.
+        """
         self.extract_features = extract_features_fn
-        self.model = BackgammonNN(len(extract_features(Board())))
-        self.model.load_state_dict(torch.load(model_path))
+        input_dim = len(self.extract_features(Board()))
+        self.model = BackgammonNN(input_dim, hidden_sizes=[128, 128])
+
+        # decide which file to load
+        load_path = checkpoint_path or model_path
+        ckpt = torch.load(load_path)
+
+        # if it's a training checkpoint, grab the nested model_state_dict
+        if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
+            state_dict = ckpt["model_state_dict"]
+        else:
+            # assume ckpt _is_ a bare state dict
+            state_dict = ckpt
+
+        # now safe to load
+        try:
+            self.model.load_state_dict(state_dict)
+        except RuntimeError as e:
+            # if you still get missing/unexpected key errors, you can relax strictness:
+            print(
+                "Warning: strict load failed, retrying with strict=False.\n",
+                e
+            )
+            self.model.load_state_dict(state_dict, strict=False)
+
         self.model.eval()
     
     def select_move(self, board):

@@ -66,7 +66,7 @@ cdef class Node:
         variance = max(0, variance)  # Ensure variance is non-negative
         
         # Calculate the upper bound on variance (V)
-        cdef float log_parent = math.log(self.parent.N) if self.parent.N > 1 else 0
+        cdef float log_parent = math.log(max(1, self.parent.N))
         cdef float V = variance + math.sqrt(2 * log_parent / self.N)
         
         # Use min(1/4, V) in the exploration term (UCB1 Tuned formula)
@@ -349,7 +349,7 @@ cdef class MCTSBackgammonAgent:
             return []
 
         max_visits = max(child.N for child in self.root.children.values())
-        print([child.N for child in self.root.children.values()])
+        # print([child.N for child in self.root.children.values()])
         best_children = [child for child in self.root.children.values() if child.N == max_visits]
 
         return_move = random.choice(best_children).move_sequence
@@ -389,12 +389,31 @@ cdef class MCTSAgent2:
 
         # Set the player color for the MCTS agent
         self.mcts.player_color = board.turn
+
+        cdef object temp_node = Node(state=board.clone())
+        cdef object target_hash = temp_node.get_board_hash()
+        del temp_node
+        cdef bint found = False
+        if self.mcts.root is not None:
+            found = False
+            for child in self.mcts.root.children.values():
+                if child.get_board_hash() == target_hash:
+                    self.mcts.root = child
+                    child.parent = None
+                    found = True
+                    break
+            
+            if not found:
+                self.mcts.root = Node(state=board.clone())
         
-        new_root = Node(state=board.clone())
+        else:
+            self.mcts.root = Node(state=board.clone())
+        
+
+
         # search for new root has to see if it has been expanded already
         # if self.mcts.root is not None:
         #     print(f"Looking for {new_root.get_board_hash()} in {self.mcts.root.children.keys()}")
-        self.mcts.root = new_root
         # Run MCTS search
         self.mcts.search(self.time_budget)
         
