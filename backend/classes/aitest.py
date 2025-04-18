@@ -13,8 +13,10 @@ from time import perf_counter, sleep
 
 
 start = perf_counter()
-white = MCTSAgent2(time_budget=5)
-black = MCTSAgent2(time_budget=5)
+# white = MCTSAgent2(time_budget=1)
+white = MCTSAgent2(mode="neural", eval_depth=20, nn_agent=FinalNNAgent(checkpoint_path="models/main/backgammon_main_checkpoint_latest.pt"), time_budget=1)
+# black = MCTSAgent2(time_budget=5)
+black = MCTSAgent2(mode="heuristic", eval_depth=20, time_budget=1)
 # [2**i for i in range(10)] beats [i for i in range(10)] 77% of the time
 # white = HeuristicAgent([100, 1, 100, 1, 100, 1, 100, 1, 100, 1])
 # black = HeuristicAgent([1, 100, 1, 100, 1, 100, 1, 100, 1, 100])

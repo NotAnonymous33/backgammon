@@ -1,0 +1,34 @@
+
+Tournament Results (wins/games):
+Agent	M1s	M2s	MNN80	MH80	MNN40	MH40	MNN10	MH10
+M1s	--	1/2	1/2	1/2	0/2	1/2	2/2	0/2
+M2s	1/2	--	1/2	1/2	0/2	1/2	1/2	2/2
+MNN80	1/2	1/2	--	1/2	2/2	1/2	2/2	1/2
+MH80	1/2	1/2	1/2	--	1/2	1/2	2/2	0/2
+MNN40	2/2	2/2	0/2	1/2	--	1/2	2/2	1/2
+MH40	1/2	1/2	1/2	1/2	1/2	--	1/2	1/2
+MNN10	0/2	1/2	0/2	0/2	0/2	1/2	--	0/2
+MH10	2/2	0/2	1/2	2/2	1/2	1/2	2/2	--
+
+Total time: 905.39s
+Overall average game length: 104.39 moves
+
+Average game length per agent (95% CI):
+M1s: 89.93 ± 15.89 moves (95% CI: 74.04–105.82), n=14
+M2s: 97.07 ± 26.14 moves (95% CI: 70.93–123.22), n=14
+MNN80: 99.57 ± 22.87 moves (95% CI: 76.70–122.44), n=14
+MH80: 129.00 ± 50.66 moves (95% CI: 78.34–179.66), n=14
+MNN40: 88.21 ± 16.73 moves (95% CI: 71.48–104.95), n=14
+MH40: 117.29 ± 53.68 moves (95% CI: 63.61–170.97), n=14
+MNN10: 102.07 ± 21.59 moves (95% CI: 80.49–123.66), n=14
+MH10: 112.00 ± 30.84 moves (95% CI: 81.16–142.84), n=14
+
+Total winrates per agent (descending):
+MNN80: 9/14 wins (64.3%)
+MNN40: 9/14 wins (64.3%)
+MH10: 9/14 wins (64.3%)
+M2s: 7/14 wins (50.0%)
+MH80: 7/14 wins (50.0%)
+MH40: 7/14 wins (50.0%)
+M1s: 6/14 wins (42.9%)
+MNN10: 2/14 wins (14.3%)

@@ -9,15 +9,34 @@ from .agents.CMCTS2 import MCTSAgent2
 from .agents.HeuristicAgent import HeuristicAgent
 from .agents.NNAgent import FinalNNAgent
 
+
+# Initialize log file and helper
+log_file = open('tournament_log.txt', 'w')
+def log(msg: str):
+    print(msg, flush=True)
+    log_file.write(msg + '\n')
+    log_file.flush()
+
+nn = FinalNNAgent(checkpoint_path='models/main/backgammon_main_checkpoint_latest.pt')
 # Map agent names to their classes and default parameters
 AGENTS = {
-    'Rand': (RandomAgent, {}),
+    # 'Rand': (RandomAgent, {}),
     'M1s': (MCTSAgent2, {'time_budget': 1}),
-    'M5s': (MCTSAgent2, {'time_budget': 5}),
-    'M10s': (MCTSAgent2, {'time_budget': 10}),
-    'HDef': (HeuristicAgent, {}),
-    'HOne': (HeuristicAgent, {'weights': [1]*10}),
-    'NN': (FinalNNAgent, {'checkpoint_path': 'models/main/backgammon_main_checkpoint_latest.pt'}),
+    'M2s': (MCTSAgent2, {'time_budget': 2}),
+    # 'M10s': (MCTSAgent2, {'time_budget': 10}),
+    'MNN80': (MCTSAgent2, {'mode': 'neural', 'eval_depth':80, 'nn_agent': nn, 'time_budget': 1}),
+    'MH80': (MCTSAgent2, {'mode': 'heuristic', 'eval_depth': 80, 'time_budget': 1}),
+    'MNN40': (MCTSAgent2, {'mode': 'neural', 'eval_depth':40, 'nn_agent': nn, 'time_budget': 1}),
+    'MH40': (MCTSAgent2, {'mode': 'heuristic', 'eval_depth': 40, 'time_budget': 1}),
+    'MNN10': (MCTSAgent2, {'mode': 'neural', 'eval_depth':10, 'nn_agent': nn, 'time_budget': 1}),
+    'MH10': (MCTSAgent2, {'mode': 'heuristic', 'eval_depth': 10, 'time_budget': 1}),
+    # 'HDef': (HeuristicAgent, {}),
+    # 'HOne': (HeuristicAgent, {'weights': [1]*10}),
+    # 'NN4': (FinalNNAgent, {'checkpoint_path': 'models/main/backgammon_main_checkpoint_latest.pt'}),
+    # 'NN25': (FinalNNAgent, {'checkpoint_path': 'models/main/backgammon_checkpoint_epoch_main65.pt'}),
+    # 'NN50': (FinalNNAgent, {'checkpoint_path': 'models/main/backgammon_checkpoint_epoch_main130.pt'}),
+    # 'NN75': (FinalNNAgent, {'checkpoint_path': 'models/main/backgammon_checkpoint_epoch_main195.pt'}),
+    # 'NN10': (FinalNNAgent, {'checkpoint_path': 'models/main/backgammon_checkpoint_epoch_main25.pt'}),
 }
 
 
@@ -45,7 +64,7 @@ def play_game(white_name: str, black_name: str):
 
 
 if __name__ == '__main__':
-    GAMES_PER_PAIR = 100
+    GAMES_PER_PAIR = 2
 
     agent_names = list(AGENTS.keys())
     pairings = []
@@ -56,6 +75,7 @@ if __name__ == '__main__':
             pairings.extend([(a, b)] * half)
             pairings.extend([(b, a)] * half)
     random.shuffle(pairings)
+    print(len(pairings), "games to play")
 
     # Tracking
     results = {name: {opp: 0 for opp in agent_names if opp != name} for name in agent_names}
@@ -91,29 +111,27 @@ if __name__ == '__main__':
         )
 
     start = time.perf_counter()
-    pool = mp.Pool(mp.cpu_count())
+    print(mp.cpu_count())
+    pool = mp.Pool(mp.cpu_count()//2)
     for white, black in pairings:
         pool.apply_async(play_game, args=(white, black), callback=on_result)
     pool.close()
     pool.join()
     elapsed = time.perf_counter() - start
 
-    # Summary
-    print("\nTournament Results (wins/games):")
+    log("\nTournament Results (wins/games):")
     header = "Agent\t" + "\t".join(agent_names)
-    print(header)
+    log(header)
     for a in agent_names:
-        row = [a]
-        for b in agent_names:
-            row.append("--" if a == b else f"{results[a][b]}/{totals[a][b]}")
-        print("\t".join(row))
+        row = [a] + ["--" if a == b else f"{results[a][b]}/{totals[a][b]}" for b in agent_names]
+        log("\t".join(row))
 
     overall_avg = sum(game_lengths) / len(game_lengths) if game_lengths else 0
-    print(f"\nTotal time: {elapsed:.2f}s")
-    print(f"Overall average game length: {overall_avg:.2f} moves")
+    log(f"\nTotal time: {elapsed:.2f}s")
+    log(f"Overall average game length: {overall_avg:.2f} moves")
 
     # Per-agent stats with 95% CI
-    print("\nAverage game length per agent (95% CI):")
+    log("\nAverage game length per agent (95% CI):")
     for a in agent_names:
         lengths = lengths_by_agent[a]
         n = len(lengths)
@@ -122,10 +140,10 @@ if __name__ == '__main__':
         se = sd / math.sqrt(n) if n else 0
         margin = 1.96 * se
         lower, upper = mean - margin, mean + margin
-        print(f"{a}: {mean:.2f} ± {margin:.2f} moves (95% CI: {lower:.2f}–{upper:.2f}), n={n}")
+        log(f"{a}: {mean:.2f} ± {margin:.2f} moves (95% CI: {lower:.2f}–{upper:.2f}), n={n}")
 
     # Total winrates per agent (descending)
-    print("\nTotal winrates per agent (descending):")
+    log("\nTotal winrates per agent (descending):")
     sorted_agents = sorted(
         agent_names,
         key=lambda a: (win_counts[a] / game_counts[a] * 100) if game_counts[a] else 0,
@@ -133,4 +151,7 @@ if __name__ == '__main__':
     )
     for a in sorted_agents:
         rate = (win_counts[a] / game_counts[a] * 100) if game_counts[a] else 0
-        print(f"{a}: {win_counts[a]}/{game_counts[a]} wins ({rate:.1f}%)")
+        log(f"{a}: {win_counts[a]}/{game_counts[a]} wins ({rate:.1f}%)")
+
+    # Close log
+    log_file.close()

@@ -1,6 +1,3 @@
-from copy import deepcopy
-
-
 
 class HeuristicAgent:
     def __init__(self, weights=None):
@@ -28,6 +25,10 @@ class HeuristicAgent:
             self.bar_weight = 15
         
     def evaluate_board(self, board):
+        if board.white_off == 15:
+            return 1000000
+        if board.black_off == 15:
+            return -1000000
         score = 0
         
         # 1. Material advantage (pieces off the board)
@@ -134,7 +135,7 @@ class HeuristicAgent:
 
         for move in board.valid_moves:
             # Clone the board and apply the move
-            new_board = deepcopy(board)
+            new_board = board.clone()
             new_board.move_from_sequence(move)
             
             # Evaluate the new board

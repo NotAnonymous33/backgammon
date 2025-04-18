@@ -3,7 +3,8 @@ import random
 import math
 import cython
 from .HeuristicAgent import HeuristicAgent
-
+from .NNAgent import FinalNNAgent
+import torch
 
 cdef class Node:
     cdef public object state
@@ -106,21 +107,44 @@ cdef class Node:
 cdef class MCTSBackgammonAgent:
     cdef public float exploration_weight
     cdef public int simulation_depth
+    cdef public int eval_depth
+    cdef public str mode
+    cdef public object heuristic_agent
+    cdef public object nn_agent
     cdef public object root
     cdef public int player_color
     cdef public int sim_count
-    cdef public object heuristic_agent
     cdef public list probability_table
     cdef public list ratio_table
 
-    def __init__(self, float exploration_weight=1.0, simulation_depth=50):
-        """Initialize the MCTS agent."""
+    def __init__(self,
+                 float exploration_weight=1.0,
+                 int simulation_depth=50,
+                 mode="default",
+                 int eval_depth=-1,
+                 heuristic_agent=None,
+                 nn_agent=None):
+        """Initialize the MCTS agent with a mode and evaluation depth."""
         self.exploration_weight = exploration_weight
         self.simulation_depth = simulation_depth
+        # when eval_depth < 0, just use simulation_depth
+        self.eval_depth = eval_depth if eval_depth > 0 else simulation_depth
+        self.mode = mode  # "default", "heuristic", or "neural"
+        # allow injection of your own agents, else build defaults
+        if mode == "heuristic":
+            self.heuristic_agent = heuristic_agent or HeuristicAgent()
+        else:
+            self.heuristic_agent = None
+        
+        if mode == "neural":
+            self.nn_agent = nn_agent or FinalNNAgent()
+        else:
+            self.nn_agent = None
+
+
         self.root = None
         self.player_color = 0
         self.sim_count = 0
-        self.heuristic_agent = HeuristicAgent()
         
         # Probability table for D²/S method (probability, ratio) pairs
         self.probability_table = [
@@ -185,6 +209,7 @@ cdef class MCTSBackgammonAgent:
             self.backpropagate(node, result)
 
             self.sim_count += 1
+        return self.best_move()
             
     @cython.ccall
     def move_to_tuple(self, list move):
@@ -208,48 +233,63 @@ cdef class MCTSBackgammonAgent:
     @cython.ccall
     @cython.cdivision(True)
     cdef float simulate(self, object node):
-        """Simulate a random game from node and return the result."""
-        cdef list move
+        """Simulate a game, stopping at game over, passed, or eval_depth."""
         cdef object state = node.state.clone()
         cdef int depth = 0
-        
-        # If the board is already in a passed state, use D²/S method
+
+        # If already passed, use D²/S
         if state.passed:
             return self.calculate_d2s_win_probability(state)
 
-        # Simulate random play until terminal state, passed state, or depth limit
-        while not state.game_over and not state.passed and depth < self.simulation_depth:
-            # Get valid moves
+        # play random until one of the stopping criteria
+        while not state.game_over and not state.passed and depth < self.eval_depth:
             if not state.rolled:
                 state.roll_dice()
             valid_moves = state.valid_moves
-
-            # If no valid moves, roll dice or swap turn
             if not valid_moves:
                 if state.rolled:
                     state.swap_turn()
                 state.roll_dice()
                 continue
-
-            # Choose a random move and apply it
             move = random.choice(valid_moves)
             state.move_from_sequence(move)
             depth += 1
 
-        # Return result or heuristic evaluation
+        # 1) terminal win/loss
         if state.game_over:
-            if (self.player_color == 1 and state.white_off == 15) or (self.player_color == -1 and state.black_off == 15):
-                return 1
-            return -1
-        elif state.passed:
-            # Use D²/S method to estimate win probability
+            if (self.player_color == 1 and state.white_off == 15) \
+               or (self.player_color == -1 and state.black_off == 15):
+                return 1.0
+            else:
+                return -1.0
+
+        # 2) passed -> D²/S
+        if state.passed:
             return self.calculate_d2s_win_probability(state)
+
+        # 3) depth reached: branch on mode
+        if self.mode == "heuristic":
+            # get raw heuristic score and squash to (-1,1)
+            score = self.heuristic_agent.evaluate_board(state)
+            return math.tanh(score)
+
+        elif self.mode == "neural":
+            # get network‐predicted win‐probability in [0,1]
+            feats = torch.tensor(self.nn_agent.extract_features(state),
+                                 dtype=torch.float32).unsqueeze(0)
+            with torch.no_grad():
+                p = self.nn_agent.model(feats).item()
+            # map to [-1,1]
+            return 2.0 * p - 1.0
+
         else:
-            # Use pip count ratio as a heuristic
-            if self.player_color == 1:  # White player
-                return 2 * (state.black_left / (state.white_left + state.black_left)) - 1
-            else:  # Black player
-                return 2 * (state.white_left / (state.white_left + state.black_left)) - 1
+            # default: pip‐count heuristic as before
+            if self.player_color == 1:
+                return 2 * (state.black_left /
+                            (state.white_left + state.black_left)) - 1
+            else:
+                return 2 * (state.white_left /
+                            (state.white_left + state.black_left)) - 1
     
     @cython.ccall
     @cython.cdivision(True)
@@ -363,10 +403,22 @@ cdef class MCTSAgent2:
     cdef public object mcts
     cdef public float time_budget
     
-    def __init__(self, float exploration_weight=1.0, int simulation_depth=50, float time_budget=2.0):
+    def __init__(self,
+                 float exploration_weight=1.0,
+                 int simulation_depth=50,
+                 mode="default",
+                 int eval_depth=-1,
+                 float time_budget=2.0,
+                 heuristic_agent=None,
+                 nn_agent=None):
+        """High‐level wrapper: pass mode and eval_depth through."""
         self.mcts = MCTSBackgammonAgent(
             exploration_weight=exploration_weight,
-            simulation_depth=simulation_depth
+            simulation_depth=simulation_depth,
+            mode=mode,
+            eval_depth=eval_depth,
+            heuristic_agent=heuristic_agent,
+            nn_agent=nn_agent
         )
         self.time_budget = time_budget
 
@@ -412,13 +464,8 @@ cdef class MCTSAgent2:
 
 
         # search for new root has to see if it has been expanded already
-        # if self.mcts.root is not None:
-        #     print(f"Looking for {new_root.get_board_hash()} in {self.mcts.root.children.keys()}")
         # Run MCTS search
-        self.mcts.search(self.time_budget)
-        
-        best_move = self.mcts.best_move()
-        return best_move 
+        return self.mcts.search(self.time_budget)
     
     @cython.ccall
     def select_move_for_passed_board(self, object board):
