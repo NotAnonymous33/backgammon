@@ -81,6 +81,34 @@ If the opponent rejects, they concede the game immediately and lose the number o
 The player who last accepted a double may, on their turn before rolling, offer to redouble the stakes again (e.g., from 2 to 4, then 4 to 8, and so on). The opponent must again choose to accept or reject. If accepted, ownership of the cube passes back to the player accepting the redouble.
 \section{Existing Work}
 \section{Game Design}
+\section{AI and Games}
+TODO rewrite this section
+The development of AI for stochastic games has followed a trajectory distinct from that of deterministic games. 
+While traditional approaches for games like chess relied heavily on minimax search with alpha-beta pruning TODO cite cambell, these techniques are less effective in games with chance elements due to the explosive branching factor when considering all possible dice rolls TODO cite Russell Norvig.
+
+Early approaches to backgammon AI relied on evaluation functions created by backgammon experts and had limited depth lookahead TODO (Berliner, 1980). A significant breakthrough came with TD-Gammon, developed by Gerald Tesauro at IBM TODO (Tesauro, 1994), which used temporal difference learning (TD-$\lambda$) with a neural network to develop an evaluation function. TD-Gammon demonstrated that neural networks trained through self-play could achieve expert-level performance, reaching near equity with world champions without extensive domain-specific knowledge engineering (Tesauro, 2002).
+
+This achievement represented a watershed moment in artificial intelligence research, as it demonstrated that complex decision-making in stochastic environments could be learned rather than explicitly programmed (Silver et al., 2017). TD-Gammon's success influenced subsequent research in reinforcement learning and helped establish the viability of neural network approaches for complex games (Sutton \& Barto, 2018).
+
+“TD-Gammon has definitely come into its own. There is no question in my mind that its positional judgment is far better than mine.
+Only on small technical areas can I claim a definite advantage over
+it . . . . I find a comparison of TD-Gammon and the high-level chess
+computers fascinating. The chess computers are tremendous in
+tactical positions where variations can be calculated out. Their
+weakness is in vague positional games, where it is not obvious
+what is going on . . . . TD-Gammon is just the opposite. Its strength
+is in the vague positional battles where judgment, not calculation ,
+is the key. There, it has a definite edge over humans . . . . In particular, its judgment on bold vs. safe play decisions, which is what
+backgammon really is all about, is nothing short of phenomenal . . . .
+Instead of a dumb machine which can calculate things much faster
+than humans such as the chess playing computers, you have built
+a smart machine which learns from experience pretty much the
+same way that humans do”
+Kit Woolsey, perennial world top 10 backgammon player (ranked \#3 when
+this was written), quoted in Tesauro, 1995.
+
+
+
 
 
 

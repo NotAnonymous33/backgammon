@@ -1,0 +1,112 @@
+\chapter{AI Algorithms and Architectures}
+Before describing what techniques can be used to implement an AI system which plays backgammon, it is important to describe the game itself and the different types of AI systems that can be used to play it.
+Backgammon is a two player, zero sum game with chance and perfect information.
+Zero sum: One player's advantage is equivalent to the other player's loss. The sum of the players scores is always zero.
+Perfect information: Both players have complete knowledge of the game state at all times. There is no hidden information.
+Chance: The outcome of the game is not deterministic. The moves a player can make, and the outcome of the game depends on the rolls of the dice.
+
+For such games, the best systems (such as AlphaGo) used a trained policy network, combined with Monte Carlo Tree Search (MCTS) in real-time gameplay \cite{aiparadigms}.
+MCTS is limited to games with perfect information, and also requires that the action space is discrete, which are both true for backgammon.
+
+This project includes different types of AI systems that can be used to play backgammon, such as rule-based systems, neural networks, and MCTS.
+
+\section{Heuristics}
+Heuristic approaches involve estimating the desirability of a given board state using rules which have been shown to work through trial and improvement. These rules typically combine several features based on expert knowledge, such as pip count difference (a measure of race progress), number of blots, strength of blockades (primes), and control of key points (anchors) [3, 5]. The agent then selects the move leading to the state with the best heuristic evaluation. While intuitive, designing effective heuristics can be complex, and heuristic rules may struggle with the nuances and dynamic nature of the game.
+
+[3] Russell, S. J., \& Norvig, P. (2020). Artificial Intelligence: A Modern Approach (4th ed.). Prentice Hall. (Standard AI textbook covering game playing, search, RL).
+[4] Campbell, M., Hoane, A. J., \& Hsu, F. H. (2002). Deep Blue. Artificial Intelligence, 134(1-2), 57-83. (Example of classical approach in chess).
+
+
+\section{Stochastic Gradient Descent (SGD)}
+While heuristic evaluation functions provide a computationally cheap way to estimate the strength of a board position, manually tuning the weights associated with different features can be challenging, subjective, and may lead to suboptimal performance. SGD offers a principled and automated method for learning these weights based on game experience.
+
+The heuristic function $H(s, \boldsymbol{w})$ calculates the value of state $s$ as a linear combination of features $f_i(s)$ with corresponding weights $w_i$. The goal of SGD is to find the optimal weights $\boldsymbol{w}$ such that $H(s, \boldsymbol{w})$ gives the most accurate estimate for the value of being in a given state.
+
+In the context of self-play, a common target is the final outcome $T$ of a game (e.g. +1 for a win and -1 for a loss). A loss function which measures the difference between the heuristic prediction and the target outcome can then be defined. A common choice for a loss function is the mean squared error (MSE):
+$$
+L(\boldsymbol{w}) = E[(T - H(s, \boldsymbol{w})^2]
+$$
+where $E[...]$ denotes the expectation over all possible states during the game.
+
+The goal of SGD can be redefined as minimising the loss function $L(\boldsymbol{w})$.
+
+Gradient descent algorithms work by iteratively updating the values of $\boldsymbol{w}$ by moving the values of $\boldsymbol{w}$ in the opposite direction of the gradient. This results in the following update rule:
+$$
+\boldsymbol{w} \leftarrow \boldsymbol{w} - \eta \nabla L(\boldsymbol{w})
+$$
+where $\eta$ is the learning rate, a value which determines the size of the steps the update rule makes.
+
+The problem with this is calculating the gradient of the loss function requires summing over the entire distribution of states, which is computationally intractable. SGD overcomes this limitation by approximating the true gradient by estimating the gradient using only a few training examples at each step. This has the added benefit of helping to escape local maxima. TODO cite that paper in the other tab.
+
+Over many iterations, these adjustments will move the weights $\boldsymbol{w}$ towards the value that minimises the prediction error, i.e. the heuristic function is as accurate as possible in predicting the value of a given state. [12] Bottou, L. (2010). Large-scale machine learning with stochastic gradient descent. Proceedings of COMPSTAT'2010, 177-186. (Provides a good overview of SGD for large-scale learning).
+
+
+\section{Monte Carlo Tree Search}
+Monte Carlo methods are a type of algorithm which estimates an unknown value based on random sampling. They are often used to solve problems that are deterministic in principle but difficult or impossible to solve with exact analytical methods TODO cite Russell and norvig. By generating many random samples and observing the outcomes, Monte Carlo methods utilise the Law of Large Numbers to approximate solutions.
+
+TODO fun fact
+The Law of Large Numbers states that the sample mean of $n$ independent and identically distributed random variables with mean $\mu$ approaches $\mu$ as $n$ tends to infinity.
+
+Monte Carlo Tree Search (MCTS) is a Monte Carlo method which is used to search game trees to find optimal moves. Because of its stochastic nature, it is especially well suited to games which include chance, such as backgammon TODO cite [Browne, C. B., Powley, E., Whitehouse, D., Lucas, S. M., Cowling, P. I., Rohlfshagen, P., … \& Colton, S. (2012). A survey of Monte Carlo tree search methods. \_IEEE Transactions on Computational Intelligence and AI in Games, 4\_(1), 1-43.] 
+TODO talk about minimax and how mcts approaches minimax
+
+TODO cite https://link.springer.com/article/10.1007/s10462-022-10228-y
+TODO talk about game trees in the AI and Games section as a definition. 
+Intuition: A game tree is created with the current state as the root node. From then, random moves are made by all players until the end of the game (a leaf node) is reached, (or some other critieria is met such as TODO). The results of these games are propagated back throughout the tree and the value of each node is updated. By doing this a large number of times, the expected value of each node can be estimated, and the move resulting in the highest expectation can be picked.
+
+The algorithm iteratively runs 4 steps until termination. 
+
+\begin{enumerate}
+    \item \textbf{Selection}: Starting at the root node, a child node is chosen according to a tree policy. This policy tries to balance exploring unvisited nodes (which may have high potential), with exploiting nodes which have been shown to be promising.
+    \item \textbf{Expansion}: If the selected child node does not represent a terminal game state, it is then added to the stored game tree. 
+    \item \textbf{Simulation}: From this newly added node, a simulation is run by randomly choosing moves for both players. This is continued until the end of the game is reached, or until another condition is met, such as reaching a move limit, or reaching a state where calculating the winner can be done easily.
+    \item \textbf{Backpropagation}: The outcome of the game is backpropagated throughout the tree, from the expanded node to the root node. The statistics of each node along the path is updated, for example, the expected value of the node, and how many times the node has been visited. 
+\end{enumerate}
+
+This cycle is repeated until some condition is met. This could be until a certain amount of time has elapsed, or until some number of simulations has been reached. Finally, a move is chosen from the children of the root node, typically this is the node with the highest estimated value or the highest visit count.
+
+There are many enhancements that can increase the performance of MCTS, many of which are described in "A Survey of Monte Carlo Tree Search Methods" \cite{Browne2012}. Some enhancements which are more applicable to backgammon are listed below.
+
+\begin{itemize}
+    \item One obvious improvement is to reuse trees that have already been computed previously. When an updated board has been passed to the algorithm, the grandchildren (because child nodes correspond to the opponent's turn; one more move something TODO to the player) can be checked. This will allow subsequent moves to have more accurate statistics on their child nodes, reducing wasted computation and allowing better moves to be chosen. Due to backgammon's large branching factor, it is important that the MCTS implementation can complete as many iterations as possible TODO too vague fix. If this is not the case, the likelihood of the grandchild node being computed will be low (or will have low N TODO). Due to the time taken searching the game tree for the grandchild, the agent will have less time to do further rollouts, which will result in worse performance.  
+
+    TODO: A possible speed improvement was tested where the board was hashed and compared with the grandchildren. By creating a new tree rather than blah blah blah, improvement. however in practice, the branching factor resulted in there being very few common grandchildren. With the hashing and searching, this decreased the performance of the agent (where the agent was given 1 second to search). If the agent was given longer to search (thus resulting in a larger expanded game tree), it is possible that the performance would increase, as it would become increasingly more likely that a child had been explored.
+    
+    \item UCB1-Tuned \cite{6145622}: TODO cite  P. Auer, N. Cesa-Bianchi, and P. Fischer, “Finite-time analysis of the
+    multiarmed bandit problem,” Mach. Learn., vol. 47, no. 2, pp. 235–256, 2002. One of the main problems in implementing Monte Carlo Tree Search is choosing the tree policy for selection. The tree policy needs to balance the exploration-exploitation tradeoff. UCB1-tuned offers a tigher bound compared with the more commonly used UCB1 algorithm TODO cite [8] Kocsis, L., \& Szepesvári, C. (2006). Bandit based Monte-Carlo planning. Proceedings of the 17th European Conference on Machine Learning, 282-293. When choosing which child node to explore, UCB1-tuned chooses the child which maximises the value.
+    $$
+    \mathrm{UCB} 1 \text{-Tuned}=\bar{X}_j+2C\sqrt{\frac{\ln n}{n_j} \min \left\{\frac{1}{4}, V_j\left(n_j\right)\right\}}
+    $$ 
+    where 
+    $$
+    V_j(s)=\left(1 / 2 \sum_{\tau=1}^s X_{j, \tau}^2\right)-\bar{X}_{j, s}^2+\sqrt{\frac{2 \ln t}{s}}
+    $$ in the situation that child node $j$ has been chosen $s$ times in the first $t$ simulations, $\bar{X_j}$ is the average reward of child node $j$, $n$ is the total number of simulations, $n_j$ is the number of times node $j$ has been chosen already, and $C$ is a constant exploration parameter (where a higher value of C results in more exploration). 
+    
+    The first term $\bar{X_j}$ represents "exploitation", where a higher expected value will result in the node being picked more often, while the other term represents the "exploration" term, where values which have been picked a lower proportion of the time have a higher value.
+
+    \item Rapid Action Value Estimation (RAVE): RAVE is a popular method for improving the information stored in each nodes statistics, particularly in Go programs which leads to faster convergence during the early stages of search \cite{GellySilver2007}. For each move, statistics across all simulations where that move appears is updated, with the assumption that a move that performs well in one particular is likely to perform well in other similar states. The RAVE and UCB values are then combined to estimate a nodes value.
+
+    \item Combining MCTS with other models \cite{44806} \cite{Browne2012}: 
+    One of the biggest improvements in MCTS is the integration of value networks to evaluate board positions, and policy networks to select moves. 
+    By using a policy network, nodes with less value can be quickly identified and do not need to be expanded.
+    By using a value network, games to not need to be expanded to the end.
+    Instead the simulation is run to a predetermined depth, at which point the value network is used to evaluate the board position.
+    Since the value network will be provided boards which are closer to the end of the game, it will be able to provide an accurate estimate of the value of the board position.
+    This allows for more iterations of MCTS, increasing performance. The most notable example of this is AlphaGo, which used a combination of MCTS, policy networks, and value networks to achieve superhuman performance in Go, achieving a 99.8\% winrate against other Go programs \cite{44806}.
+
+    
+TODO definition: exploration-exploitation problem and what it entails / how it is applied in mcts. 
+\end{itemize} 
+
+Estimating win probabilities in backgammon \cite{estimating}: 
+
+
+
+----------------------------------------------
+
+
+\section{Neural Networks}
+\section{Reinforcement Learning}
+\subsection{TD-$\lambda$ learning}
+\subsection{Self play}
+\section{Ensemble Models}
