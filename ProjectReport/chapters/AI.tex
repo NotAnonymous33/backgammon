@@ -98,15 +98,86 @@ There are many enhancements that can increase the performance of MCTS, many of w
 TODO definition: exploration-exploitation problem and what it entails / how it is applied in mcts. 
 \end{itemize} 
 
-Estimating win probabilities in backgammon \cite{estimating}: 
+Ross, Benjamin, and Munson present a closed form approximation for the probability that a player wins a backgammon race \cite{estimating}.
+By using the Raw Pip Count (RPC) of each player, a Single Checker Model (SCM) is created is used to approximates each player's position as a single checker which needs to travel a distance equal to the RPC.
+An existing approximation based on the central limit theorem in renewal theory is then used to estimate the SCM probabilities. 
+After comparing this approximation to simulations of actual backgammon races, the formula was adjusted to account for bearoff rules and pip wastage, which the original SCM approximation did not take into account. This leads to the following value:
+$$
+\frac{\Delta^2 + \Delta / 7}{S - 25}
+$$
+where $\Delta = Y - X + 4$ is the adjusted difference in RPC between the two players, and $S = X + Y$ is the sum of the two players RPCs, where $X$ is the lower pip count, and $Y$ is the higher pip count of the two players. 
+This value could then be compared with a precomputed lookup table to determine an approximate probability of winning the race (and therefore the game). 
+This model was originally designed to be used by players to estimate the probability of winning during the game using only mental arithmetic, and therefore has a number of limitations. The model does not take into account hitting or any other interations, such as when a player is blocked, and some simplifications to the formula were made so players could easily calculate values mentally. 
 
 
+TODO: define renewal theory and central limit theorem
 
 ----------------------------------------------
+\section{Neural Networks} 
 
+A neural network is a computational model which maps inputs to outputs using a series of transformations.
+In particular, multilayer perceptrons (MLPs) model consists of an input layer, one or more hidden layers, and an output layer, where each layer is made up of interconnected nodes (neurons) that calculate a weighted sum of its inputs, and applies a non-linear activation function to produce an output. 
+The universal approximation theorem states that a large enough MLP can approximate any continuous function to arbitrarily high accuracy \cite{Hornik1989}.
+In the context of backgammon, the input layer would represent a board state, and the output layer would represent the probability of winning from that state.
+In a deep neural network, only the board state is passed to the first layer, and the higher level features would be learned by the network as it is trained, however this required a large amount of training data and computation. 
+A simpler approach is to use a network with less neurons and less layers, thus needing less training data and computation, and passing in the features of the board state as inputs (e.g. number of blots, number of anchor points, etc. TODO check if ive defined these above).
 
-\section{Neural Networks}
 \section{Reinforcement Learning}
-\subsection{TD-$\lambda$ learning}
-\subsection{Self play}
+
+Reinforcement learning is a type of machine learning where an agent learns by interacting with an environment to maximise reward, as opposed to learning from labelled inputs and outputs (supervised learning) or learning from unlabelled data (unsupervised learning). By taking actions in an environment and observing the outcome, the agent is able to choose actions which maximise the reward.  
+One technique for training an agent using reinforcement learning is to implement self-play, where the agent plays against itself and learns from the outcomes. 
+As backgammon naturally has chance, the agent is forced to explore a wide variety of boards, which helps to avoid the problem of converging to a local minimum. 
+This is unlike with stochastic gradient descent for two reasons: first, the neural network learns from every board state, while SGD learns only from the outcome; second, the neural network aims to learn the value of a board state, while SGD aims to learn a strategy for playing the game i.e. the neural network needs to see different positions to learn (which is natural to backgammon), while SGD needs to play against different styles to learn. 
+
+From this, an initial model could be created which learns in the following way:
+\begin{enumerate}
+    \item The agent plays a game against itself, and the final outcome is recorded.
+    \item The neural network is trained on every board state it has seen in the game, using the final outcome as the target value.
+    \item The agent continues to play against itself and learn from the outcomes until some point is reached.
+\end{enumerate}
+
+The problem with this approach, is that by assigning each board state the same value, the implicit assumption is that all moves are equally important, which is not the case and causes the network to overestimate the value of early game states.
+For example, if the agent wins a game but makes many mistakes along the way, the agent may reinforce the mistakes it made, as even bad states would be given a positive reward. 
+
+To overcome this, temporal difference learning (TD learning) was developed, which was described by Sutton and Barto as "one idea central and novel to reinforcement learning" \cite{Sutton2018}.
+The way TD learning overcomes this problem is by updating values at each time step based on the expected future rewards (multiplied by some factor $\gamma$), rather than just the final outcome. This comes with two main benefits:
+\begin{itemize}
+    \item By updating at every step, the agent is able to identify good and bad moves, and assign rewards accordingly.
+    \item The agent is able to learn continuously after every action, rather than waiting until the end of a game to learn.
+\end{itemize}
+The reason expected future rewards are decayed by $\gamma$ because rewards become less valuble the longer you have to wait for them. TODO remove "you".
+This is because with longer wait times, there is more variance in the outcome, and it is more likely that there will be errors. 
+By having a decay factor, the agent is encouraged to take shorter, more certain paths to the goal.
+
+This raises another problem, which is that initially during learning, only the states which lead to a win or loss have an associated reward, meaning learning can be extremely slow.
+The idea of TD-$\lambda$ is to solve this problem by updating the value of every past state in a sequence which led to the reward.
+A value is chosen for $\lambda$ between 0 and 1, which determines the decay of the reward.
+When a reward $x$ is received to a state $s$ at time step $t$, the value of previous states $s_{t-1}, s_{t-2}, ...$ are given a reward of $x (\lambda \cross \gamma)^{t - i}$, where $i$ is how many steps back the state was seen.
+
+Famously, TD-$\lambda$ was used in TD-Gammon \cite{Tesauro1995}, which was the first backgammon program to achieve expert level play.
+The network started from a random initial state, and played against itself over and over. 
+As training progressed, basic strategies began to emerge such as hitting blots, and creating anchors. 
+TD-Gammon 1.0 contained 198 input nodes and 40 hidden units, and was trained for 200,000 games, resulting in an agent that was able to win regional tournaments.
+TD-Gammon 2.1 was close to the world's best players, and was able to discover new strategies which changed how humans play certain board positions.
+Pollack and Blair \cite{Pollack1997} argue that TD-Gammon's success was due to learning through self play, by showing a simpler model which learned effectively through the same method. 
+
+TODO in the introduction talk about how AI in games helps create new AI techniques, which can be applied to other fields.
+
+“TD-Gammon has definitely come into its own. There is no question in my mind that its positional judgment is far better than mine.
+Only on small technical areas can I claim a definite advantage over
+it . . . . I find a comparison of TD-Gammon and the high-level chess
+computers fascinating. The chess computers are tremendous in
+tactical positions where variations can be calculated out. Their
+weakness is in vague positional games, where it is not obvious
+what is going on . . . . TD-Gammon is just the opposite. Its strength
+is in the vague positional battles where judgment, not calculation ,
+is the key. There, it has a definite edge over humans . . . . In particular, its judgment on bold vs. safe play decisions, which is what
+backgammon really is all about, is nothing short of phenomenal . . . .
+Instead of a dumb machine which can calculate things much faster
+than humans such as the chess playing computers, you have built
+a smart machine which learns from experience pretty much the
+same way that humans do”, Kit Woolsey, a top 10 world backgammon player, quoted in \cite{Tesauro1995}.
+
+
+
 \section{Ensemble Models}
