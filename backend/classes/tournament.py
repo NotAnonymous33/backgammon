@@ -64,7 +64,7 @@ def play_game(white_name: str, black_name: str):
 
 
 if __name__ == '__main__':
-    GAMES_PER_PAIR = 2
+    GAMES_PER_PAIR = 50
 
     agent_names = list(AGENTS.keys())
     pairings = []

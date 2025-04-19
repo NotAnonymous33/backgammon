@@ -9,14 +9,10 @@ except ImportError:
     from .HeuristicAgent import HeuristicAgent
 import torch
 import torch.nn as nn
-import torch.optim as optim
-import numpy as np
 import random
 from copy import deepcopy
 import os
 import matplotlib.pyplot as plt
-import multiprocessing as mp
-from time import perf_counter
 from tqdm import tqdm
 
 import torch._dynamo as dynamo
@@ -176,13 +172,14 @@ class TDLambda:
             # Update eligibility traces and parameters.
             with torch.no_grad():
                 for name, param in self.model.named_parameters():
-                    if param.grad is not None:
-                        # Update trace: decay the old trace and add current gradient.
-                        self.eligibility[name] = (
-                            self.gamma * self.lambda_param * self.eligibility[name] + param.grad
-                        )
-                        # Update parameters using the TD error weighted by the eligibility trace.
-                        param.add_((self.initial_learning_rate * 0.999 ** epoch_num) * delta.item() * self.eligibility[name])
+                    if param.grad is None:
+                        continue
+                    # Update trace: decay the old trace and add current gradient.
+                    self.eligibility[name] = (
+                        self.gamma * self.lambda_param * self.eligibility[name] + param.grad
+                    )
+                    # Update parameters using the TD error weighted by the eligibility trace.
+                    param.add_((self.initial_learning_rate * 0.999 ** epoch_num) * delta.item() * self.eligibility[name])
             
             # Zero gradients before next iteration.
             self.optimizer.zero_grad()
@@ -798,7 +795,7 @@ def main(resume=False, epoch_count=20):
     eval_games = 500
     
     # Create neural network model
-    model = BackgammonNN(input_size=input_size, hidden_sizes=[128, 128])
+    model = BackgammonNN(input_size=input_size, hidden_sizes=[40])
     
     # Initialize TD-Lambda learner
     td_lambda = TDLambda(model, learning_rate=0.1, lambda_param=0.7)
@@ -823,9 +820,9 @@ def main(resume=False, epoch_count=20):
         return trainer.train(num_epochs=num_epochs, name=name, resume_from="backgammon_latest.pt" if resume else None)
     
     if resume:
-        train_model(trainer, "main", epoch_count, resume=True)
+        train_model(trainer, "tdgammon", epoch_count, resume=True)
     else:
-        train_model(trainer, "main", epoch_count)
+        train_model(trainer, "tdgammon", epoch_count)
     
 
     # trainer.plot_learning_curve(save_path="learning_curve.png")

@@ -321,7 +321,7 @@ cdef class MCTSBackgammonAgent:
         numerator = delta*delta + delta/7
         
         # Calculate Denominator Value: S - 25
-        denominator = max(1, S - 25)  # Ensure denominator is not zero
+        denominator = max(1, S - 24.72588)  # Ensure denominator is not zero
         
         # Calculate Ratio
         ratio = numerator / denominator
