@@ -12,6 +12,7 @@ import torch.nn as nn
 import random
 from copy import deepcopy
 import os
+from multiprocessing import Pool, cpu_count
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
@@ -226,7 +227,7 @@ class NNAgent:
 
 
 class BackgammonTrainer:
-    def __init__(self, model, extract_features_fn, td_lambda, games_per_epoch=1000, eval_games=100):
+    def __init__(self, model, extract_features_fn, td_lambda, games_per_epoch=1000, eval_games=100, num_workers=None):
         """
         Training pipeline for backgammon AI.
         
@@ -235,12 +236,15 @@ class BackgammonTrainer:
             extract_features_fn: Function to extract features from a board
             td_lambda: TD(λ) learning implementation
             games_per_epoch: Number of games to play per training epoch
+            eval_games: Number of games to evaluate the model
+            num_workers: Number of workers for data loading (optional)
         """
         self.model = model
         self.extract_features = extract_features_fn
         self.td_lambda = td_lambda
         self.games_per_epoch = games_per_epoch
         self.eval_games = eval_games
+        self.num_workers = num_workers or cpu_count()
     
     def save_checkpoint(self, filename, epoch=0, optimizer_state=None):
         """
@@ -302,21 +306,18 @@ class BackgammonTrainer:
             print(f"Error loading checkpoint: {e}")
             return 0, []
     
-    def train_epoch(self, epoch_num=0):
-        """Train the model for one epoch (multiple games)."""
-        wins_white = 0
-        
-        for game_num in tqdm(range(self.games_per_epoch)):
-            # Play a complete game
-            winner, states = self.play_game()
-            
-            self.td_lambda.update(states, float(winner), epoch_num)
-            if winner == 1:  # White won
-                wins_white += 1
-                
-        win_rate = wins_white / self.games_per_epoch
-        return win_rate
+    def simulate_one_game(self, idx):
+        return self.play_game()
     
+    def train_epoch(self, epoch_num=0):
+        wins_white = 0
+        with Pool(self.num_workers) as pool:
+            results = list(tqdm(pool.imap(self.simulate_one_game, range(self.games_per_epoch)), total=self.games_per_epoch, desc=f"Epoch {epoch_num + 1} rollout"))
+        for winner, states in results:
+            self.td_lambda.update(states, float(winner), epoch_num)
+            if winner == 1:
+                wins_white += 1
+        return wins_white / self.games_per_epoch
     
     def play_game(self):
         """
