@@ -790,9 +790,9 @@ def main(resume=False, epoch_count=20):
     # 4.5k games / 1 hours
     
     num_hours = 12
-    games_per_epoch = 500
-    epoch_per_hour = 37
-    epoch_count = epoch_per_hour * num_hours
+    games_per_epoch = 1000
+    epoch_per_hour = 18
+    epoch_count = 130 # epoch_per_hour * num_hours
     eval_games = 500
     
     # Create neural network model
