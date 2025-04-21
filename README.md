@@ -84,10 +84,12 @@ backgammon/
 │ ├─ classes/ ← Board logic & agent implementations (the most interesting code lives here)
 │ ├─ requirements.txt ← Python dependencies
 │ └─ test.db ← SQLite file (auto‑generated)
-│ ├─ frontend/ ← React + Vite frontend
+│ 
+├─ frontend/ ← React + Vite frontend
 │ ├─ src/ ← React components & assets
 │ ├─ index.html ← SPA entry
 │ ├─ package.json ← npm dependencies & scripts
 │ └─ tsconfig.json ← TypeScript config
-│ └─ ProjectReport/ ← LaTeX documentation & report
+│ 
+└─ ProjectReport/ ← LaTeX & report
 ```
