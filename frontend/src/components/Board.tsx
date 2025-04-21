@@ -97,7 +97,7 @@ export default function Board() {
 
     useEffect(() => {
         if (playerSide) {
-            socket.emit("join_room", { roomCode, side: playerSide, playerType });
+            socket.emit("join_room", { room_code: roomCode, side: playerSide, playerType });
         }
     }, [playerSide, playerType, roomCode]);
 
@@ -135,7 +135,7 @@ export default function Board() {
     useEffect(() => {
         //--- connect socket and join room
         socket.connect()
-        socket.emit("join_room", { roomCode })
+        socket.emit("join_room", { room_code: roomCode })
 
         socket.on("connect", () => {
             verbose && console.log("socket:connect")
@@ -191,7 +191,7 @@ export default function Board() {
         if (verbose) {
             console.log("ConfirmingMove move sequence:", moveSequence)
         }
-        socket.emit("move", { moveSequence, roomCode })
+        socket.emit("move", { moveSequence, room_code: roomCode })
         setMoveSequence([])
     }
 
@@ -287,7 +287,7 @@ export default function Board() {
         verbose && console.log("rolled: ", rolled)
         if (rolled) return
         verbose && console.log("emitting roll_dice")
-        socket.emit("roll_dice", { roomCode })
+        socket.emit("roll_dice", { room_code: roomCode })
     }
 
     function testButton() {
@@ -538,7 +538,7 @@ export default function Board() {
                         setPlayerSide("white");
                         setPlayerType("human");
                         // Also join the opposite side as AI with chosen model.
-                        socket.emit("join_room", { roomCode, side: "black", playerType: "ai", aiModel: selectedAiAgent });
+                        socket.emit("join_room", { room_code: roomCode, side: "black", playerType: "ai", aiModel: selectedAiAgent });
                     }}
                 >
                     Play as White
@@ -547,7 +547,7 @@ export default function Board() {
                     onClick={() => {
                         setPlayerSide("black");
                         setPlayerType("human");
-                        socket.emit("join_room", { roomCode, side: "white", playerType: "ai", aiModel: selectedAiAgent });
+                        socket.emit("join_room", { room_code: roomCode, side: "white", playerType: "ai", aiModel: selectedAiAgent });
                     }}
                 >
                     Play as Black
@@ -583,8 +583,8 @@ export default function Board() {
                 <button
                     onClick={() => {
                         setPlayerSide("spectator");
-                        socket.emit("join_room", { roomCode, side: "white", playerType: "ai", aiModel: selectedAiAgent });
-                        socket.emit("join_room", { roomCode, side: "black", playerType: "ai", aiModel: selectedAiAgent2 });
+                        socket.emit("join_room", { room_code: roomCode, side: "white", playerType: "ai", aiModel: selectedAiAgent });
+                        socket.emit("join_room", { room_code: roomCode, side: "black", playerType: "ai", aiModel: selectedAiAgent2 });
                     }}
                 >
                     Watch AI vs AI
@@ -788,9 +788,9 @@ export default function Board() {
                 </svg>
 
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                    <button onClick={rollDice}>Roll dice</button>
-                    <button onClick={confirmMove}>Confirm</button>
-                    <button onClick={resetBoard}>Reset</button>
+                    <button onClick={rollDice} className="btn btn-roll" disabled={rolled}>🎲 Roll Dice</button>
+                    <button onClick={confirmMove} className="btn btn-confirm" disabled={!moveSequence.length}>✅ Confirm</button>
+                    <button onClick={resetBoard} className="btn btn-reset">🔄 Reset</button>
                 </div>
             </div>
 

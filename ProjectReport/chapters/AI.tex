@@ -145,17 +145,21 @@ The way TD learning overcomes this problem is by updating values at each time st
     \item By updating at every step, the agent is able to identify good and bad moves, and assign rewards accordingly.
     \item The agent is able to learn continuously after every action, rather than waiting until the end of a game to learn.
 \end{itemize}
-The reason expected future rewards are decayed by $\gamma$ because rewards become less valuble the longer you have to wait for them. TODO remove "you".
-This is because with longer wait times, there is more variance in the outcome, and it is more likely that there will be errors. 
+The reason expected future rewards are decayed by $\gamma$ is because rewards become less valuble the longer a player has to wait for them. 
+This is because with longer wait times, the more variance there is in the outcome, and it is more likely that there will be errors. 
 By having a decay factor, the agent is encouraged to take shorter, more certain paths to the goal.
 
 This raises another problem, which is that initially during learning, only the states which lead to a win or loss have an associated reward, meaning learning can be extremely slow.
-The idea of TD-$\lambda$ is to solve this problem by updating the value of every past state in a sequence which led to the reward.
-A value is chosen for $\lambda$ between 0 and 1, which determines the decay of the reward.
-When a reward $x$ is received to a state $s$ at time step $t$, the value of previous states $s_{t-1}, s_{t-2}, ...$ are given a reward of $x (\lambda \cross \gamma)^{t - i}$, where $i$ is how many steps back the state was seen.
+TODO this wording is shocking: The idea of TD-$\lambda$ is to solve this problem by updating the value of every past state in a sequence that led to the reward.
+A value is chosen for $\lambda$ between 0 and 1, which determines the decay of the reward, with higher values giving more weight to states which are further away.
+When a reward $x$ is received to a state $s$ at time step $t$, the value of previous states $s_{t-1}, s_{t-2}, ...$ are given a reward of $x (\lambda \times \gamma)^{t - i}$, where $i$ is how many steps back the state was seen.
 
 Famously, TD-$\lambda$ was used in TD-Gammon \cite{Tesauro1995}, which was the first backgammon program to achieve expert level play.
-The network started from a random initial state, and played against itself over and over. 
+It worked by using an MLP to predict the outcome of a game from the given board position. 
+When making a move, the program would generate all legal moves from the current position, and use the network to evaluate each possible position.
+The move with the highest predicted value was then chosen.
+
+During training, the network started from a random initial state, and played against itself over and over. 
 As training progressed, basic strategies began to emerge such as hitting blots, and creating anchors. 
 TD-Gammon 1.0 contained 198 input nodes and 40 hidden units, and was trained for 200,000 games, resulting in an agent that was able to win regional tournaments.
 TD-Gammon 2.1 was close to the world's best players, and was able to discover new strategies which changed how humans play certain board positions.
@@ -181,3 +185,5 @@ same way that humans do”, Kit Woolsey, a top 10 world backgammon player, quote
 
 
 \section{Ensemble Models}
+It is well established in psychology, economics, and other fields that although an individual may be inaccurate in their predictions, the average of many individuals is often more accurate than any one individual, a term referred to as the "wisdom of the crowd" TODO cite a bunch of people here.
+This principle can be applied to machine learning, by creating an ensemble of models, where ntraining data is split between multiple models, and the predictions of each model are averaged to create a final prediction TODO cite Gavin Brown. Ensemble learning. In Encyclopedia of Machine Learning, pages 312 320. Springer, 2011. 

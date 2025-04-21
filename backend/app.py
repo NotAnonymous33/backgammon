@@ -1,28 +1,26 @@
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_cors import CORS
-from .classes.Board import Board
-from .models import Game, db
+from classes.board_cpp import Board # type: ignore
+from models import Game, db
 from random import randint
-from .classes.agents.FirstAgent import FirstAgent
-from .classes.agents.RandomAgent import RandomAgent
-from .classes.agents.MCTS import BackgammonMCTSAgent
-# from werkzeug.middleware.profiler import ProfilerMiddleware
+from classes.agents.FirstAgent import FirstAgent
+from classes.agents.RandomAgent import RandomAgent
+from classes.agents.CMCTS2 import MCTSAgent2 as MCTSAgent  # type: ignore
+from classes.agents.NNAgent import FinalNNAgent
+
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///test.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 # app.config["SECRET_KEY"] = "cheeto"
 
-# app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[30], profile_dir='./profiles')
 
 socketio = SocketIO(app, cors_allowed_origins="*")
 CORS(app)
 
 
 db.init_app(app)
-
-board = Board()
 
 rooms = {}
 
@@ -35,7 +33,7 @@ def generate_code():
     return code
 
 @app.route("/api/new_game", methods=["POST"])
-def new_game():
+def handle_new_game():
     room_code = generate_code()
     board = Board()
     board_dict = board.convert()
@@ -72,12 +70,12 @@ def update_board_db(room_code: str, board_dict: dict):
     db.session.commit()
 
 @app.route("/testing", methods=["GET"])
-def testing():
+def handle_testing():
     return {"message": "testing"}
 
 @socketio.on("join_room")
-def join(data):
-    room_code = data["roomCode"]
+def handle_join(data):
+    room_code = data["room_code"]
     side = data.get("side")  # expected "white" or "black"
     player_type = data.get("playerType", "human")  # "human" or "ai"
     ai_model = data.get("aiModel", "random")  # for AI players, default to "random"
@@ -109,13 +107,12 @@ def join(data):
     
     # If the side is an AI, trigger an AI move.
     if player_type == "ai":
-        #socketio.start_background_task(ai_move, room_code)
-        # hello
-        ai_move(room_code)
+        socketio.start_background_task(ai_move, room_code)
+        socketio.sleep(1)
 
      
 @socketio.on("leave_room")
-def leave_room(data):
+def handle_leave_room(data):
     room_code = data["room_code"]
     leave_room(room_code)
     emit("left_room", {"room_code": room_code}, room=request.sid)
@@ -130,8 +127,8 @@ def handle_disconnect():
     print(f"{request.sid} disconnected")
     
 @app.route("/api/test", methods=["POST"])
-def test():
-    emit("message", {"message": "test"})
+def handle_test():
+    socketio.emit("message", {"message": "test"})
     return {"message": "test"}
 
 @app.route("/api/button_test", methods=["GET"])
@@ -140,7 +137,7 @@ def button_test():
 
 # TODO: i think this isn't used anywhere
 @socketio.on("reset_board")
-def reset_board(data):
+def handle_reset_board(data):
     room_code = data.get('room_code')
     db_board = Game.query.filter_by(room_code=room_code).order_by(Game.id.desc()).first()
     if not db_board:
@@ -153,8 +150,8 @@ def reset_board(data):
         
 
 @socketio.on("move")
-def move(data):
-    room_code = data["roomCode"]
+def handle_move(data):
+    room_code = data["room_code"]
     db_board = Game.query.filter_by(room_code=room_code).order_by(Game.id.desc()).first()
     if not db_board:
         emit("error", {"message": "Room not found"}, room=request.sid)
@@ -194,79 +191,85 @@ def move(data):
     next_side = "white" if board.turn == 1 else "black"
     next_player = rooms.get(room_code, {}).get("players", {}).get(next_side)
     if next_player and next_player.get("type") == "ai":
-        #socketio.start_background_task(ai_move, room_code) # TODO check this
-        print("ai move")
-        ai_move(room_code)
+        socketio.start_background_task(ai_move, room_code)
+        socketio.sleep(1)
 
 def ai_move(room_code):
-    print(room_code)
-    # this line is causing the error
-    db_board = Game.query.filter_by(room_code=room_code).order_by(Game.id.desc()).first()
-    if not db_board:
-        return
-    board = Board(board_db=db_board)
-    
-    # Roll dice if not already rolled.
-    if not board.rolled:
-        verbose and print("")
-        roll_result = board.roll_dice()
-        if roll_result == False:
+    with app.app_context():
+        print(room_code)
+        # this line is causing the error
+        db_board = Game.query.filter_by(room_code=room_code).order_by(Game.id.desc()).first()
+        if not db_board:
             return
+        board = Board(board_db=db_board)
+        
+        # Roll dice if not already rolled.
+        if not board.rolled:
+            roll_result = board.roll_dice()
+            if roll_result == False:
+                return
+            board_dict = board.convert()
+            update_board_db(room_code, board_dict)
+            socketio.emit("update_dice", {
+                "dice": board.dice,
+                "invalidDice": board.invalid_dice,
+                "validMoves": board.valid_moves,
+                "rolled": board.rolled
+            }, room=room_code)
+            socketio.sleep(1)
+        else:
+            verbose and print("Dice has already been rolled")
+        
+        # Determine current side based on board.turn.
+        current_side = "white" if board.turn == 1 else "black"
+        room_info = rooms.get(room_code, {}).get("players", {})
+        player_info = room_info.get(current_side)
+        ai_model = player_info.get("ai_model") if player_info and player_info.get("type") == "ai" else "random"
+        
+        if not player_info or player_info.get("type") != "ai":
+            return
+        
+        # Instantiate the proper AI.
+        if ai_model == "first":
+            ai = FirstAgent()
+        elif ai_model == "random":
+            ai = RandomAgent()
+        elif ai_model == "mcts":
+            ai = MCTSAgent(time_budget=5)
+            
+        
+        print("selecting move")
+        chosen_sequence = ai.select_move(board)
+        if chosen_sequence is None:
+            # No valid moves.
+            return
+
+        board.move_from_sequence(chosen_sequence)
+        print(f"ai move: {chosen_sequence}")
         board_dict = board.convert()
         update_board_db(room_code, board_dict)
-        emit("update_dice", {
-            "dice": board.dice,
-            "invalidDice": board.invalid_dice,
-            "validMoves": board.valid_moves,
-            "rolled": board.rolled
-        }, room=room_code)
-    else:
-        verbose and print("Dice has already been rolled")
-    
-    # Determine current side based on board.turn.
-    current_side = "white" if board.turn == 1 else "black"
-    room_info = rooms.get(room_code, {}).get("players", {})
-    player_info = room_info.get(current_side)
-    ai_model = player_info.get("ai_model") if player_info and player_info.get("type") == "ai" else "random"
-    
-    # Instantiate the proper AI.
-    if ai_model == "first":
-        ai = FirstAgent()
-    elif ai_model == "random":
-        ai = RandomAgent()
-    elif ai_model == "mcts":
-        ai = BackgammonMCTSAgent(time_budget=5)
-    
-    print("selecting move")
-    chosen_sequence = ai.select_move(board)
-    if chosen_sequence is None:
-        # No valid moves.
-        return
-
-    board.move_from_sequence(chosen_sequence)
-    print(f"ai move: {chosen_sequence}")
-    board_dict = board.convert()
-    update_board_db(room_code, board_dict)
-    emit("update_board", board_dict, room=room_code)
-    
-    # Check for game over.
-    if board.has_won():
-        board.game_over = True
-        emit("game_over", {"winner": "white" if board.white_off == 15 else "black"}, room=room_code)
-        return
-    
-    # If the next turn is also an AI turn, trigger another move after a brief delay.
-    next_side = "white" if board.turn == 1 else "black"
-    next_player = rooms.get(room_code, {}).get("players", {}).get(next_side)
-    if next_player and next_player.get("type") == "ai":
-        #socketio.sleep(1)  # Short delay so moves are visible.
-        ai_move(room_code)
+        socketio.emit("update_board", board_dict, room=room_code)
+        socketio.sleep(1)
+        
+        # Check for game over.
+        if board.has_won():
+            board.game_over = True
+            socketio.emit("game_over", {"winner": "white" if board.white_off == 15 else "black"}, room=room_code)
+            return
+        
+        # If the next turn is also an AI turn, trigger another move after a brief delay.
+        next_side = "white" if board.turn == 1 else "black"
+        next_player = rooms.get(room_code, {}).get("players", {}).get(next_side)
+        if next_player and next_player.get("type") == "ai":
+            socketio.start_background_task(ai_move, room_code)
+            socketio.sleep(1)
+        
 
     
 
 @socketio.on("roll_dice")
-def roll_dice(data):
-    room_code = data["roomCode"]
+def handle_roll_dice(data):
+    room_code = data["room_code"]
     db_board = Game.query.filter_by(room_code=room_code).order_by(Game.id.desc()).first()
     if not db_board:
         emit("error", {"message": "Room not found"}, room=request.sid)
@@ -304,16 +307,16 @@ def roll_dice(data):
     next_side = "white" if board.turn == 1 else "black"
     next_player = rooms.get(room_code, {}).get("players", {}).get(next_side)
     if next_player and next_player.get("type") == "ai":
-        #socketio.start_background_task(ai_move, room_code)
-        ai_move(room_code)
+        socketio.start_background_task(ai_move, room_code)
+        socketio.sleep(1)
 
 
 
 @app.route("/api/set_board", methods=["POST"])
-def set_board():
+def handle_set_board():
     verbose and print("app:set_board")
     data = request.json
-    room_code = data["roomCode"]
+    room_code = data["room_code"]
     db_board = Game.query.filter_by(room_code=room_code).order_by(Game.id.desc()).first()
     if not db_board:
         return {"status": "error", "message": "Room not found"} 

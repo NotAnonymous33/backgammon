@@ -4,10 +4,6 @@ from Cython.Build import cythonize
 
 extensions = [
     Extension(
-        "CBoard",
-        ["CBoard.pyx"],
-    ),
-    Extension(
         "agents.CMCTS",
         ["agents/CMCTS.pyx"],
     ),

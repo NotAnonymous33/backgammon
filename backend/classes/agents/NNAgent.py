@@ -13,6 +13,8 @@ import random
 from copy import deepcopy
 import os
 from multiprocessing import Pool, cpu_count
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
@@ -310,13 +312,28 @@ class BackgammonTrainer:
         return self.play_game()
     
     def train_epoch(self, epoch_num=0):
+        """Simulate games in parallel and update as each one completes."""
         wins_white = 0
+
+        # Spawn workers
         with Pool(self.num_workers) as pool:
-            results = list(tqdm(pool.imap(self.simulate_one_game, range(self.games_per_epoch)), total=self.games_per_epoch, desc=f"Epoch {epoch_num + 1} rollout"))
-        for winner, states in results:
-            self.td_lambda.update(states, float(winner), epoch_num)
-            if winner == 1:
-                wins_white += 1
+            # pool.imap_unordered returns results as soon as they're ready
+            game_results = pool.imap_unordered(
+                self.simulate_one_game,
+                range(self.games_per_epoch)
+            )
+
+            # Iterate and update immediately
+            for winner, states in tqdm(
+                game_results,
+                total=self.games_per_epoch,
+                desc=f"Epoch {epoch_num+1} rollout & learn"
+            ):
+                # on‑the‑fly TD‑λ update
+                self.td_lambda.update(states, float(winner), epoch_num)
+                if winner == 1:
+                    wins_white += 1
+
         return wins_white / self.games_per_epoch
     
     def play_game(self):
@@ -468,6 +485,7 @@ class BackgammonTrainer:
         if save_path:
             plt.savefig(f"eval_results/{save_path}")
             print(f"Evaluation curve saved to {save_path}")
+        plt.close()
     
     def plot_learning_curve(self, save_path=None):
         """
@@ -492,6 +510,7 @@ class BackgammonTrainer:
         if save_path:
             plt.savefig(f"learning_curves/{save_path}")
             print(f"Learning curve saved to {save_path}")
+        plt.close()
 
         
     def save_model(self, filename):
@@ -512,7 +531,7 @@ class BackgammonTrainer:
             return model
 
 class Evaluator:
-    def __init__(self, nn_agent, opponent_agent=None, num_games=100, name=""):
+    def __init__(self, nn_agent, opponent_agent=None, num_games=100, num_workers=None, move_limit=200):
         """
         Evaluation framework for backgammon AI.
         
@@ -520,85 +539,93 @@ class Evaluator:
             nn_agent: Neural network agent to evaluate
             opponent_agent: Agent to play against (default: RandomAgent)
             num_games: Number of games to play for evaluation
+            num_workers: How many parallel processes to spawn (defaults to cpu_count())
+            move_limit: Max turns per game
         """
         self.nn_agent = nn_agent
-        self.opponent_agent = opponent_agent if opponent_agent else RandomAgent()
+        self.opponent_agent = opponent_agent or RandomAgent()
         self.num_games = num_games
-        self.move_limit = 200
+        self.move_limit = move_limit
+        self.num_workers = num_workers or cpu_count()
+
+    def _play_one(self, idx):
+        """
+        Play a single game.
+        idx < half → NN plays as white.
+        idx ≥ half → NN plays as black.
         
+        Returns:
+          (win_flag:int, turn_count:int, is_white:bool)
+        """
+        is_white = idx < (self.num_games // 2)
+        board = Board()
+        turn_count = 0
+
+        while not board.game_over and turn_count < self.move_limit:
+            board.roll_dice()
+            if (board.turn == 1) == is_white:
+                move = self.nn_agent.select_move(board)
+            else:
+                move = self.opponent_agent.select_move(board)
+            board.move_from_sequence(move)
+            turn_count += 1
+
+        # Determine winner
+        if turn_count >= self.move_limit:
+            # tie‐break by borne‐off pieces
+            if board.white_off == board.black_off:
+                winner = 1 if board.white_left < board.black_left else -1
+            else:
+                winner = 1 if board.white_off > board.black_off else -1
+        else:
+            winner = 1 if board.white_off == 15 else -1
+
+        # Convert to win flag for NN
+        if is_white:
+            win_flag = 1 if winner == 1 else 0
+        else:
+            win_flag = 1 if winner == -1 else 0
+
+        return win_flag, turn_count, is_white
+
     def evaluate(self):
         """
-        Evaluate the neural network agent against the opponent.
+        Evaluate the neural network agent against the opponent in parallel.
         
         Returns:
             Dictionary of evaluation metrics
         """
-        nn_as_white_wins = 0
-        nn_as_black_wins = 0
-        white_turn_counts = []
-        black_turn_counts = []
-        
-        # Play games with NN as white
-        for i in range(self.num_games // 2):
-            board = Board()
-            turn_count = 0
-            
-            while not board.game_over and turn_count < self.move_limit:
-                board.roll_dice()
-                
-                if board.turn == 1:
-                    move = self.nn_agent.select_move(board)
+        half = self.num_games // 2
+        wins_white = wins_black = 0
+        white_turns = []
+        black_turns = []
+
+        with Pool(self.num_workers) as pool:
+            # imap gives results as they complete; tqdm for progress
+            for win_flag, turns, is_white in tqdm(
+                pool.imap(self._play_one, range(self.num_games)),
+                total=self.num_games,
+                desc="Evaluating"
+            ):
+                if is_white:
+                    white_turns.append(turns)
+                    wins_white += win_flag
                 else:
-                    move = self.opponent_agent.select_move(board)
-                
-                board.move_from_sequence(move)
-                turn_count += 1
-            
-            white_turn_counts.append(turn_count)
-            
-            if board.white_off == 15 or (turn_count >= self.move_limit and board.white_off > board.black_off):
-                nn_as_white_wins += 1
-                
-        print("Completed games as white")
-                
-        # Play games with NN as black
-        for i in range(self.num_games // 2):
-            board = Board()
-            turn_count = 0
-            
-            while not board.game_over and turn_count < self.move_limit:  # Limit to prevent infinite games
-                board.roll_dice()
-                
-                if board.turn == 1:
-                    move = self.opponent_agent.select_move(board)
-                else:
-                    move = self.nn_agent.select_move(board)
-                
-                board.move_from_sequence(move)
-                turn_count += 1
-            
-            black_turn_counts.append(turn_count)
-            
-            if board.black_off == 15 or (turn_count >= self.move_limit and board.black_off > board.white_off):
-                nn_as_black_wins += 1
-                
-        print("Completed games as black")
-                
-        total_wins = nn_as_white_wins + nn_as_black_wins
-        win_rate = total_wins / self.num_games
-        
+                    black_turns.append(turns)
+                    wins_black += win_flag
+
+        total_wins = wins_white + wins_black
         return {
             "total_games": self.num_games,
             "total_wins": total_wins,
-            "win_rate": win_rate,
-            "white_wins": nn_as_white_wins,
-            "black_wins": nn_as_black_wins,
-            "white_win_rate": nn_as_white_wins / (self.num_games // 2),
-            "black_win_rate": nn_as_black_wins / (self.num_games // 2),
-            "avg_turns_as_white": sum(white_turn_counts) / len(white_turn_counts) if white_turn_counts else 0,
-            "avg_turns_as_black": sum(black_turn_counts) / len(black_turn_counts) if black_turn_counts else 0
+            "win_rate": total_wins / self.num_games,
+            "white_wins": wins_white,
+            "black_wins": wins_black,
+            "white_win_rate": wins_white / half if half else 0,
+            "black_win_rate": wins_black / half if half else 0,
+            "avg_turns_as_white": sum(white_turns) / len(white_turns) if white_turns else 0,
+            "avg_turns_as_black": sum(black_turns) / len(black_turns) if black_turns else 0
         }
-
 
 class ModelComparator:
     def __init__(self, models, extract_features_fn, num_games=50):
@@ -790,9 +817,9 @@ def main(resume=False, epoch_count=20):
     # 4.5k games / 1 hours
     
     num_hours = 12
-    games_per_epoch = 1000
-    epoch_per_hour = 18
-    epoch_count = 130 # epoch_per_hour * num_hours
+    games_per_epoch = 500
+    epoch_per_hour = 37
+    epoch_count = 260 # epoch_per_hour * num_hours
     eval_games = 500
     
     # Create neural network model

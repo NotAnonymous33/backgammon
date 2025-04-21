@@ -1,3 +1,24 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+}
+
+.boardWrapper {
+    position: relative;
+    max-width: 800px;
+    width: 100%;
+}
+
+.boardSvg {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+
 .board {
     display: grid;
     grid-template-rows: 1fr 1fr;
@@ -17,6 +38,34 @@
     display: flex;
     flex-direction: row-reverse;
 }
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    margin: 0.5rem;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+}
+
+.statusPanel {
+    background: #fff;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+    width: 100%;
+    max-width: 800px;
+}
+
 
 
 .point {

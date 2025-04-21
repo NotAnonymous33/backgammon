@@ -1,4 +1,10 @@
+Cython==3.0.11
 Flask==3.1.0
-Flask-Cors==5.0.0
-Flask-SocketIO==5.4.1
-Flask-SQLAlchemy==3.1.1
+Flask_Cors==5.0.0
+Flask_SocketIO==5.4.1
+flask_sqlalchemy==3.1.1
+matplotlib==3.9.3
+pybind11==2.13.6
+setuptools==75.3.0
+torch==2.6.0+cu126
+tqdm==4.67.1
