@@ -55,14 +55,19 @@ A turn‑based Backgammon game server and client:
     .\venv\Scripts\activate       # Windows
     pip install -r requirements.txt
     # Initialize database & start server
+    cd classes
+    python setup_cython.py build_ext --inplace
+    python setup.py build_ext --inplace
     python app.py
     ```
 - Runs on http://localhost:5000 by default.
 
 3. **Frontend setup**
+    ```bash
     cd ../frontend
     npm install
     npm run dev
+    ```
 
 - Runs the SPA on http://localhost:5173 (Vite’s default).
 

@@ -236,6 +236,9 @@ def ai_move(room_code):
             ai = RandomAgent()
         elif ai_model == "mcts":
             ai = MCTSAgent(time_budget=5)
+        elif ai_model == "neural":
+            ai = FinalNNAgent(checkpoint_path="models/main/backgammon_main_checkpoint_latest.pt")
+            
             
         
         print("selecting move")

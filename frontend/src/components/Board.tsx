@@ -530,6 +530,7 @@ export default function Board() {
                             <option value="random">Random</option>
                             <option value="first">First Move</option>
                             <option value="mcts">Monte Carlo Tree Search</option>
+                            <option value="neural">Neural Network</option>
                         </select>
                     </label>
                 </div>
@@ -563,6 +564,7 @@ export default function Board() {
                             <option value="random">Random</option>
                             <option value="first">First Move</option>
                             <option value="mcts">Monte Carlo Tree Search</option>
+                            <option value="neural">Neural Network</option>
                         </select>
                     </label>
                 </div>
@@ -576,6 +578,7 @@ export default function Board() {
                             <option value="random">Random</option>
                             <option value="first">First Move</option>
                             <option value="mcts">Monte Carlo Tree Search</option>
+                            <option value="neural">Neural Network</option>
                         </select>
                     </label>
                 </div>
