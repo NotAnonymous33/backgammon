@@ -74,7 +74,8 @@ A turn‑based Backgammon game server and client:
 4. **Roll dice** and **Make moves** by clicking checkers—valid moves are highlighted.  
 5. Watch the game auto‑update across all connected clients.  
 
-## 📂 Project Structure  
+## 📂 Project Structure 
+```pgsql 
 backgammon/ 
 │ 
 ├─ backend/ ← Flask backend
@@ -89,3 +90,4 @@ backgammon/
 │ ├─ package.json ← npm dependencies & scripts
 │ └─ tsconfig.json ← TypeScript config
 │ └─ ProjectReport/ ← LaTeX documentation & report
+```
