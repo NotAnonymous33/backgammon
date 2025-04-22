@@ -56,6 +56,36 @@
     transform: translateY(-2px);
 }
 
+.dice-container {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+}
+
+/* glow‐pulse animation */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0px rgba(255, 255, 255, 0.7);
+    }
+
+    50% {
+        box-shadow: 0 0 10px 8px rgba(255, 255, 255, 0.7);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0px rgba(255, 255, 255, 0.7);
+    }
+}
+
+/* apply to the roll button */
+.btn-roll.pulse {
+    animation: pulse 1.5s infinite;
+}
+
+/* apply to moveable checkers */
+.checker.pulse-checker {
+    animation: pulse 1.5s infinite;
+}
 
 
 .point {
@@ -126,9 +156,9 @@
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(0, 0, 0, 0.3);
 }
 
-.checker:hover {
+/* .checker:hover {
     transform: scale(1.1);
-}
+} */
 
 
 

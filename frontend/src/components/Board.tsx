@@ -1,5 +1,6 @@
 import { MouseEvent, useEffect, useRef, useState } from "react"
-import "../Board.css"
+import "./Board.css"
+import Dice from "./Dice"
 import { socket } from "../socket"
 import { useParams } from "react-router-dom"
 import { BACKEND_URL } from "../constants"
@@ -29,6 +30,7 @@ type GameState = {
     whiteBearOff: number
     blackBearOff: number
     validMoves: number[][][]
+    usedDice: number[]
 }
 
 export default function Board() {
@@ -53,6 +55,7 @@ export default function Board() {
         whiteBearOff: 0,
         blackBearOff: 0,
         validMoves: [],
+        usedDice: [],
     })
 
     //--- original true game state
@@ -70,6 +73,7 @@ export default function Board() {
     const [initialDragPosition, setInitialDragPosition] = useState({ x: 0, y: 0 })
 
     const [rolled, setRolled] = useState(false)
+    const [isRollingAnimation, setIsRollingAnimation] = useState(false)
 
     const pointWidth = 75
     const pointHeight = 200
@@ -89,6 +93,8 @@ export default function Board() {
     const blackCheckerColour = "#000000"
 
     const boardRef = useRef<SVGSVGElement>(null)
+    const turnLabel = gameState.turn === 1 ? "White" : "Black"
+
 
     //--- calculate bearing off area position and size
     const bearOffXStart = boardPadding + 12 * pointWidth + barWidth + 5
@@ -116,6 +122,7 @@ export default function Board() {
             whiteBearOff: data.white_off,
             blackBearOff: data.black_off,
             validMoves: data.valid_moves,
+            usedDice: [],
         }
         setGameState(newGameState)
         console.log(data.valid_moves)
@@ -163,11 +170,13 @@ export default function Board() {
                     dice: data.dice.map(Number),
                     validMoves: data.validMoves,
                     invalidDice: data.invalidDice.map(Number),
+                    usedDice: [],
                 }
                 originalGameStateRef.current = newGameState
                 verbose && console.log("Updated dice:", data.dice)
                 return newGameState
             })
+            setIsRollingAnimation(false)
         })
 
         socket.on("message", (data) => {
@@ -235,30 +244,24 @@ export default function Board() {
 
             let newDice = [...prev.dice]
             let diceIndex = newDice.indexOf(Math.abs(next - current))
-            if (current === -1) {
-                diceIndex =
-                    prev.turn === 1 ? newDice.indexOf(next + 1) : newDice.indexOf(24 - next)
-            }
+            if (current === -1) diceIndex = prev.turn === 1 ? newDice.indexOf(next + 1) : newDice.indexOf(24 - next)
             if (next === 100 || next === -100) {
-                if (next === 100) {
-                    diceIndex = newDice.indexOf(24 - current)
-                } else {
-                    diceIndex = newDice.indexOf(current + 1)
-                }
-                if (diceIndex < 0) {
-                    diceIndex = newDice.indexOf(Math.max(...newDice))
-                }
+                diceIndex = next === 100 ? newDice.indexOf(24 - current) : newDice.indexOf(current + 1)
+                if (diceIndex < 0) diceIndex = newDice.indexOf(Math.max(...newDice))
             }
 
+            let removedDie: number | null = null
             if (diceIndex >= 0) {
+                removedDie = newDice[diceIndex]
                 newDice.splice(diceIndex, 1)
             }
+
             const newValidMoves = prev.validMoves
-                .filter(
-                    (sequence) =>
-                        sequence[0][0] === current && sequence[0][1] === next
-                )
-                .map((sequence) => sequence.slice(1))
+                .filter(seq => seq[0][0] === current && seq[0][1] === next)
+                .map(seq => seq.slice(1))
+
+            // update usedDice
+            const newUsedDice = removedDie !== null ? [...prev.usedDice, removedDie] : prev.usedDice
 
             return {
                 ...prev,
@@ -269,6 +272,7 @@ export default function Board() {
                 blackBar: newBlackBar,
                 whiteBearOff: newWhiteBearOff,
                 blackBearOff: newBlackBearOff,
+                usedDice: newUsedDice,
             }
         })
     }
@@ -286,6 +290,7 @@ export default function Board() {
         verbose && console.log("rollDice")
         verbose && console.log("rolled: ", rolled)
         if (rolled) return
+        setIsRollingAnimation(true)
         verbose && console.log("emitting roll_dice")
         socket.emit("roll_dice", { room_code: roomCode })
     }
@@ -600,6 +605,10 @@ export default function Board() {
         <>
             <h2>message: {JSON.stringify(message)}</h2>
 
+            <div className="turn-indicator">
+                <h1><strong>{turnLabel}</strong> to move</h1>
+            </div>
+
             <div style={{ display: "flex" }}>
                 <svg
                     ref={boardRef}
@@ -791,7 +800,7 @@ export default function Board() {
                 </svg>
 
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                    <button onClick={rollDice} className="btn btn-roll" disabled={rolled}>🎲 Roll Dice</button>
+                    <button onClick={rollDice} className={`btn btn-roll ${!rolled && playerSide && ((playerSide === "white" && gameState.turn === 1) || (playerSide === "black" && gameState.turn === -1)) ? " pulse" : ""}`} disabled={rolled}>🎲 Roll Dice</button>
                     <button onClick={confirmMove} className="btn btn-confirm" disabled={!moveSequence.length}>✅ Confirm</button>
                     <button onClick={resetBoard} className="btn btn-reset">🔄 Reset</button>
                 </div>
@@ -799,8 +808,18 @@ export default function Board() {
 
             <h2>turn: {gameState.turn}</h2>
             <h2>active piece: {selectedChecker}</h2>
-            <h3>dice: {gameState.dice.join(", ")}</h3>
-            <h3>invalid dice:{gameState.invalidDice}</h3>
+            <div className="dice-container">
+                {gameState.dice && gameState.dice.map((value, idx) => {
+                    return <Dice key={idx} value={value} rolling={isRollingAnimation} />
+                })}
+                {gameState.invalidDice && gameState.invalidDice.map((value, idx) => {
+                    return <Dice key={idx} value={value} invalid rolling={isRollingAnimation} />
+                })}
+                {gameState.usedDice && gameState.usedDice.map((value, idx) => {
+                    return <Dice key={idx} value={value} used rolling={isRollingAnimation} />
+                })}
+
+            </div>
         </>
     )
 }
