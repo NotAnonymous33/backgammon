@@ -4,6 +4,11 @@
 \usepackage{url} % typeset URL's sensibly
 \usepackage{pslatex} % Use Postscript fonts
 \usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{verbatim}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 
 
 
@@ -56,12 +61,14 @@
 \include{chapters/background}
 \include{chapters/AI}
 \include{coreTech}
-\include{chapter4}
+\include{chapters/methodology}
 \include{chapter5_6}
 \include{chapter99}
 
+%TC:ignore
 \bibliographystyle{unsrtnat}
-\bibliography{refs}           
+\bibliography{refs} 
+%TC:endignore
 
 \appendix
 \include{appendix1}

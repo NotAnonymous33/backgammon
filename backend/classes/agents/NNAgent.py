@@ -418,9 +418,9 @@ class BackgammonTrainer:
             # Save checkpoint at regular intervals
             if (epoch + 1) % checkpoint_interval == 0:
                 if name != "":
-                    self.save_checkpoint(f"models/{name}/backgammon_checkpoint_epoch_{name}{epoch+1}.pt", epoch=epoch+1)
+                    self.save_checkpoint(f"models/{name}/checkpoint_epoch_{name}{epoch+1}.pt", epoch=epoch+1)
                 else:
-                    self.save_checkpoint(f"models/backgammon_checkpoint_epoch_{epoch+1}.pt", epoch=epoch+1)
+                    self.save_checkpoint(f"models/checkpoint_epoch_{epoch+1}.pt", epoch=epoch+1)
             
             e = Evaluator(NNAgent(self.model, self.extract_features, exploration_rate=0.0), opponent_agent=HeuristicAgent(), num_games=self.eval_games)
             eval_results = e.evaluate()                
@@ -441,11 +441,11 @@ class BackgammonTrainer:
             if name != "":
                 if not os.path.exists("models/" + name):
                     os.makedirs("models/" + name)
-                self.save_checkpoint(f"models/{name}/backgammon_{name}_checkpoint_latest.pt", epoch=epoch+1)
-                self.save_model(f"models/{name}/backgammon_{name}_model_latest.pt")
+                self.save_checkpoint(f"models/{name}/{name}_checkpoint_latest.pt", epoch=epoch+1)
+                self.save_model(f"models/{name}/{name}_model_latest.pt")
             else:
-                self.save_checkpoint("models/backgammon_latest.pt", epoch=epoch+1)
-                self.save_model("models/backgammon_latest.pt")
+                self.save_checkpoint("models/latest.pt", epoch=epoch+1)
+                self.save_model("models/latest.pt")
 
         
         self.plot_eval_curve(f"eval_results/results_{name}.txt", f"graph_{name}.png")
@@ -455,9 +455,9 @@ class BackgammonTrainer:
             # create dir if it does not exist
             if not os.path.exists("models/" + name):
                 os.makedirs("models/" + name)
-            self.save_model(f"{name}/backgammon_{name}_final.pt")
+            self.save_model(f"{name}/{name}_final.pt")
         else:
-            self.save_model(f"backgammon_final_model.pt")
+            self.save_model(f"final_model.pt")
         
         return results
 
@@ -845,7 +845,7 @@ def main(resume=False, epoch_count=20):
     
     # Define a function to train a model
     def train_model(trainer: BackgammonTrainer, name, num_epochs, resume=False):
-        return trainer.train(num_epochs=num_epochs, name=name, resume_from="backgammon_latest.pt" if resume else None)
+        return trainer.train(num_epochs=num_epochs, name=name, resume_from=f"models/{name}/latest.pt" if resume else None)
     
     if resume:
         train_model(trainer, "tdgammon", epoch_count, resume=True)
@@ -854,7 +854,7 @@ def main(resume=False, epoch_count=20):
     
 
     # trainer.plot_learning_curve(save_path="learning_curve.png")
-    # trainer.save_model("backgammon_final_model.pt")    
+    # trainer.save_model("final_model.pt")    
     
     # Run tournament between models
     # print("\nRunning model tournament...")
@@ -869,7 +869,7 @@ if __name__ == "__main__":
     parser.add_argument('--resume', action='store_true', help='Resume training from checkpoint')
     parser.add_argument('--epochs', type=int, default=20, help='Number of epochs to train')
     parser.add_argument('--evaluate', action='store_true', help='Only evaluate the model without training')
-    parser.add_argument('--model', type=str, default='backgammon_final_model.pt', help='Model path for evaluation')
+    parser.add_argument('--model', type=str, default='final_model.pt', help='Model path for evaluation')
     
     args = parser.parse_args()
     

@@ -1,0 +1,349 @@
+\chapter{Methodology}
+
+This chapter describes the processes, techniques, and models used to design, implement, test, and evaluate the backgammon system.
+
+\section{Overall System Design}
+The system follows a three tier architecture, consisting of the presentation layer, application layer, and data layer. The presentation layer is responsible for the web client (implemented in React/TypeScript); the application layer consists of the game logic and AI (implemented in C++, Cython, and Python); and the data layer is responsible for the database (implemented SQLite). To interface between the presentation and application layer, a REST API is used to join and connect to a game, after which a WebSocket connection is established to allow for real-time communication between the client and server. To interface between the application and data layer, TODO something about flask and sqlalchemy.
+
+By using a three tier architecture, the frontend, backend, and database can be developed independently. This allows for each layer to be tested and evaluated separately, while also allowing large architectural changes within each layer, as long as the interfaces between layers remain constant. This proved useful when developing the AI, as different parts were developed in different languages; (TODO something about languages changing during development). The three tier architecture also benefits in security (TODO wording), as the transfer of data between the layers can be controlled and validated. 
+
+There are however downsides to this architecture. The main downside is the increased complexity of the system, as there are more components to manage and maintain. Often this leads to similar code being written in multiple languages in different layers. For example, checks for a valid move are implemented in both the frontend and backend. This is discussed further in section TODO.  
+Another downside is the increased latency of the system. As data is transferred between layers, latency is introduced. 
+
+\section{Frontend Design}
+TODO write out this idea: Chess is way more popular than backgammon, naturally this has lead to popular chess websites being much more modern and better(?). Because of this, development of the frontend was heabily inspired by popular chess websites such as chess.com and lichess.org
+
+\subsection{React and TypeScript}
+The frontend, which is responsible for rendering the game board, handling user interactions, and communicating with the backend, was implemented in React/TypeScript. The frontend uses a REST API to join and connect to a game, after which a WebSocket connection is established to allow for real-time communication between the client and server. The frontend also handles user interactions, such as clicking on pieces and rolling dice.
+
+Implementing in React/TypeScript was chosen for several reasons. React is the most popular frontend framework TODO cite https://2024.stateofjs.com/en-US/libraries/front-end-frameworks/, resulting in there being a large community and ecosystem around it. 
+This means that there are many libraries and tools available to help with development, such as state management libraries (e.g. Redux) and UI component libraries (e.g. Shadcn). 
+TypeScript is a superset of JavaScript that adds static typing, which helps to catch errors at compile time rather than runtime, and improves the developer experience by providing better autocomplete features. 
+This is especially useful in a large codebase where the types act as documentation, helping to ensure that the code is more maintainable and less error-prone.
+
+
+When the user initially connects to the website, they are presented with a simple landing page, allowing them to create or join a game. When creating a game, the user has the option what game mode (TODO wording). This includes player vs player, player vs a selection of ai agents, and spectating an ai vs ai game. 
+\subsection{Game Rendering (SVG)}
+The game board is rendered using SVG. SVG was chosen over other choices, such as canvas, as its format allows for easily manipulation of individual elements on the board. This is useful for implementing features such as highlighting valid moves and showing the current player.
+Another advantage of SVG is that it is a vector format, meaning that it can be scaled to any size without losing quality. This increases accessibility, as the game board is visually identical on all devices. 
+Compared to canvas, SVG is also simpler to implement, as primitive actions such as clicking and hovering specific elements are already built in, and also TODO something about being able to add animations very easily. TODO something about chess.com using SVG.
+\subsection{Handling User Interactions}
+To allow for preferences of users, both drag-and-drop and click-and-move have been implemented. 
+Drag-and-drop is implemented by using mouse event handlers (\verb|onMouseDown|, \verb|onMouseMove|, and \verb|onMouseUp|) to track the position of the mouse and update the position of the piece accordingly. When checkers are clicked, coordinates of the mouse, the piece, and the board are used to determine the start and end positions of the move. A move is registered when the distance between the current checker and the cloesest triangle is less than a certain threshold. 
+Click-and-move is implemented by using \verb|onMouseDown| to track the position of the piece and update the position of the piece accordingly. Generally, \verb|onClick| is used to handle user clicks, however \verb|onMouseDown| has many advantages over \verb|onClick|. Human computer interaction research \cite{mousedown} \cite{mousedown2} has shown that responses under 100ms are perceived as instant. By using \verb|onMouseDown|, the time between a user's action and the system's response is greatly reduced, vastly increasing the perceived responsitveness of the system.
+TODO talk about client side move validation
+
+\subsection{Real time Communication}
+When the user initially joins a game, they are connected to the server through a socket. This allows for real-time updates and allows the server to send messages to clients without the need for the client to make a specific request. The only alternative to this is some form of polling, where the client repeatedly requests updates from the server. This is inefficient leads to unnecessary latency and server load. TODO explain websockets in game design? background
+TODO talk about the events received from the server
+
+
+\section{Backend Design}
+TODO definition ORM
+The backend is responsible for handling the game logic, state management, AI, and database interactions. The backend is implemented in Python using Flask for HTTP routing, Sockets for communcation, and SQLAlchemy as an ORM to store and retrieve game states to and from an SQLite database. This layered design allows for the backend to be easily extended and modified, as each layer is responsible for a specific task. (game logic, AI, data handling).
+
+\subsection{API Endpoints}
+The server exposes a single REST endpoint to create games before handing off to WebSocket communication:
+\textbf{POST /api/new\_game}: Generates a unique 5-character room code, instantiates a new \texttt{Board} in memory, which persists by being stored in the database. This allows for games to be resumed after a range of events, such as server restarts, or clients disconnecting. 
+After initialization, all game actions, such as rolling dice, making moves, joining/leaving rooms—are handled over Socket events (Section~\ref{sec:room-management}).
+TODO define SID somewhere
+
+
+\subsection{Room Management}
+\label{sec:room-management}
+Game sessions are tracked in a dictionary which is stored in memory and mapped to each game room by room code. The following Socket events are handled by the server:
+\begin{itemize}
+\item \texttt{join\_room}: Validates that the requested side ("white"/"black") is unoccupied, registers either a human (tracked by \texttt{sid}) or AI player (stores \texttt{ai\_model}), calls \texttt{join\_room(room\_code)}, and responds with the current board state via \texttt{"update\_board"}.
+\item \texttt{leave\_room} / \texttt{disconnect}: Removes the client from the room, emits a \texttt{"left\_room"} event, and leaves residual state in the dictionary (to preserve ongoing matches during client disconnects).
+\item \texttt{move}: Validates the move against the current board state, and if valid, updates the board, the corresponding board entry in the database, and emits and emits an \texttt{"update\_board"} event which sends the new board to all clients. If the move is invalid, an \texttt{"error"} event is emitted.
+\item \texttt{roll\_dice}: Rolls the dice, updates the board, and emits an \texttt{"update\_dice"} event. This event sends the new dice values, invalid dice values, and valid moves to all clients in the room. 
+If the player is an AI, the \texttt{ai\_move} function is called to handle the move asynchronously. This allows the AI to make its move, which can take substantial time and computation, without blocking the main event loop.
+\end{itemize}
+Turn enforcement: Every \texttt{move} or \texttt{roll\_dice} event compares the socket client's SID with the stored SID in the database. Unauthorised actions trigger an \texttt{"error"} event, preventing spoofed commands or out of turn moves.
+
+\subsection{Database Schema and Interaction}
+Persistence of game state is achieved through a single SQLAlchemy model, whose schema is shown in Figure~\ref{fig:game-schema}. TODO check what the tilde does
+
+\begin{figure}[h]
+\centering
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Column}             & \textbf{Type}          & \textbf{Description}               \\ \hline
+\texttt{id}                 & Integer PK             & Primary key         \\ \hline
+\texttt{room\_code}          & String(5), unique      & Game identifier                    \\ \hline
+\texttt{positions}          & PickleType              & Board positions array   \\ \hline
+\texttt{dice}, \texttt{invalid\_dice} & String(4)             & Current and invalid dice rolls     \\ \hline
+\texttt{turn}               & Integer                & 1 = white to move, 0 = black      \\ \hline
+\texttt{white\_bar}, \texttt{black\_bar} & Integer       & Checkers on the bar                \\ \hline
+\texttt{white\_off}, \texttt{black\_off} & Integer      & Checkers borne off                 \\ \hline
+\texttt{rolled}, \texttt{game\_over}  & Boolean        & Dice roll flag, game end flag      \\ \hline
+\texttt{white\_ai\_model}, \texttt{black\_ai\_model} & String(20) & AI agent identifiers            \\ \hline
+\end{tabular}
+\caption{SQLAlchemy model schema}
+\label{fig:game-schema}
+\end{figure}
+
+Two helper functions manage state transformations:
+\begin{itemize}
+\item \texttt{Adding a board to the database}: Creates and commits a new row, representing the initial state.
+\item \texttt{Updating a board in the database}: Queries the latest row by room code, mutates its fields in place, and commits. One downside of this pattern is that intermediate states and moves are not stored, which could be useful for debugging or replaying games.
+\end{itemize}
+
+Atomic transactions and session management ensure that either all state changes occur together, preserving consistency. Queries always fetch the most recent state via
+\texttt{Game.query.filter\_by(room\_code=...).order\_by(Game.id.desc()).first()}, guaranteeing that all clients operate on a synchronized game snapshot.
+
+\section{Game Logic}
+In this section, the core game logic is described, including the board representation, move generation and validation, and the interfacing between C++ and Python. C++ was used for the core game logic due to its performance advantages, which was then bound to Python using pybind11. 
+\subsection{State Representation and Methods}
+A \texttt{Board} class is used to store the game state, and contains the following attributes:
+\begin{itemize}
+\item \texttt{positions}: an array where each index corresponds to a point on the backgammon board. Positive values indicate the number of white checkers; negative values indicate the number of black checkers.
+\item \texttt{white\_bar, black\_bar}: counters for checkers that have been hit and are waiting to re-enter.
+\item \texttt{white\_off, black\_off}: counters for checkers that have been successfully borne off.
+\item \texttt{dice}: captures the current roll.
+\item \texttt{invalid\_dice}: stores the rolled dice values that are unusable in the current turn.
+\item \texttt{valid\_moves}: stores every permissible sequence of moves for the active player in the current turn.
+\item Game status flags: \texttt{rolled} (whether the dice have been rolled to prevent players from rerolling dice), \texttt{passed} (whether TODO (im sure ive written this somewhere else)), \texttt{game\_over}, and \texttt{turn} (1 for White, -1 for Black).
+\end{itemize}
+The use of a single integer array to represent the board state allows for efficient storage and manipulation of the game state, as opposed to storing checker objects, which would increase memory usage and complexity with no significant benefit.
+
+The following support methods are implemented to allow for easier implementation of AI agents:
+\begin{itemize}
+    \item \texttt{calc\_white\_left() / calc\_black\_left()}: computes a pip count (distance remaining) for each player by summing the product of checker count and point distance from bearing-off.
+    \item \texttt{has\_passed()}: determines if all of one player's checkers have passed the other player's checkers. TODO change any instance of pieces to checkers. If this is true, no more pieces can be hit. 
+    \item \texttt{has\_won()}: returns true when either \texttt{white\_off} or \texttt{black\_off} reaches 15.
+    \item \texttt{copy\_state\_from()}: copies a given board state into the current instance.
+    \item \texttt{convert()}: serializes the entire C++ state into a Python dictionary (\texttt{py::dict}), allowing the Python layer to load and create database entries with minimal overhead.
+    \item Clone and copy constructors: creates a copy of the board state, overriding the default python constructors, and allowing for exploration without altering the original state. This is useful for AI agents that need to explore multiple possible moves without modifying the original state.
+\end{itemize}
+
+\subsection{Move Generation and Validation}
+As mentioned in section~\ref{sec:rules} (TODO add tilde before refs), there are multiple rules on what moves can be made. Since each turn consists of moving multiple checkers, the move generation and validation process is complex. Each moving of a single checker cannot be checked individually, in the cases where a player has to maximise the number of checkers moved; has to maximise the die used. Therefore, rather than checking each moves validity, a list of all possible moves is generated (which is also extremely useful for the AI agents).
+The move generation process consists of two parts: identifying which dice can be used, then generating all possible moves.
+\begin{enumerate}
+    \item \textbf{Invalid Dice Detection}: Dice rolls that cannot be used to make any valid moves on the current board are first identified. Pseudocode for the function can be seen in figure \ref{fig:invalid-dice-pseudocode}. A recursive helper function \texttt{evaluate\_dice()} is used to determine the unusable dice. This function tries all possible ways to use the dice, applying one move at a time. If more dice can be used after a move, the function calls itself after removing the used dice from the list. If a point is reached where there are unused dice and no valid moves, the dice which result in the more dice being used, and higher value dice being used, are marked as valid, and the rest are marked as invalid. This can be extremely expensive, so optimisations are necessary. A very impactful optimisation is to return immediately if there is a single instance where all dice can be used. Since this is generally the case, this optimisation is very effective. 
+    Once all invalid dice have been identified, the invalid dice are removed from the dice list and added to \texttt{invalid\_dice}.
+
+    \item \textbf{Depth First Search for Move Sequences}: With invalid dice removed, a depth first search is performed on all the single die moves to create a list of full turn sequences. Similarly to the invalid dice detection, a recursive helper function \texttt{dfs()} is used to recursively generate all possible moves. In the general case, the function calls \texttt{get\_single\_moves()} to list every legal single move that can be made from the current board state. TODO make a figure for this. For each of these moves, the function clones the current board state, applies the move, and removes the used die from the list. The \texttt{dfs()} function then calls itself with the new board state and the remaining dice. This process continues until all there are no dice remaining (base case), or no further moves can be made. For the base case, if all dice have been used, the function returns the list of moves it has calculated. The pseudocode for these functions is described in figures \ref{fig:getInvalidMoves}, \ref{fig:dfs}, \ref{fig:singleMoves}. TODO fix figures
+\end{enumerate}
+
+\begin{algorithm}
+    \label{fig:invalid-dice-pseudocode}
+    \caption{Get Invalid Dice}
+    \begin{algorithmic}
+    \State \textbf{Input:} Current dice list, board configuration
+    \State \textbf{Output:} List of invalid dice
+    \State \text{invalid\_dice} $\gets$ \text{dice}
+    \State \text{max\_length} $\gets$ 0
+    \State \text{max\_die} $\gets$ 0
+    \State \text{board\_copy} $\gets$ \text{copy of board}
+    \State
+    \Comment{Attempt to use all dice in some order}
+    \If{evaluate\_dice(board\_copy, dice, [], max\_length, max\_die, invalid\_dice)}
+        \State \textbf{Return} [] \Comment{All dice are useable}
+    \Else \Comment{Some dice are unusable and are removed}
+        \State \text{result} $\gets$ invalid\_dice
+        \For{each die in result}
+            \State \text{remove the first occurrence of die from dice}
+        \EndFor
+        \State \textbf{Return} result
+    \EndIf
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}
+    \caption{Evaluate Dice}
+    \begin{algorithmic}
+    \State \textbf{Input:} board, remaining\_dice, used\_dice, max\_length, max\_die, invalid\_dice
+    \State \textbf{Output:} True or False
+    \State
+    \If{remaining\_dice is empty} \Comment{Base case where all dice have been used}
+        \State \textbf{Return} True
+    \EndIf
+    \State
+    \If{size(used\_dice) $>$ max\_length} \Comment{A new optimal set of dice has been found}
+        \State max\_length $\gets$ size(used\_dice)
+        \State invalid\_dice $\gets$ remaining\_dice
+    \ElsIf{size(used\_dice) = max\_length and used\_dice is not empty}
+        \State current\_max $\gets$ max element of used\_dice
+        \If{current\_max $>$ max\_die}
+            \State max\_die $\gets$ current\_max
+            \State invalid\_dice $\gets$ remaining\_dice
+        \EndIf
+    \EndIf
+    \State
+    \If{size(remaining\_dice) = 1} \Comment{Move does not need to be played, only checked}
+        \State die $\gets$ remaining\_dice[0]
+        \For{each possible move on board using die}
+            \If{move is valid}
+                \State update max\_length, max\_die, invalid\_dice accordingly
+                \State \textbf{Return} True
+            \EndIf
+        \EndFor
+        \State \textbf{Return} False \Comment{There are no possible moves}
+    \EndIf
+    \State
+    \For{each valid single move m on board using die}
+        \State new\_board $\gets$ copy of board
+        \State apply move m on new\_board
+        \State new\_remaining $\gets$ remaining\_dice without the die that led to move m
+        \State new\_used $\gets$ used\_dice plus die that led to move m
+        \If{evaluate\_dice(new\_board, new\_remaining, new\_used, max\_length, max\_die, invalid\_dice) is True}
+            \State \textbf{Return} True
+        \EndIf
+    \EndFor
+    \State \textbf{Return} False
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}
+    \label{fig:getInvalidMoves}
+    \caption{Get Valid Moves}
+    \begin{algorithmic}
+    \State \textbf{Input:} board
+    \State \textbf{Output:} List of valid moves
+    \State
+    \State valid\_moves $\gets$ empty list \Comment{Initialize the list for valid moves}
+    \State board\_copy $\gets$ copy of Board \Comment{Create a copy of the current board}
+    \State valid\_moves $\gets$ dfs(board\_copy, []) \Comment{Call DFS to find valid moves}
+    \State \textbf{Return} valid\_moves \Comment{Return the list of valid moves}
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}
+    \label{fig:dfs}
+    \caption{Depth First Search (DFS) for Valid Sequences}
+    \begin{algorithmic}
+    \State \textbf{Input:} board, prev\_moves
+    \State \textbf{Output:} List of valid sequences of moves
+    \State
+    \State \text{// If no dice left, return the one completed sequence (if any)} 
+    \If{dice is empty}
+        \If{prev\_moves is not empty}
+            \State \textbf{Return} [ prev\_moves ] \Comment{Return the completed sequence of moves}
+        \Else
+            \State \textbf{Return} [] \Comment{Return an empty list if no moves were made}
+        \EndIf
+    \EndIf
+    \State
+    \State \text{// If exactly one die remaining, check for valid moves rather than making moves:} TODO make comments consistent
+    \If{length(dice) == 1}
+        \State results $\gets$ empty list \Comment{Initialize the list to store valid sequences}
+        \For{each move in get\_single\_moves(min\_point)}
+            \State results.APPEND(prev\_moves + [move]) 
+        \EndFor
+        \State \textbf{Return} results \Comment{Return the list of completed sequences with the one remaining move}
+    \EndIf
+    \State
+    \State \text{// Otherwise, try every single move and recurse:}
+    \State results $\gets$ empty list \Comment{Initialize the results list to store valid sequences}
+    \For{each move m in get\_single\_moves(min\_point)}
+        \State board\_copy $\gets$ copy of board \Comment{Create a copy of the current board}
+        \State make move m on the board
+        \Comment{Apply the move to the copied board} TODO remove minpoint
+        \State sequences $\gets$ dfs(board\_copy, prev\_moves + [move]) \Comment{Recurse with the updated board and moves}
+        \State results.EXTEND(sequences) \Comment{Add the resulting sequences to the final list}
+    \EndFor
+    \State \textbf{Return} results \Comment{Return the list of all valid sequences found}
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}
+    \label{fig:singleMoves}
+    \caption{Get Single Moves}
+    \begin{algorithmic}
+    \State \textbf{Input:} board, dice
+    \State \textbf{Output:} Set of valid moves
+    \State
+    \State moves $\gets$ empty set \Comment{Initialize the set of valid moves}
+    \State
+    \If{ there are pieces on the bar}
+        \For{each die d in dice}
+            \If{die d can be used to re-enter}
+                \State Add move corresponding to re-entering with die d to moves set
+            \EndIf
+        \EndFor
+        \State // If there are checkers on the bar, re-entering is the only valid type of move. 
+        \State // Therefore normal moves do not need to be checked, so the function can return early
+        \State \textbf{Return} moves
+    \EndIf
+    
+    \State
+    \State \text{// normal moves} 
+    \For{start in max(min\_point, 0) $\dots$ 23}
+        \For{each die in dice}
+            \State end $\gets$ start + die \Comment{Calculate the end position based on the die roll}
+            \If{is\_valid(start, end)}
+                \State moves.ADD( (start $\to$ end) ) \Comment{Add the valid move from start to end}
+            \EndIf
+        \EndFor
+    \EndFor
+
+    \State \textbf{Return} moves \Comment{Return the set of all valid moves}
+    \end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Executing Moves}
+When a player chooses a move sequence, the engine proceedes as follows:
+\begin{enumerate}
+\item Validate the chosen sequence by checking if it is in valid\_moves \texttt{valid\_moves}.
+\item Sequentially apply each move: decrement or increment \texttt{positions}, send hit checkers to \texttt{white\_bar} or \texttt{black\_bar}, and handle bearing off.
+\item Remove corresponding dice values, by calculating the distance checkers have travelled. When bearing off, it is possible to bear off a checker from a point that is not equal to the die value, in which case the largest die is removed.
+\item Recompute pip counts (\texttt{white\_left}, \texttt{black\_left}), update \texttt{passed} status, and detect \texttt{game\_over} if a player has borne off all pieces.
+\item If no dice remain, or the player is forced to pass, the turn is swapped, \texttt{rolled} is set to false, and the dice are cleared. TODO: i think i need to change this all to past tense
+\end{enumerate}
+
+
+\subsection{Optimisations}
+Since board methods could be called millions of times during complex AI learning and play, it is important that they are as fast as possible. This resulted in the decision to write the class in C++ (which is many times faster than Python), and bind it to Python using pybind11. By exposing the C++ class methods, significant performance improvements can be achieved, while maintaining the flexibility of Python for higher level logic, and still being able to use Python's extensive libraries for AI implementations.
+
+Single die shortcut
+During the process of finding invalid dice, and checking for valid moves, in the case that there is only one die remaining, the function can return immediately rather than making the move and reaching the base case. As a result, all leaf nodes of the tree are not explored, and the function can prune these branches and (TODO reword to remove this and) return immediately. Due to the large number of possible single moves, and the frequency of this case, this optimisation leads to significant performance improvements. The main reason this results in large speed improvements is the reduced number of deepcopying (approximately 75\% TODO footnote: This was tested by creating creating a bot which played the game thousands of times, and counted the number of calls that were made) which is by far the most expensive primitive operation.
+TODO add a figure for the game tree
+
+Deep copying
+Often, the board state needs to be copied (e.g. to evaluate different moves), so that the original state is not modified. Especially during Monte Carlo Tree Search, this function can be repeated millions of times (approximately TODO find out ), so it is important to reduce the cost of this operation. In Python, each attribute exists as a reference to a \texttt{PyObject}, rather than a datatype such as an integer or array. This allows Python to be more flexible with its type restrictions, but also results in extremely expensive copying. When the board state is copied, every attribute must be allocated a new \texttt{PyObject}, and each element of the attribute (for lists) must also be checked for references to PyObjects (since everything is a PyObject). This results in many dynamic type checks, expensive memory allocations, and garbage collection cycles, despite types in the board being constant, and the size of the board being constant.
+
+In contrast to this, C++ has a fixed type system, which results in elements being copied in far fewer operations, as data is stored contiguously rather than as references to separate memory locations. Without unnecessary type checks and garbage collection cycles, C++ is able to copy the board state much faster than Python (TODO check the timing on this). By overriding the default copy methods in Python with implemenations in C++, a speedup of TODO was achieved for the copy operation.
+
+As described by (TODO cite monte carlo tree search in Backgammon), a problem appears when calculating possible moves where identical positions can be generated through different sequences of moves, which is especially problematic when there are doubles. Rather than computing these positions and removing them, it is much faster to simply not compute them to begin with. 
+
+Instead of naively exploring every ordered sequence of single moves, an ordering constraint is implemented on which points can be moved to. After a checker is moved from point \texttt{i}, only subsequent moves where the starting point is greater than \texttt{i} are considered (less than \texttt{i} for black). This prunes many branches in the tree, particularly when doubles have been rolled, as shown in figure TODO, resulting in a speed improvement of TODO. 
+
+Example: you have dice [2,4] and one checker on point 3 and another on 5.
+
+Branch A: move from 3→5 (using the 2), then 5→9 (using the 4).
+
+Branch B: move from 5→9 (4), then 3→5 (2).
+Both end with one checker on 5 and one on 9—but in Branch B the second move would start at 3, which is < 5, so we skip it.
+TODO make a figure out of this
+
+This method also results in a significant performance boost for the MCTS Agent. Since leaf nodes which result in the same positions have been removed, each node in the tree is unique, so more simulations can be performed on each node, leading to more accurate statistics. This process is further explained in section TODO.
+
+This method results in evaluating far fewer branches while still (TODO fix this sentence) finding all root nodes, resulting in a significant performance improvement, particularly for the MCTS Agent. TODO explain somewhere about how less child nodes leads to more simulations which leads to more accurate statistics. 
+TODO change triangle to point everywhere
+
+While the code was being optimised, CProfile was used extensively to identify bottlenecks in the code. TODO expand on this point. TODO expand on this point.
+
+TODO move to future work section.
+\paragraph{Future Directions}
+To further boost speed and scalability:
+\begin{itemize}
+\item Implement transposition tables using Zobrist hashing to reuse results across similar board states.
+\item Introduce a move-sequence cache keyed by board hash to skip fresh DFS on repeated patterns.
+\item Parallelize DFS branches using thread pools or task-based parallelism, exploiting multi-core CPUs for deeper lookahead in AI agents.
+\item Integrate JIT compilation (via LLVM) for hot paths, such as move validation, to push performance closer to native assembly.
+\end{itemize}
+
+
+\section{AI Design and Architecture}
+\subsection{Random Agent}
+\subsection{Heuristic Agent}
+\subsection{Monte Carlo Agent}
+\subsection{Agent Interface}
+\subsection{Feature Extraction}
+\subsection{Neural Network Agent}
+\subsection{TD-$\lambda$ Learning and Pipeline}
+
+
+

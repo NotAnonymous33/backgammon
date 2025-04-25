@@ -69,9 +69,6 @@ def update_board_db(room_code: str, board_dict: dict):
     db_board.rolled = board_dict["rolled"]
     db.session.commit()
 
-@app.route("/testing", methods=["GET"])
-def handle_testing():
-    return {"message": "testing"}
 
 @socketio.on("join_room")
 def handle_join(data):
@@ -216,7 +213,6 @@ def ai_move(room_code):
                 "validMoves": board.valid_moves,
                 "rolled": board.rolled
             }, room=room_code)
-            socketio.sleep(1)
         else:
             verbose and print("Dice has already been rolled")
         
@@ -237,11 +233,11 @@ def ai_move(room_code):
         elif ai_model == "mcts":
             ai = MCTSAgent(time_budget=5)
         elif ai_model == "neural":
-            ai = FinalNNAgent(checkpoint_path="models/main/backgammon_main_checkpoint_latest.pt")
+            ai = FinalNNAgent(checkpoint_path="models/main/main_checkpoint_latest.pt")
             
             
-        
         print("selecting move")
+        socketio.sleep(1)
         chosen_sequence = ai.select_move(board)
         if chosen_sequence is None:
             # No valid moves.
@@ -268,7 +264,6 @@ def ai_move(room_code):
             socketio.sleep(1)
         
 
-    
 
 @socketio.on("roll_dice")
 def handle_roll_dice(data):

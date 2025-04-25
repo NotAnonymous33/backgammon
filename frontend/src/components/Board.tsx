@@ -172,6 +172,7 @@ export default function Board() {
                     invalidDice: data.invalidDice.map(Number),
                     usedDice: [],
                 }
+                console.log(newGameState.validMoves)
                 originalGameStateRef.current = newGameState
                 verbose && console.log("Updated dice:", data.dice)
                 return newGameState
@@ -801,18 +802,17 @@ export default function Board() {
 
                 <div style={{ display: "flex", flexDirection: "column" }}>
                     <button onClick={rollDice} className={`btn btn-roll ${!rolled && playerSide && ((playerSide === "white" && gameState.turn === 1) || (playerSide === "black" && gameState.turn === -1)) ? " pulse" : ""}`} disabled={rolled}>🎲 Roll Dice</button>
-                    <button onClick={confirmMove} className="btn btn-confirm" disabled={!moveSequence.length}>✅ Confirm</button>
+                    <button onClick={confirmMove} className="btn btn-confirm" disabled={rolled ? (gameState.validMoves.length > 0 && moveSequence.length == 0) : true}>✅ Confirm</button>
                     <button onClick={resetBoard} className="btn btn-reset">🔄 Reset</button>
                 </div>
             </div>
 
-            <h2>turn: {gameState.turn}</h2>
-            <h2>active piece: {selectedChecker}</h2>
+
             <div className="dice-container">
                 {gameState.dice && gameState.dice.map((value, idx) => {
                     return <Dice key={idx} value={value} rolling={isRollingAnimation} />
                 })}
-                {gameState.invalidDice && gameState.invalidDice.map((value, idx) => {
+                {Array.isArray(gameState.invalidDice) && gameState.invalidDice && gameState.invalidDice.map((value, idx) => {
                     return <Dice key={idx} value={value} invalid rolling={isRollingAnimation} />
                 })}
                 {gameState.usedDice && gameState.usedDice.map((value, idx) => {
