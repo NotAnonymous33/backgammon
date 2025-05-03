@@ -848,9 +848,9 @@ def main(resume=False, epoch_count=20):
         return trainer.train(num_epochs=num_epochs, name=name, resume_from=f"models/{name}/latest.pt" if resume else None)
     
     if resume:
-        train_model(trainer, "tdgammon", epoch_count, resume=True)
+        train_model(trainer, "tdgammon2", epoch_count, resume=True)
     else:
-        train_model(trainer, "tdgammon", epoch_count)
+        train_model(trainer, "tdgammon2", epoch_count)
     
 
     # trainer.plot_learning_curve(save_path="learning_curve.png")

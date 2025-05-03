@@ -8,10 +8,35 @@
   publisher={ACM New York, NY, USA}
 }
 
+@INPROCEEDINGS{alphago,
+  author={Fu, Michael C.},
+  booktitle={2016 Winter Simulation Conference (WSC)}, 
+  title={AlphaGo and Monte Carlo tree search: The simulation optimization perspective}, 
+  year={2016},
+  volume={},
+  number={},
+  pages={659-670},
+  keywords={Games;Decision trees;Monte Carlo methods;Optimization;Google;Computers;Machine learning algorithms},
+  doi={10.1109/WSC.2016.7822130}}
+
+@article{hornik1989,
+title = {Multilayer feedforward networks are universal approximators},
+journal = {Neural Networks},
+volume = {2},
+number = {5},
+pages = {359-366},
+year = {1989},
+issn = {0893-6080},
+doi = {https://doi.org/10.1016/0893-6080(89)90020-8},
+url = {https://www.sciencedirect.com/science/article/pii/0893608089900208},
+author = {Kurt Hornik and Maxwell Stinchcombe and Halbert White},
+keywords = {Feedforward networks, Universal approximation, Mapping networks, Network representation capability, Stone-Weierstrass Theorem, Squashing functions, Sigma-Pi networks, Back-propagation networks},
+abstract = {This paper rigorously establishes that standard multilayer feedforward networks with as few as one hidden layer using arbitrary squashing functions are capable of approximating any Borel measurable function from one finite dimensional space to another to any desired degree of accuracy, provided sufficiently many hidden units are available. In this sense, multilayer feedforward networks are a class of universal approximators.}
+}
 
 @Article{aiparadigms,
 AUTHOR = {Lu, Yunlong and Li, Wenxin},
-TITLE = {Techniques and Paradigms in Modern Game AI Systems},
+title = {Techniques and Paradigms in Modern Game AI Systems},
 JOURNAL = {Algorithms},
 VOLUME = {15},
 YEAR = {2022},
@@ -22,6 +47,44 @@ ISSN = {1999-4893},
 ABSTRACT = {Games have long been benchmarks and test-beds for AI algorithms. With the development of AI techniques and the boost of computational power, modern game AI systems have achieved superhuman performance in many games played by humans. These games have various features and present different challenges to AI research, so the algorithms used in each of these AI systems vary. This survey aims to give a systematic review of the techniques and paradigms used in modern game AI systems. By decomposing each of the recent milestones into basic components and comparing them based on the features of games, we summarize the common paradigms to build game AI systems and their scope and limitations. We claim that deep reinforcement learning is the most general methodology to become a mainstream method for games with higher complexity. We hope this survey can both provide a review of game AI algorithms and bring inspiration to the game AI community for future directions.},
 DOI = {10.3390/a15080282}
 }
+
+@article{banditproblem,
+  author    = {Auer, P. and Cesa-Bianchi, N. and Fischer, P.},
+  title     = {Finite-time Analysis of the Multiarmed Bandit Problem},
+  journal   = {Machine Learning},
+  year      = {2002},
+  volume    = {47},
+  pages     = {235--256},
+  doi       = {10.1023/A:1013689704352}
+}
+
+@article{mctsreview2023,
+  author    = {Świechowski, M. and Godlewski, K. and Sawicki, B. and Gawkowski, P. and Bogdan, M. and Figat, M. and Duch, W.},
+  title     = {Monte Carlo Tree Search: a review of recent modifications and applications},
+  journal   = {Artificial Intelligence Review},
+  year      = {2023},
+  volume    = {56},
+  pages     = {2497--2562},
+  doi       = {10.1007/s10462-022-10228-y}
+}
+
+@InProceedings{ucb1tuned,
+author="Kocsis, Levente
+and Szepesv{\'a}ri, Csaba",
+editor="F{\"u}rnkranz, Johannes
+and Scheffer, Tobias
+and Spiliopoulou, Myra",
+title="Bandit Based Monte-Carlo Planning",
+booktitle="Machine Learning: ECML 2006",
+year="2006",
+publisher="Springer Berlin Heidelberg",
+address="Berlin, Heidelberg",
+pages="282--293",
+abstract="For large state-space Markovian Decision Problems Monte-Carlo planning is one of the few viable approaches to find near-optimal solutions. In this paper we introduce a new algorithm, UCT, that applies bandit ideas to guide Monte-Carlo planning. In finite-horizon or discounted MDPs the algorithm is shown to be consistent and finite sample bounds are derived on the estimation error due to sampling. Experimental results show that in several domains, UCT is significantly more efficient than its alternatives.",
+isbn="978-3-540-46056-5"
+}
+
+
 
 @ARTICLE{monteCarloImprovements,
   author={Browne, Cameron B. and Powley, Edward and Whitehouse, Daniel and Lucas, Simon M. and Cowling, Peter I. and Rohlfshagen, Philipp and Tavener, Stephen and Perez, Diego and Samothrakis, Spyridon and Colton, Simon},
@@ -45,6 +108,31 @@ DOI = {10.3390/a15080282}
   pages={1-43},
   keywords={Games;Monte Carlo methods;Artificial intelligence;Game theory;Computers;Markov processes;Decision theory;Artificial intelligence (AI);bandit-based methods;computer Go;game search;Monte Carlo tree search (MCTS);upper confidence bounds (UCB);upper confidence bounds for trees (UCT)},
   doi={10.1109/TCIAIG.2012.2186810}
+}
+
+@article{heuristic,
+  title={Artificial Intelligence Based Board Game: Backgammon},
+  author={Gupta, Tushar and Kaur, Ramanpreet},
+  year={2015},
+  publisher={Jaypee University of Information Technology, Solan, HP}
+}
+
+@inproceedings{mctsinbackgammon,
+  author    = {Fran{\c{c}}ois Van Lishout and Guillaume Chaslot and Jos W.H.M. Uiterwijk},
+  title     = {Monte-Carlo Tree Search in Backgammon},
+  booktitle = {Proceedings of the 12th Belgium-Netherlands Artificial Intelligence Conference (BNAIC 2010)},
+  year      = {2010},
+  address   = {Eindhoven, The Netherlands},
+  pages     = {251--258}
+}
+
+@inproceedings{Pollack1997,
+  author    = {Jordan B. Pollack and Alan D. Blair},
+  title     = {Co-Evolution in the Successful Learning of Backgammon Strategy},
+  booktitle = {Proceedings of the Fourth International Conference on Genetic Algorithms (ICGA'91)},
+  year      = {1991},
+  address   = {San Diego, CA, USA},
+  pages     = {227--234}
 }
 
 @inproceedings{GellySilver2007,
@@ -72,6 +160,70 @@ series = {ICML '07}
   publisher = {Cambridge University Press},
   year      = {2002},
   pages     = {255--268}
+}
+
+@book{RussellNorvig,
+  author    = {Stuart Russell and Peter Norvig},
+  title     = {Artificial Intelligence: A Modern Approach},
+  publisher = {Pearson Education},
+  edition   = {4th},
+  year      = {2020}
+}
+
+@misc{tictactoe,
+  author = {LewisMatos},
+  title = {MiniMaxTicTacToe: Tic Tac Toe using minimax},
+  note = {Tic Tac Toe using minimax search algorithm for AI.},
+  url = {https://github.com/LewisMatos/MiniMaxTicTacToe},
+  urldate = {2025-04-16}
+}
+
+@article{sgd,
+author = {Bottou, Léon},
+year = {2010},
+month = {09},
+pages = {},
+title = {Large-Scale Machine Learning with Stochastic Gradient Descent},
+isbn = {978-3-7908-2603-6},
+journal = {Proc. of COMPSTAT},
+doi = {10.1007/978-3-7908-2604-3_16}
+}
+
+@book{sutton2018,
+  author    = {Richard S. Sutton and Andrew G. Barto},
+  title     = {Reinforcement Learning: An Introduction},
+  edition   = {Second},
+  publisher = {MIT Press},
+  address   = {Cambridge, MA},
+  year      = {2018}
+}
+
+@article{tesauro1995,
+  title={Temporal difference learning and TD-Gammon},
+  author={Tesauro, Gerald and others},
+  journal={Communications of the ACM},
+  volume={38},
+  number={3},
+  pages={58--68},
+  year={1995}
+}
+
+@inproceedings{sgdescape,
+  title={Stochastic Gradient Learning in Neural Networks},
+  author={L{\'e}on Bottou},
+  year={1991},
+  url={https://api.semanticscholar.org/CorpusID:12410481}
+}
+
+@article{deepblue,
+  author    = {Murray Campbell and A. Joseph Hoane Jr. and Feng-hsiung Hsu},
+  title     = {Deep Blue},
+  journal   = {Artificial Intelligence},
+  volume    = {113},
+  number    = {1-2},
+  pages     = {53--73},
+  year      = {1999},
+  doi       = {https://doi.org/10.1016/S0004-3702(99)00052-8}
 }
 
 @article{44806,
@@ -117,3 +269,138 @@ location = {New Orleans, Louisiana, USA},
 series = {CHI '91}
 }
 
+@misc{gnubg,
+  title = {GNU Backgammon (GNUbg)},
+  note = {Plays and analyzes backgammon games and matches. },
+  url = {https://www.gnu.org/software/gnubg/},
+  urldate = {2025-04-15}
+}
+
+@INPROCEEDINGS{mctsbranching,
+  author={Mohandas, Sabarinath and Nizar, M Abdul},
+  booktitle={2018 International CET Conference on Control, Communication, and Computing (IC4)}, 
+  title={A.I for Games with High Branching Factor}, 
+  year={2018},
+  volume={},
+  number={},
+  pages={372-376},
+  keywords={Games;Artificial intelligence;Genetic algorithms;Complexity theory;Monte Carlo methods;Decision trees;Aerospace electronics;Artificial intelligence (AI);game playing;Monte Carlo tree search (MCTS);genetic algorithms (GA);gomoku;Connect-5},
+  doi={10.1109/CETIC4.2018.8531047}
+}
+
+@article{berliner1980,
+title = {Backgammon computer program beats world champion},
+journal = {Artificial Intelligence},
+volume = {14},
+number = {2},
+pages = {205-220},
+year = {1980},
+issn = {0004-3702},
+doi = {https://doi.org/10.1016/0004-3702(80)90041-7},
+url = {https://www.sciencedirect.com/science/article/pii/0004370280900417},
+author = {Hans J. Berliner},
+abstract = {On July 15, 1979, a backgammon computer program beat the World Backgammon Champion in a match to 7 points. This is the first time a world champion in a recognized intellectual activity has been defeated by a man-made entity. This paper examines the scientific issues involved in constructing the program, an analysis of its performance, and the scientific significance of the win. We also present our SNAC method of constructing evaluation functions.}
+}
+
+
+@book{wisdomjames,
+  author    = {James Surowiecki},
+  title     = {The Wisdom of Crowds},
+  year      = {2004},
+  publisher = {Doubleday}
+}
+
+@article{wisdom2,
+  author    = {Zhi Da and Xing Huang},
+  title     = {Harnessing the Wisdom of Crowds},
+  journal   = {Management Science},
+  year      = {2019},
+  volume    = {66},
+  number    = {5},
+  pages     = {1847--1867},
+  doi       = {10.1287/mnsc.2019.3294}
+}
+
+@incollection{Brown_EnsembleLearning_2011,
+  author    = {Gavin Brown},
+  title     = {Ensemble learning},
+  booktitle = {Encyclopedia of Machine Learning},
+  pages     = {312--320},
+  publisher = {Springer},
+  year      = {2011}
+}
+
+@misc{state_of_js_2024,
+  title = {State of JavaScript 2024: Front-end Frameworks},
+  author = {devographics},
+  year = {2024},
+  note = {Survey results and analysis of front-end frameworks usage, satisfaction, and trends in the JavaScript ecosystem.},
+    urldate = {2025-04-15}
+
+}
+
+@misc{adam1,
+      title={An overview of gradient descent optimization algorithms}, 
+      author={Sebastian Ruder},
+      year={2017},
+      eprint={1609.04747},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/1609.04747}, 
+}
+
+@misc{adam2,
+      title={The Marginal Value of Adaptive Gradient Methods in Machine Learning}, 
+      author={Ashia C. Wilson and Rebecca Roelofs and Mitchell Stern and Nathan Srebro and Benjamin Recht},
+      year={2018},
+      eprint={1705.08292},
+      archivePrefix={arXiv},
+      primaryClass={stat.ML},
+      url={https://arxiv.org/abs/1705.08292}, 
+}
+
+@INPROCEEDINGS{reluvanish,
+  author={Tan, Hong Hui and Lim, King Hann},
+  booktitle={2019 7th International Conference on Smart Computing & Communications (ICSCC)}, 
+  title={Vanishing Gradient Mitigation with Deep Learning Neural Network Optimization}, 
+  year={2019},
+  volume={},
+  number={},
+  pages={1-4},
+  keywords={Training;Optimization;Neural networks;Deep learning;Neurons;Backpropagation algorithms;Approximation algorithms;Activation Function;Approximate Greatest Descent;Saturated and Unsaturated Activation Functions},
+  doi={10.1109/ICSCC.2019.8843652}
+}
+
+@Inbook{LeCun2012,
+author="LeCun, Yann A.
+and Bottou, L{\'e}on
+and Orr, Genevieve B.
+and M{\"u}ller, Klaus-Robert",
+editor="Montavon, Gr{\'e}goire
+and Orr, Genevi{\`e}ve B.
+and M{\"u}ller, Klaus-Robert",
+title="Efficient BackProp",
+bookTitle="Neural Networks: Tricks of the Trade: Second Edition",
+year="2012",
+publisher="Springer Berlin Heidelberg",
+address="Berlin, Heidelberg",
+pages="9--48",
+abstract="The convergence of back-propagation learning is analyzed so as to explain common phenomenon observed by practitioners. Many undesirable behaviors of backprop can be avoided with tricks that are rarely exposed in serious technical publications. This paper gives some of those tricks, and offers explanations of why they work.",
+isbn="978-3-642-35289-8",
+doi="10.1007/978-3-642-35289-8_3",
+url="https://doi.org/10.1007/978-3-642-35289-8_3"
+}
+
+@article{BRISCOE20112,
+title = {Conceptual complexity and the bias/variance tradeoff},
+journal = {Cognition},
+volume = {118},
+number = {1},
+pages = {2-16},
+year = {2011},
+issn = {0010-0277},
+doi = {https://doi.org/10.1016/j.cognition.2010.10.004},
+url = {https://www.sciencedirect.com/science/article/pii/S0010027710002295},
+author = {Erica Briscoe and Jacob Feldman},
+keywords = {Concept learning, Complexity, Bias/variance},
+}

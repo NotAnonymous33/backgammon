@@ -6,17 +6,17 @@ from .agents.RandomAgent import RandomAgent
 # from agents.MCTS import MCTSAgent # 1v1 117 52 89 82 117
 # from .agents.CMCTS import MCTSAgent # type: ignore
 from .agents.CMCTS2 import MCTSAgent2 # type: ignore
-from .agents.NNAgent import FinalNNAgent
+# from .agents.NNAgent import FinalNNAgent
 
 from .agents.HeuristicAgent import HeuristicAgent
 from time import perf_counter, sleep
 
 
 start = perf_counter()
-# white = MCTSAgent2(time_budget=1)
-white = MCTSAgent2(mode="neural", eval_depth=20, nn_agent=FinalNNAgent(checkpoint_path="models/main/backgammon_main_checkpoint_latest.pt"), time_budget=1)
-# black = MCTSAgent2(time_budget=5)
-black = MCTSAgent2(mode="heuristic", eval_depth=20, time_budget=1)
+white = MCTSAgent2(time_budget=1)
+# white = MCTSAgent2(mode="neural", eval_depth=20, nn_agent=FinalNNAgent(checkpoint_path="models/main/backgammon_main_checkpoint_latest.pt"), time_budget=1)
+black = MCTSAgent2(time_budget=2)
+# black = MCTSAgent2(mode="heuristic", eval_depth=20, time_budget=1)
 # [2**i for i in range(10)] beats [i for i in range(10)] 77% of the time
 # white = HeuristicAgent([100, 1, 100, 1, 100, 1, 100, 1, 100, 1])
 # black = HeuristicAgent([1, 100, 1, 100, 1, 100, 1, 100, 1, 100])
@@ -32,7 +32,8 @@ N = 1 # 1000 games 2.1 seconds (500 game a second) cpp
 # 24.4 simulations per second time3 vs time3
 white_win = 0
 black_win = 0
-# simulations = []
+simulations = []
+clone_count = []
 total_diff = 0
 
 #while True:
@@ -45,12 +46,12 @@ try:
         while not board.game_over:
             if board.turn == 1:
                 agent = white
-                # simulations.append(white.mcts.sim_count)
-                # white_sims.append(white.mcts.sim_count)
+                simulations.append(white.mcts.sim_count)
+                white_sims.append(white.mcts.sim_count)
             else:
                 agent = black
-                # simulations.append(black.mcts.sim_count)
-                # black_sims.append(black.mcts.sim_count)
+                simulations.append(black.mcts.sim_count)
+                black_sims.append(black.mcts.sim_count)
             dice, invdice, moves, = board.roll_dice()
             # print(board)
             move = agent.select_move(board)
@@ -83,14 +84,14 @@ white_sims.sort()
 black_sims.sort()
 print(white_sims)
 print(black_sims)
-# print(f"median: white: {white_sims[len(white_sims)//2]} black: {black_sims[len(black_sims)//2]}")
-# white_sims = white_sims[:-len(white_sims)//4]
-# black_sims = black_sims[:-len(black_sims)//4]
-# print(f"mean: white: {sum(white_sims) / len(white_sims)} black: {sum(black_sims) / len(black_sims)}")
+print(f"median: white: {white_sims[len(white_sims)//2]} black: {black_sims[len(black_sims)//2]}")
+white_sims = white_sims[:-len(white_sims)//4]
+black_sims = black_sims[:-len(black_sims)//4]
+print(f"mean: white: {sum(white_sims) / len(white_sims)} black: {sum(black_sims) / len(black_sims)}")
 
-# print("Lowest simulations: ", simulations[1])
-# print("First quartile simulations per second: ", simulations[len(simulations)//4])
-# print("Median simulations per second: ", simulations[len(simulations) // 2])
+print("Lowest simulations: ", simulations[1])
+print("First quartile simulations per second: ", simulations[len(simulations)//4])
+print("Median simulations per second: ", simulations[len(simulations) // 2])
 
 print("White wins: ", white_win)
 print("Black wins: ", black_win)

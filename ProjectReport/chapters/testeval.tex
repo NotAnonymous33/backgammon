@@ -1,0 +1,29 @@
+
+
+
+
+\chapter{Testing and Evaluation}
+This chapter describes the testing and evaluation of the backgammon platform, covering both client and AI performance.
+\section{Game Testing}
+\paragraph{Unit testing}
+Core game logic (e.g. move generation, dice handling, board updates) were validated using a suite of Python \texttt{unittest} cases. 
+Each rule regarding movement, such as hitting, bearing off, and re-entry, each had multiple test cases, ensuring 100\% test coverage for game logic. 
+Edge cases, such as forced passes (where a player is unable to move and gives up their turn) and forced moves, were also explicitly covered in the test cases.
+
+\paragraph{Integration Testing}
+Client-server interactions were tested using Selenium scripts which executed the following tasks:
+\begin{enumerate}
+    \item Create, join, and rejoin games via REST API;
+    \item Establish socket connections and simulate human and AI players;
+    \item Spectate AI vs AI games.
+\end{enumerate}
+Network interruptions and attempts to bypass client-side validation by sending requests directly to the server verified that the server emits appropriate errors.
+
+
+
+
+\section{AI Agent Testing}
+\subsection{Evaluation Framework}
+\subsection{Performance Metrics}
+\subsection{Neural Network Training Results}
+\subsection{Tournament Results}

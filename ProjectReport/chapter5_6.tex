@@ -1,10 +1,3 @@
-\chapter{Testing and Evaluation}
-\section{Game Testing}
-\section{AI Agent Testing}
-\subsection{Evaluation Framework}
-\subsection{Performance Metrics}
-\subsection{Neural Network Training Results}
-\subsection{Tournament Results}
 
 
 \chapter{Conclusion}
@@ -14,6 +7,37 @@
 \subsection{Key Challenges Faced}
 \section{Limitations}
 \section{Future Work}
+
+\subsection{Doubling Cube}
+TODO: move this to the future work section
+Backgammon is often played with a doubling cube, a six-sided die marked with the numbers 2, 4, 8, 16, 32, and 64.
+
+At the beginning of the game, the cube is placed centered with the 64 face up (representing a value of 1). The game starts at a stake of one point.
+
+Before rolling the dice on their turn, a player who believes they have an advantage may propose doubling the stakes. 
+They turn the cube to the next highest value (e.g., from 1 to 2) and offer it to the opponent.
+
+The opponent must either accept (take) the double or reject (pass/drop) the cube.
+
+If the opponent accepts, the game continues at the new, doubled stake. The player who accepted the double now owns the cube and only they have the option to offer the next double.
+
+If the opponent rejects, they concede the game immediately and lose the number of points that were at stake before the double was offered (i.e. the current value of the cube).
+
+The player who last accepted a double may, on their turn before rolling, offer to redouble the stakes again (e.g., from 2 to 4, then 4 to 8, and so on). The opponent must again choose to accept or reject. If accepted, ownership of the cube passes back to the player accepting the redouble.
+
+TODO future work: parallel computing. for mcts
+
+TODO future work: doubling cube, gammons, backgammons, game variations
+
+\paragraph{Future Directions}
+To further boost speed and scalability:
+\begin{itemize}
+\item Implement transposition tables using Zobrist hashing to reuse results across similar board states. (maybe need to mention in background TODO)
+\item Introduce a move-sequence cache keyed by board hash to skip fresh DFS on repeated patterns.
+\item Parallelize DFS branches using thread pools or task-based parallelism, exploiting multi-core CPUs for deeper lookahead in AI agents.
+\item Integrate JIT compilation (via LLVM) for hot paths, such as move validation, to push performance closer to native assembly.
+\end{itemize}
+
 \subsection{AI}
 \subsection{Feature Additions}
 \subsection{Deployment and Scalability}

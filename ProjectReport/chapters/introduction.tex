@@ -1,32 +1,31 @@
 \chapter{Introduction}
 \label{cha:intro}
 \section{Motivation}
-Backgammon represents one of the oldest board games in existence, with a history spanning thousands of years. While games like chess and Go have received significant attention in AI research, backgammon presents unique challenges for multiple reasons. Its use of dice introduce chance into the gameplay, which drastically increases the branching factor (approximately 400 \cite{branchingfactor} whereas chess has an average branching factor of 35 \cite{chessfactor} and Go has a branching factor of TODO \cite{gofactor}. In addition to the element of chance, backgammon also has a complex set of rules governing movement, hitting, and bearing off, which adds to the challenge of developing AI algorithms. Furthermore, Go naturally progresses forward with pieces typically not being removed, and chess has the 50 move rule, whereas backgammon matches have the potential to be significantly longer due to the continuous hitting and re-entering of pieces.
+Backgammon represents one of the oldest board games in existence, with a history spanning thousands of years. While games like chess and Go have received significant attention in AI research, backgammon presents unique challenges for multiple reasons. Its use of dice introduces chance into the gameplay, which drastically increases the branching factor (21 possible dice combinations and roughly 20 moves per roll results in approximately 400 \cite{branchingfactor}) whereas chess has an average branching factor of 35 and Go has a branching factor of 250 \cite{mctsbranching}. In addition to the element of chance, backgammon also has a complex set of rules regarding movement, hitting, and bearing off, which adds to the challenge of developing AI algorithms.
 
-Many current backgammon systems are downloadable applications with outdated user interfaces or even command line interfaces, limiting accessibility and user experience. In contrast, websites offer several advantages, including cross-platform compatibility, instant availability without downloads or installations, and the potential for richer, more interactive user interfaces, while also being highly accessible.
+Many current backgammon systems are downloaded applications with outdated user interfaces or command line interfaces, limiting accessibility and user experience \cite{gnubg}. In contrast, websites offer several advantages, including cross-platform compatibility, instant availability without installations, and the potential for more interactive and accessible user interfaces.
 
-In addition to playing against each other, this project aims to implement a variety AI models, so different players (both human and AI) can compete, providing a recreational tool for playing backgammon, and also a framework for testing and comparing different AI models. 
 
 \section{Problem Statement and Objectives}
-The main problem addressed by this project is to develop a comprehensive backgammon website which allows players to engage in games against human opponents or different AI players. This includes several specific tasks:
+The main problem addressed by this project is to develop a comprehensive backgammon website which allows players to engage in games against other human or different AI players. This includes several specific tasks:
 \begin{enumerate}
     \item Develop a fully functional backgammon server which manages game state, enforces games rules, validates moves, and communicates with clients;
-    \item Ensure real time synchronization between the server and multiple clients
-    \item Create a client with a modern UI in order to interact with the server;
+    \item Ensure real time, low latency synchronization between the server and multiple clients;
+    \item Create a client with a modern UI for interacting with the server;
     \item Implement different AI agents including:
     \begin{itemize}
         \item Random move Agent,
-        \item Rule based Agent which uses heuristics,
-        \item Monte Carlo Tree Search Agent which uses random statistical sampling,
-        \item Neural Network Agent which uses reinforcement learning and self play to learn an evaluation function;
+        \item Rule based heuristic Agent,
+        \item Monte Carlo Tree Search Agent,
+        \item Neural Network Agent;
     \end{itemize}
     \item Supporting different game modes (human vs human, human vs AI, AI vs AI);
-    \item Evaluate performance of the different AI agents by creating a tournament where each agent plays hundreds of games against each other, with win rate serving as the primary metric for performance.
+    \item Evaluate performance of the different AI agents by creating a tournament where agents play against each other, measuring performance using win rate.
 \end{enumerate}
 
-A particular challenge is making the system as performant as possible, in order to allow the more complicated AI agents sufficient processing to select optimal moves.
+A particular challenge is making the system as performant as possible, in order to allow more complicated AI agents sufficient processing to select optimal moves.
 
-This project will demonstrate the benefits of a web-based client and evaluate the effectiveness of different AI models in backgammon, particularly reinforcement learning through self-play.
+This project will demonstrate the benefits of a web-based client and evaluate the effectiveness of different AI models in backgammon, particularly reinforcement learning through self-play and statistical sampling in Monte Carlo methods.
 
 \section{Structure of the Report}
 
