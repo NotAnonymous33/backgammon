@@ -17,26 +17,26 @@ def log(msg: str):
     log_file.write(msg + '\n')
     log_file.flush()
 
-nn = FinalNNAgent(checkpoint_path='models/main/backgammon_main_checkpoint_latest.pt')
+# nn = FinalNNAgent(checkpoint_path='models/main/backgammon_main_checkpoint_latest.pt')
 # Map agent names to their classes and default parameters
 AGENTS = {
-    # 'Rand': (RandomAgent, {}),
-    'M1s': (MCTSAgent2, {'time_budget': 1}),
-    'M2s': (MCTSAgent2, {'time_budget': 2}),
+    'Rand': (RandomAgent, {}),
+    # 'M1s': (MCTSAgent2, {'time_budget': 1}),
+    # 'M2s': (MCTSAgent2, {'time_budget': 2}),
     # 'M10s': (MCTSAgent2, {'time_budget': 10}),
-    'MNN80': (MCTSAgent2, {'mode': 'neural', 'eval_depth':80, 'nn_agent': nn, 'time_budget': 1}),
-    'MH80': (MCTSAgent2, {'mode': 'heuristic', 'eval_depth': 80, 'time_budget': 1}),
-    'MNN40': (MCTSAgent2, {'mode': 'neural', 'eval_depth':40, 'nn_agent': nn, 'time_budget': 1}),
-    'MH40': (MCTSAgent2, {'mode': 'heuristic', 'eval_depth': 40, 'time_budget': 1}),
-    'MNN10': (MCTSAgent2, {'mode': 'neural', 'eval_depth':10, 'nn_agent': nn, 'time_budget': 1}),
-    'MH10': (MCTSAgent2, {'mode': 'heuristic', 'eval_depth': 10, 'time_budget': 1}),
-    # 'HDef': (HeuristicAgent, {}),
-    # 'HOne': (HeuristicAgent, {'weights': [1]*10}),
-    # 'NN4': (FinalNNAgent, {'checkpoint_path': 'models/main/backgammon_main_checkpoint_latest.pt'}),
-    # 'NN25': (FinalNNAgent, {'checkpoint_path': 'models/main/backgammon_checkpoint_epoch_main65.pt'}),
-    # 'NN50': (FinalNNAgent, {'checkpoint_path': 'models/main/backgammon_checkpoint_epoch_main130.pt'}),
-    # 'NN75': (FinalNNAgent, {'checkpoint_path': 'models/main/backgammon_checkpoint_epoch_main195.pt'}),
-    # 'NN10': (FinalNNAgent, {'checkpoint_path': 'models/main/backgammon_checkpoint_epoch_main25.pt'}),
+    # 'MNN80': (MCTSAgent2, {'mode': 'neural', 'eval_depth':80, 'nn_agent': nn, 'time_budget': 1}),
+    # 'MH80': (MCTSAgent2, {'mode': 'heuristic', 'eval_depth': 80, 'time_budget': 1}),
+    # 'MNN40': (MCTSAgent2, {'mode': 'neural', 'eval_depth':40, 'nn_agent': nn, 'time_budget': 1}),
+    # 'MH40': (MCTSAgent2, {'mode': 'heuristic', 'eval_depth': 40, 'time_budget': 1}),
+    # 'MNN10': (MCTSAgent2, {'mode': 'neural', 'eval_depth':10, 'nn_agent': nn, 'time_budget': 1}),
+    # 'MH10': (MCTSAgent2, {'mode': 'heuristic', 'eval_depth': 10, 'time_budget': 1}),
+    'HDef': (HeuristicAgent, {}),
+    'HOne': (HeuristicAgent, {'weights': [1]*10}),
+    'NN': (FinalNNAgent, {'checkpoint_path': 'models/main/main_checkpoint_latest.pt'}),
+    'NN25': (FinalNNAgent, {'checkpoint_path': 'models/main/checkpoint_epoch_main65.pt'}),
+    'NN50': (FinalNNAgent, {'checkpoint_path': 'models/main/checkpoint_epoch_main130.pt'}),
+    'NN75': (FinalNNAgent, {'checkpoint_path': 'models/main/checkpoint_epoch_main195.pt'}),
+    'NN10': (FinalNNAgent, {'checkpoint_path': 'models/main/checkpoint_epoch_main25.pt'}),
 }
 
 
@@ -64,7 +64,7 @@ def play_game(white_name: str, black_name: str):
 
 
 if __name__ == '__main__':
-    GAMES_PER_PAIR = 50
+    GAMES_PER_PAIR = 5000
 
     agent_names = list(AGENTS.keys())
     pairings = []
@@ -102,6 +102,8 @@ if __name__ == '__main__':
         game_num = sum(game_counts.values()) // 2
         w_rate = win_counts[white] / game_counts[white] * 100
         b_rate = win_counts[black] / game_counts[black] * 100
+        if game_num % 10 != 0:
+            return
         print(
             f"Game {game_num}: {white}(white) vs {black}(black) -> "
             f"Winner: {winner} in {length} moves. "
@@ -112,7 +114,7 @@ if __name__ == '__main__':
 
     start = time.perf_counter()
     print(mp.cpu_count())
-    pool = mp.Pool(mp.cpu_count()//2)
+    pool = mp.Pool(mp.cpu_count())
     for white, black in pairings:
         pool.apply_async(play_game, args=(white, black), callback=on_result)
     pool.close()

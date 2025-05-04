@@ -50,14 +50,21 @@ export default function Home() {
 
 
     return (
-        <>
+        <div className="home-container">
             <h1>Home</h1>
-            <div className="button-div"></div>
-            <button onClick={() => handleNewGame()} className="button-newgame">New Game</button>
-            <form onSubmit={handleSubmit}>
-                <input type="text" placeholder="Enter Game ID" onChange={handleChange} value={roomCode} className="input-gameId" />
-                <button className="button-join">Join Game</button>
+            <div className="button-div">
+                <button onClick={handleNewGame} className="button-newgame">New Game</button>
+            </div>
+            <form onSubmit={handleSubmit} className="join-form">
+                <input
+                    type="text"
+                    placeholder="Enter Game ID"
+                    onChange={handleChange}
+                    value={roomCode}
+                    className="input-gameId"
+                />
+                <button type="submit" className="button-join">Join Game</button>
             </form>
-        </>
+        </div>
     )
 }

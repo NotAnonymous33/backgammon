@@ -1,3 +1,103 @@
+/* File: GameLobby.css */
+.lobby-container {
+    max-width: 600px;
+    margin: 2rem auto;
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: rgb(27, 27, 27);
+}
+
+.mode-section {
+    margin-bottom: 2rem;
+}
+
+.mode-section h2 {
+    margin-bottom: 1rem;
+    color: #dedeec;
+    font-size: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.select {
+    margin-left: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 1rem;
+}
+
+.button-group {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.btn {
+    padding: 0.6rem 1.2rem;
+    font-size: 1rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.btn:hover {
+    background-color: #0056b3;
+    transform: translateY(-2px);
+}
+
+.btn:active {
+    background-color: #004080;
+    transform: translateY(0);
+}
+
+/* File: GameLobby.css */
+/* ← keep all your original rules exactly as they are… */
+
+.btn-white {
+    /* default is ~15% lighter than #007bff */
+    background-color: #4aa8ff;
+    color: rgb(0, 0, 0)
+        /* on hover, go back toward your normal primary */
+}
+
+.btn-white:hover {
+    background-color: #007bff;
+    transform: translateY(-2px);
+}
+
+.btn-white:active {
+    /* same as your normal hover-active */
+    background-color: #0056b3;
+    transform: translateY(0);
+}
+
+.btn-black {
+    /* default is ~15% darker than #007bff */
+    background-color: #0056b3;
+}
+
+.btn-black:hover {
+    /* go even darker on hover */
+    background-color: #004080;
+    transform: translateY(-2px);
+}
+
+.btn-black:active {
+    background-color: #002d66;
+    transform: translateY(0);
+}
+
+
 .container {
     display: flex;
     flex-direction: column;

@@ -4,6 +4,8 @@ import Dice from "./Dice"
 import { socket } from "../socket"
 import { useParams } from "react-router-dom"
 import { BACKEND_URL } from "../constants"
+import { useWindowSize } from 'react-use'
+import Confetti from 'react-confetti'
 
 //--- type sent from server
 type BoardType = {
@@ -37,6 +39,7 @@ export default function Board() {
     const verbose = true
     const params = useParams()
     const roomCode = params["room_code"]
+    const { width, height } = useWindowSize()
 
     const [selectedAiAgent, setSelectedAiAgent] = useState<string>("random")
     const [selectedAiAgent2, setSelectedAiAgent2] = useState<string>("random")
@@ -74,6 +77,7 @@ export default function Board() {
 
     const [rolled, setRolled] = useState(false)
     const [isRollingAnimation, setIsRollingAnimation] = useState(false)
+    const [gameOver, setGameOver] = useState(false)
 
     const pointWidth = 75
     const pointHeight = 200
@@ -158,7 +162,9 @@ export default function Board() {
         })
 
         socket.on("game_over", (data: { winner: number }) => {
-            setMessage(`Game Over: ${data.winner}`)
+            setMessage(`Game Over: ${data.winner} wins!`)
+            setGameOver(true)
+
             verbose && console.log("Game Over:", JSON.stringify(data))
         })
 
@@ -521,93 +527,87 @@ export default function Board() {
     // --- Pre-game selection UI with a dropdown for AI agent selection
     if (!playerSide) {
         return (
-            <div style={{ textAlign: "center", padding: "2rem" }}>
-                <h2>Player vs Player</h2>
-                <button onClick={() => setPlayerSide("white")}>Play as White</button>
-                <button onClick={() => setPlayerSide("black")}>Play as Black</button>
-                <h2>Player vs AI</h2>
-                <div>
-                    <label>
-                        Choose AI Agent:{" "}
-                        <select
-                            value={selectedAiAgent}
-                            onChange={e => setSelectedAiAgent(e.target.value)}
-                        >
-                            <option value="random">Random</option>
-                            <option value="first">First Move</option>
-                            <option value="mcts">Monte Carlo Tree Search</option>
-                            <option value="neural">Neural Network</option>
-                        </select>
-                    </label>
-                </div>
-                <button
-                    onClick={() => {
-                        setPlayerSide("white");
-                        setPlayerType("human");
-                        // Also join the opposite side as AI with chosen model.
-                        socket.emit("join_room", { room_code: roomCode, side: "black", playerType: "ai", aiModel: selectedAiAgent });
-                    }}
-                >
-                    Play as White
-                </button>
-                <button
-                    onClick={() => {
-                        setPlayerSide("black");
-                        setPlayerType("human");
-                        socket.emit("join_room", { room_code: roomCode, side: "white", playerType: "ai", aiModel: selectedAiAgent });
-                    }}
-                >
-                    Play as Black
-                </button>
-                <h2>AI vs AI (under construction)</h2>
-                <div>
-                    <label>
-                        Choose White AI Agent:{" "}
-                        <select
-                            value={selectedAiAgent}
-                            onChange={e => setSelectedAiAgent(e.target.value)}
-                        >
-                            <option value="random">Random</option>
-                            <option value="first">First Move</option>
-                            <option value="mcts">Monte Carlo Tree Search</option>
-                            <option value="neural">Neural Network</option>
-                        </select>
-                    </label>
-                </div>
-                <div>
-                    <label>
-                        Choose Black AI Agent:{" "}
-                        <select
-                            value={selectedAiAgent2}
-                            onChange={e => setSelectedAiAgent2(e.target.value)}
-                        >
-                            <option value="random">Random</option>
-                            <option value="first">First Move</option>
-                            <option value="mcts">Monte Carlo Tree Search</option>
-                            <option value="neural">Neural Network</option>
-                        </select>
-                    </label>
-                </div>
+            <div className="lobby-container">
+                <section className="mode-section">
+                    <h2>Player vs Player</h2>
+                    <div className="button-group">
+                        <button className="btn btn-white" onClick={() => setPlayerSide("white")}>Play as White</button>
+                        <button className="btn btn-black" onClick={() => setPlayerSide("black")}>Play as Black</button>
+                    </div>
+                </section>
 
-                <button
-                    onClick={() => {
-                        setPlayerSide("spectator");
-                        socket.emit("join_room", { room_code: roomCode, side: "white", playerType: "ai", aiModel: selectedAiAgent });
-                        socket.emit("join_room", { room_code: roomCode, side: "black", playerType: "ai", aiModel: selectedAiAgent2 });
-                    }}
-                >
-                    Watch AI vs AI
-                </button>
+                <section className="mode-section">
+                    <h2>Player vs AI</h2>
+                    <div className="form-group">
+                        <label>
+                            Choose AI Agent:
+                            <select className="select" value={selectedAiAgent} onChange={e => setSelectedAiAgent(e.target.value)}>
+                                <option value="random">Random</option>
+                                <option value="heuristic">Heuristic</option>
+                                <option value="mcts">Monte Carlo Tree Search</option>
+                                <option value="neural">Neural Network</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div className="button-group">
+                        <button className="btn btn-white" onClick={() => {
+                            setPlayerSide("white");
+                            setPlayerType("human");
+                            socket.emit("join_room", { room_code: roomCode, side: "black", playerType: "ai", aiModel: selectedAiAgent });
+                        }}>Play as White</button>
+                        <button className="btn btn-black" onClick={() => {
+                            setPlayerSide("black");
+                            setPlayerType("human");
+                            socket.emit("join_room", { room_code: roomCode, side: "white", playerType: "ai", aiModel: selectedAiAgent });
+                        }}>Play as Black</button>
+                    </div>
+                </section>
+
+                <section className="mode-section">
+                    <h2>AI vs AI</h2>
+                    <div className="form-group">
+                        <label>
+                            Choose White AI Agent:
+                            <select className="select" value={selectedAiAgent} onChange={e => setSelectedAiAgent(e.target.value)}>
+                                <option value="random">Random</option>
+                                <option value="heuristic">Heuristic</option>
+                                <option value="mcts">Monte Carlo Tree Search</option>
+                                <option value="neural">Neural Network</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div className="form-group">
+                        <label>
+                            Choose Black AI Agent:
+                            <select className="select" value={selectedAiAgent2} onChange={e => setSelectedAiAgent2(e.target.value)}>
+                                <option value="random">Random</option>
+                                <option value="heuristic">Heuristic</option>
+                                <option value="mcts">Monte Carlo Tree Search</option>
+                                <option value="neural">Neural Network</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div className="button-group">
+                        <button className="btn" onClick={() => {
+                            setPlayerSide("spectator");
+                            socket.emit("join_room", { room_code: roomCode, side: "white", playerType: "ai", aiModel: selectedAiAgent });
+                            socket.emit("join_room", { room_code: roomCode, side: "black", playerType: "ai", aiModel: selectedAiAgent2 });
+                        }}>Watch AI vs AI</button>
+                    </div>
+                </section>
             </div>
         );
     }
 
     return (
         <>
-            <h2>message: {JSON.stringify(message)}</h2>
+            {gameOver && <Confetti width={width} height={height} />}
 
             <div className="turn-indicator">
-                <h1><strong>{turnLabel}</strong> to move</h1>
+                {
+                    gameOver ? (<h1><strong>{message}</strong></h1>) : (<h1><strong>{turnLabel}</strong> to move</h1>)
+                }
+
             </div>
 
             <div style={{ display: "flex" }}>

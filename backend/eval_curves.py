@@ -28,7 +28,7 @@ def plot_eval_curve(txt_path, save_path=None):
             print(f"Evaluation curve saved to {save_path}")
     
     
-names = ["tdgammon"]
+names = ["tdgammon", "momentum"]
 for name in names:
     plot_eval_curve(f"eval_results/results_{name}.txt", f"graph_{name}.png")
 

@@ -470,4 +470,56 @@ Once the learning process had been proved to work by being able to beat the rand
 
 \subsection{Model Architecture Selection}
 
-In order to determine what model architecture the final neural network
+In order to determine what model architecture the final neural network would use, the architectures shown in table \ref{tab:architectures} were tested. The models were trained for 30 epochs of 300 games. 
+After each epoch, each agent was evaluated against a random agent to track training progress, as shown in appendix \ref{sec:apptraining1}. 
+After training had completed, the models were evaluated against each other by playing 10 games against each other model, the results of which are summarised in table \ref{tab:model_performance1}.
+Models \texttt{hidden\_128} and \texttt{high\_lr} were the best performing models, with winrates of 78\% and 76\% respectively. New models were then trained with slight adjustments to the hyperparameters
+
+
+\begin{table}[ht]
+    \centering
+    \begin{tabular}{lccc}
+      \toprule
+      \textbf{Model} & \textbf{Hidden Sizes} & \textbf{Learning Rate} & $\boldsymbol{\lambda}$ \\
+      \midrule
+      \texttt{small}         & [64, 64]     & 0.01 & 0.7 \\
+      \texttt{lambda\_0.4}   & [128, 64]    & 0.01 & 0.4 \\
+      \texttt{low\_lambda}   & [128, 64]    & 0.01 & 0.1 \\
+      \texttt{high\_lr}      & [128, 64]    & 0.10 & 0.7 \\
+      \texttt{hidden\_128}   & [128, 128]   & 0.05 & 0.7 \\
+      \bottomrule
+    \end{tabular}
+      \caption{Comparison of BackgammonNN architectures and hyperparameters}
+    \label{tab:architectures}
+    \vspace{1ex}
+\end{table}
+
+\begin{table}[ht]
+    \centering
+
+    \begin{tabular}{lrrr}
+      \toprule
+      \textbf{Model}      & \textbf{Wins} & \textbf{Games} & \textbf{Win Rate} \\
+      \midrule
+      hidden\_128         & 39            & 50             & 0.78            \\
+      high\_lr            & 38            & 50             & 0.76            \\
+      main\_model         & 21            & 50             & 0.42            \\
+      low\_lambda         & 20            & 50             & 0.40            \\
+      small               & 16            & 50             & 0.32            \\
+      lambda\_0.4         & 16            & 50             & 0.32            \\
+      \bottomrule
+    \end{tabular}
+    \caption{BackgammonNN Model Performance}
+    \label{tab:model_performance1}
+\end{table}
+
+The following agents are included in the two tournaments:
+\begin{itemize}
+    \item \textbf{Rand:} A random agent;
+    \item \textbf{NN:} The complete, trained neural network agent;
+    \item \textbf{NN10, NN25, NN50, NN75:} The neural network agent at 10\%, 25\%, 50\%, and 75\% of the training;
+    \item \textbf{HOne:} The heuristic agent with default weights, all equal to 1;
+    \item \textbf{HSGD}: The heuristic agent with weights trained using self-play and stochastic gradient descent;
+\end{itemize}
+
+Users enjoyed playing against different AI agents, however found the lack of animations 

@@ -1,37 +1,89 @@
-button {
-    width: 200px;
+/* File: Home.css */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     margin: 0;
-    height: 42px;
+    padding: 0;
+    display: flex;
+    /* enable flex centering */
+    justify-content: center;
+    /* horizontal centering */
+    align-items: center;
+    /* vertical centering */
 }
 
-form {
-    margin: 0
+.home-container {
+    max-width: 480px;
+    margin: 4rem auto;
+    background-color: rgb(27, 27, 27);
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0px 4px 16px rgba(0, 0, 0, 0.1);
+    text-align: center;
 }
 
-input {
-    width: 200px;
-    height: 42px;
-    padding: 0px;
-    border: 0px;
-    border-radius: 8px;
+.home-container h1 {
+    margin-bottom: 2rem;
+    font-size: 2rem;
 }
 
 .button-div {
-    display: grid;
-    grid-template-areas:
-        "newgame newgame"
-        "txtinp joingame";
-}
-
-
-.button-join {
-    grid-area: joingame;
+    margin-bottom: 1.5rem;
 }
 
 .button-newgame {
-    grid-area: newgame;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background-color: #28a745;
+    color: #ffffff;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.button-newgame:hover {
+    background-color: #218838;
+    transform: translateY(-1px);
+}
+
+.button-newgame:active {
+    background-color: #1e7e34;
+    transform: translateY(0);
+}
+
+.join-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .input-gameId {
-    grid-area: txtinp;
+    width: 100%;
+    max-width: 300px;
+    padding: 0.6rem;
+    margin-bottom: 1rem;
+    border: 1px solid #cccccc;
+    border-radius: 6px;
+    font-size: 1rem;
+}
+
+.button-join {
+    padding: 0.6rem 1.2rem;
+    font-size: 1rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background-color: #007bff;
+    color: #ffffff;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.button-join:hover {
+    background-color: #0056b3;
+    transform: translateY(-1px);
+}
+
+.button-join:active {
+    background-color: #004080;
+    transform: translateY(0);
 }

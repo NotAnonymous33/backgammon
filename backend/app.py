@@ -4,7 +4,7 @@ from flask_cors import CORS
 from classes.board_cpp import Board # type: ignore
 from models import Game, db
 from random import randint
-from classes.agents.FirstAgent import FirstAgent
+from classes.agents.HeuristicAgent import HeuristicAgent
 from classes.agents.RandomAgent import RandomAgent
 from classes.agents.CMCTS2 import MCTSAgent2 as MCTSAgent  # type: ignore
 from classes.agents.NNAgent import FinalNNAgent
@@ -226,8 +226,8 @@ def ai_move(room_code):
             return
         
         # Instantiate the proper AI.
-        if ai_model == "first":
-            ai = FirstAgent()
+        if ai_model == "heuristic":
+            ai = HeuristicAgent()
         elif ai_model == "random":
             ai = RandomAgent()
         elif ai_model == "mcts":
