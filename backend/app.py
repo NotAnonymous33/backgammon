@@ -8,6 +8,7 @@ from classes.agents.HeuristicAgent import HeuristicAgent
 from classes.agents.RandomAgent import RandomAgent
 from classes.agents.CMCTS2 import MCTSAgent2 as MCTSAgent  # type: ignore
 from classes.agents.NNAgent import FinalNNAgent
+import threading
 
 
 app = Flask(__name__)
@@ -78,7 +79,7 @@ def handle_join(data):
     ai_model = data.get("aiModel", "random")  # for AI players, default to "random"
     
     if room_code not in rooms:
-        rooms[room_code] = {"players": {"white": None, "black": None}}
+        rooms[room_code] = {"players": {"white": None, "black": None}, "ai_lock": threading.Lock()}
         print(rooms)
 
     if side in ["white", "black"]:
@@ -177,7 +178,7 @@ def handle_move(data):
     else:
         if move_result == True:
             print("move is true")
-            emit("game_over", {"winner": "white" if board.white_off == 15 else "black"}, room=room_code)
+            emit("game_over", {"winner": "White" if board.white_off == 15 else "Black"}, room=room_code)
         board_dict = board.convert()
         update_board_db(room_code, board_dict)
         print("updated db, emitting update_board")
@@ -192,7 +193,7 @@ def handle_move(data):
         socketio.sleep(1)
 
 def ai_move(room_code):
-    with app.app_context():
+    with app.app_context(), rooms[room_code]["ai_lock"]:
         print(room_code)
         # this line is causing the error
         db_board = Game.query.filter_by(room_code=room_code).order_by(Game.id.desc()).first()
@@ -279,7 +280,7 @@ def handle_roll_dice(data):
     player_info = room_info.get(current_side)
 
     if not (player_info and player_info.get("type") == "human" and player_info.get("sid") == request.sid):
-        print("dice is trying to be made by the wrong player")
+        print("dice is trying to be rolled by the wrong player")
         emit("error", {"message": "Not your turn or you are not authorized to move this side."}, room=request.sid)
         return
 

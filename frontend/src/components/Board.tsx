@@ -162,7 +162,7 @@ export default function Board() {
         })
 
         socket.on("game_over", (data: { winner: number }) => {
-            setMessage(`Game Over: ${data.winner} wins!`)
+            setMessage(`${data.winner} wins!`)
             setGameOver(true)
 
             verbose && console.log("Game Over:", JSON.stringify(data))
@@ -300,6 +300,7 @@ export default function Board() {
         setIsRollingAnimation(true)
         verbose && console.log("emitting roll_dice")
         socket.emit("roll_dice", { room_code: roomCode })
+        console.log("turn: ", gameState.turn)
     }
 
     function testButton() {
