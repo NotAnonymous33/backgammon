@@ -84,7 +84,8 @@ def handle_join(data):
 
     if side in ["white", "black"]:
         if player_type == "human":
-            if rooms[room_code]["players"].get(side) is not None and rooms[room_code]["players"][side]["type"] == "human":
+            player = rooms[room_code]["players"].get(side)
+            if player and player["type"] == "human" and player["sid"] != request.sid:
                 emit("error", {"message": f"{side} side already taken."}, room=request.sid)
                 return
             rooms[room_code]["players"][side] = {"type": "human", "sid": request.sid}
@@ -122,6 +123,10 @@ def handle_connect():
 
 @socketio.on('disconnect')
 def handle_disconnect():
+    for room in list(rooms.values()):
+        for side, player in room["players"].items():
+            if player and player.get("type") == "human" and player.get("sid") == request.sid:
+                room["players"][side] = None
     print(f"{request.sid} disconnected")
     
 @app.route("/api/test", methods=["POST"])
