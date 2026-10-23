@@ -14,6 +14,14 @@
 
 namespace py = pybind11;
 
+// Shared dice generator: seeded from std::random_device unless seed_dice()
+// is called, which makes games reproducible (used by the benchmarks).
+static std::mt19937 &dice_rng()
+{
+    static std::mt19937 gen(std::random_device{}());
+    return gen;
+}
+
 class Board
 {
 public:
@@ -1170,11 +1178,9 @@ public:
             return py::make_tuple(dice, invalid_dice, valid_moves);
         }
 
-        static std::random_device rd;
-        static std::mt19937 gen(rd());
         std::uniform_int_distribution<> distrib(1, 6);
 
-        dice = {distrib(gen), distrib(gen)};
+        dice = {distrib(dice_rng()), distrib(dice_rng())};
 
         if (dice[0] == dice[1])
         {
@@ -1237,6 +1243,9 @@ public:
 
 PYBIND11_MODULE(board_cpp, m)
 {
+    m.def("seed_dice", [](unsigned int seed)
+          { dice_rng().seed(seed); }, py::arg("seed"),
+          "Seed the generator used by Board.roll_dice.");
     py::class_<Board>(m, "Board")
         .def(py::init<py::dict, py::object, py::object, bool>(),
              py::arg("board_dict") = py::dict(),
