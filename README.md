@@ -22,7 +22,7 @@ A turn‑based Backgammon game server and client:
 
 ## 🛠 Tech Stack  
 ### Backend  
-- **Python 3.x**  
+- **Python 3.11**
 - **Cython 3**
 - **pybind11 2**
 - **Flask 3.1.0** 
@@ -36,7 +36,8 @@ A turn‑based Backgammon game server and client:
 - **ESLint** with Type‑aware rules  
 
 ## 📋 Prerequisites  
-- **Python** ≥ 3.8  
+- **Python 3.11** (the pinned dependencies do not support Python 3.14)
+- **C and C++ compilers** for the native extensions (GCC/G++ and Python development headers on Linux, Xcode Command Line Tools on macOS, or Visual Studio Build Tools with C++ on Windows)
 - **Node.js** ≥ 16  
 - **npm** (bundled with Node.js)  
 
@@ -46,25 +47,57 @@ A turn‑based Backgammon game server and client:
    ```bash
    git clone https://github.com/NotAnonymous33/backgammon.git
    cd backgammon
+   ```
 
 2. **Backend setup**
+
+    Linux/macOS (start in the repository root):
     ```bash
     cd backend
-    python -m venv venv
-    source venv/bin/activate      # Linux/Mac
-    .\venv\Scripts\activate       # Windows
-    pip install -r requirements.txt
-    # Initialize database & start server
+    python3.11 -m venv venv
+    source venv/bin/activate
+    python -m pip install --upgrade pip
+    python -m pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+    python -m pip install -r requirements.txt
     cd classes
     python setup_cython.py build_ext --inplace
     python setup.py build_ext --inplace
+    cd ..
     python app.py
     ```
-- Runs on http://localhost:5000 by default.
+
+    Windows PowerShell (start in the repository root):
+    ```powershell
+    cd backend
+    py -3.11 -m venv venv
+    .\venv\Scripts\Activate.ps1
+    python -m pip install --upgrade pip
+    python -m pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+    python -m pip install -r requirements.txt
+    cd classes
+    python setup_cython.py build_ext --inplace
+    python setup.py build_ext --inplace
+    cd ..
+    python app.py
+    ```
+
+    Use only the activation command for your operating system. If `venv` was
+    created with a different Python version, deactivate it and rename it before
+    creating a new one. If Python 3.11 is installed through `uv`, you can replace
+    the environment creation command with `uv venv --python 3.11 --seed venv`.
+
+    The CPU build of PyTorch is sufficient to run the backend. For NVIDIA GPU
+    support, replace `/whl/cpu` with `/whl/cu126` in the PyTorch install command
+    ([PyTorch 2.6 installation options](https://pytorch.org/get-started/previous-versions/#v260)).
+    Always build both extensions with the same virtual environment used to run
+    the server. Run `app.py` from `backend`, not `backend/classes`; it creates
+    the database tables automatically and serves http://localhost:5000.
 
 3. **Frontend setup**
+
+    In a separate terminal, start in the repository root:
     ```bash
-    cd ../frontend
+    cd frontend
     npm install
     npm run dev
     ```

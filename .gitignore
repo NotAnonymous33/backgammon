@@ -3,6 +3,9 @@
 
 __pycache__
 
+backend/venv/
+*.so
+
 .vscode/*
 backend/.idea
 
