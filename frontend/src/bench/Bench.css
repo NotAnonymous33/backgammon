@@ -1,0 +1,201 @@
+/* Benchmark dashboard. Dark is the default to match the rest of the app. */
+.viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --series-1: #3987e5;
+    --good: #0ca30c;
+    --critical: #d03b3b;
+    --warning: #fab219;
+}
+
+@media (prefers-color-scheme: light) {
+    .viz-root {
+        color-scheme: light;
+        --page: #f9f9f7;
+        --surface-1: #fcfcfb;
+        --text-primary: #0b0b0b;
+        --text-secondary: #52514e;
+        --text-muted: #898781;
+        --grid: #e1e0d9;
+        --axis: #c3c2b7;
+        --border: rgba(11, 11, 11, 0.10);
+        --series-1: #2a78d6;
+    }
+}
+
+.bench-page {
+    width: min(1100px, 100%);
+    margin: 0 auto;
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    text-align: left;
+}
+
+.bench-page .muted { color: var(--text-muted); }
+.bench-page code, .bench-page pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9em;
+}
+
+.bench-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+.bench-header h1 { font-size: 2rem; margin: 0.25rem 0 0; }
+.bench-header p { margin: 0; }
+.back { font-size: 0.9rem; }
+
+.panel {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+}
+.panel h2 { font-size: 1.05rem; margin: 0 0 0.75rem; }
+
+.controls {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.controls label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--text-secondary); }
+.controls select {
+    min-width: 300px;
+    padding: 0.4rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--page);
+    color: var(--text-primary);
+    font: inherit;
+}
+.controls .arrow { padding-bottom: 0.4rem; color: var(--text-muted); }
+.controls .toggle { flex-direction: row; align-items: center; margin-left: auto; padding-bottom: 0.4rem; }
+
+.summary {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+.stat {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    min-width: 110px;
+}
+.stat-value { font-size: 1.8rem; font-weight: 600; line-height: 1.1; }
+.stat-commits {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.25rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    min-width: 260px;
+}
+
+.warnings {
+    list-style: none;
+    padding: 0.75rem 1rem;
+    margin: 0 0 1rem;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warning);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+.warnings li + li { margin-top: 0.25rem; }
+.bench-error { color: var(--text-primary); border-left: 3px solid var(--critical); padding-left: 0.75rem; }
+
+/* Status: icon carries the colour, the label stays in text ink. */
+.status { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--text-secondary); white-space: nowrap; font-size: 0.9rem; }
+.status-icon { font-size: 0.75em; width: 1em; text-align: center; color: var(--text-muted); }
+.status-improved .status-icon { color: var(--good); }
+.status-regressed .status-icon { color: var(--critical); }
+.status-new .status-icon, .status-removed .status-icon { color: var(--series-1); }
+.status-regressed, .status-improved { color: var(--text-primary); font-weight: 600; }
+
+table.metrics { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+table.metrics th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--axis);
+    padding: 0.4rem 0.5rem;
+}
+table.metrics td { padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--grid); vertical-align: top; }
+table.metrics .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.metrics tbody tr { cursor: pointer; }
+table.metrics tbody tr:hover { background: var(--border); }
+table.metrics tr.selected td { background: var(--border); }
+table.metrics tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--series-1); }
+.metric-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.metric-link:hover { text-decoration: underline; border: none; }
+.row-note { font-size: 0.8rem; color: var(--text-muted); }
+.label {
+    margin-left: 0.5rem;
+    padding: 0 0.4rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+table.runs tbody tr { cursor: default; }
+.actions { white-space: nowrap; text-align: right; }
+.actions button { padding: 0.15rem 0.5rem; font-size: 0.8rem; margin-left: 0.25rem; background: var(--page); color: var(--text-secondary); }
+.actions button:disabled { opacity: 0.4; cursor: default; }
+
+/* Trend chart */
+.trend { position: relative; margin: 0; }
+.trend figcaption { display: flex; flex-direction: column; margin-bottom: 0.25rem; }
+.trend-title { font-weight: 600; }
+.trend-sub { font-size: 0.85rem; color: var(--text-muted); }
+.trend svg { display: block; outline: none; }
+.trend svg:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; border-radius: 4px; }
+.trend .grid { stroke: var(--grid); stroke-width: 1; }
+.trend .axis { stroke: var(--axis); stroke-width: 1; }
+.trend .tick { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.trend .series { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.trend .band { fill: var(--series-1); opacity: 0.12; }
+.trend .crosshair { stroke: var(--axis); stroke-width: 1; }
+.trend .dot { fill: var(--series-1); stroke: var(--surface-1); stroke-width: 2; }
+.trend .dot-key, .trend .dot-hover { stroke-width: 2.5; }
+.trend .dot-label { fill: var(--text-secondary); font-size: 11px; font-weight: 600; }
+.trend-tip {
+    position: absolute;
+    pointer-events: none;
+    width: 236px;
+    background: var(--page);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+.tip-value { font-size: 1.05rem; font-weight: 600; color: var(--text-primary); }
+.tip-row.muted { color: var(--text-muted); }
+.trend-empty { color: var(--text-muted); padding: 1rem 0; }

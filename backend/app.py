@@ -8,6 +8,7 @@ from classes.agents.HeuristicAgent import HeuristicAgent
 from classes.agents.RandomAgent import RandomAgent
 from classes.agents.CMCTS2 import MCTSAgent2 as MCTSAgent  # type: ignore
 from classes.agents.NNAgent import FinalNNAgent
+from bench.api import bp as bench_bp
 import threading
 
 
@@ -19,6 +20,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 socketio = SocketIO(app, cors_allowed_origins="*")
 CORS(app)
+app.register_blueprint(bench_bp)
 
 
 db.init_app(app)

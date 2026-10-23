@@ -110,7 +110,19 @@ A turn‑based Backgammon game server and client:
 2. **Create** a new game or **Join** using a 5‑letter code.  
 3. Select your **side** (White/Black) and choose **Human** or **AI** (random, first, mcts, neural).  
 4. **Roll dice** and **Make moves** by clicking checkers—valid moves are highlighted.  
-5. Watch the game auto‑update across all connected clients.  
+5. Watch the game auto‑update across all connected clients.
+
+## 📊 Benchmarks
+
+Measure rules correctness, engine speed, MCTS iterations per second, neural-network training throughput and learning, and AI playing strength, and compare them across changes:
+
+```bash
+cd backend
+python -m bench run --label baseline   # record a run
+python -m bench run                    # after a change: record and compare with the previous run
+```
+
+Results are also browsable at http://localhost:5173/bench. See [backend/bench/README.md](backend/bench/README.md).  
 
 ## 📂 Project Structure 
 ```pgsql 

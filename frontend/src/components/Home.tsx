@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { socket } from "../socket"
-import { useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import "./Home.css"
 import { BACKEND_URL } from "../constants"
 
@@ -65,6 +65,7 @@ export default function Home() {
                 />
                 <button type="submit" className="button-join">Join Game</button>
             </form>
+            <p><Link to="/bench">Benchmarks</Link></p>
         </div>
     )
 }

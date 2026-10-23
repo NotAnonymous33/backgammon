@@ -14,3 +14,6 @@ backend/.idea
 
 backend/classes/build/
 *.html
+
+# Benchmark runs are machine-specific; untracked, they also survive checkouts
+backend/bench/results/
