@@ -3,7 +3,6 @@ import "./Board.css"
 import Dice from "./Dice"
 import { socket } from "../socket"
 import { useParams } from "react-router-dom"
-import { BACKEND_URL } from "../constants"
 import { useWindowSize } from 'react-use'
 import Confetti from 'react-confetti'
 
@@ -106,8 +105,18 @@ export default function Board() {
     const blackBearOffHeight = bearOffAreaHeight / 2
 
     useEffect(() => {
-        if (playerSide) {
+        if (!playerSide) return
+
+        const rejoinAsPlayer = () => {
             socket.emit("join_room", { room_code: roomCode, side: playerSide, playerType });
+        }
+
+        // A server reload forgets player assignments while React keeps the side.
+        socket.on("connect", rejoinAsPlayer)
+        if (socket.connected) rejoinAsPlayer()
+
+        return () => {
+            socket.off("connect", rejoinAsPlayer)
         }
     }, [playerSide, playerType, roomCode]);
 
@@ -148,9 +157,10 @@ export default function Board() {
         socket.connect()
         socket.emit("join_room", { room_code: roomCode })
 
-        socket.on("connect", () => {
+        const handleConnect = () => {
             verbose && console.log("socket:connect")
-        })
+        }
+        socket.on("connect", handleConnect)
 
         socket.on("disconnect", () => {
             verbose && console.log("socket:disconnect")
@@ -192,14 +202,15 @@ export default function Board() {
 
         return () => {
             //--- cleanup socket events
-            socket.off("connect")
+            socket.off("connect", handleConnect)
             socket.off("disconnect")
             socket.off("update_board")
             socket.off("update_dice")
             socket.off("message")
             socket.off("update_valid_moves")
             socket.off("game_over")
-            socket.disconnect()
+            // Keep the shared connection (and player SID) across hot reloads.
+            socket.emit("leave_room", { room_code: roomCode })
         }
     }, [roomCode])
 
@@ -301,17 +312,6 @@ export default function Board() {
         verbose && console.log("emitting roll_dice")
         socket.emit("roll_dice", { room_code: roomCode })
         console.log("turn: ", gameState.turn)
-    }
-
-    function testButton() {
-        verbose && console.log("testButton");
-        (async () => {
-            const response = await fetch(`${BACKEND_URL}/api/button_test`, {
-                method: "GET",
-            })
-            const data = await response.json()
-            alert(data.message)
-        })()
     }
 
     function indexToCoords(index: number) {
