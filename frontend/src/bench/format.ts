@@ -32,7 +32,7 @@ const pts = (x: number) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)}`
 export function fmtChange(row: CompareRow): string {
     if (row.kind === "rate" && row.diff_ci) {
         const [lo, hi] = row.diff_ci
-        return `${pts((lo + hi) / 2)} pts [${pts(lo)}, ${pts(hi)}]`
+        return `${pts(row.diff ?? (lo + hi) / 2)} pts [${pts(lo)}, ${pts(hi)}]`
     }
     if (row.delta === null || row.delta === undefined) return ""
     if (row.kind === "timing" && row.delta_pct !== null && row.delta_pct !== undefined) {

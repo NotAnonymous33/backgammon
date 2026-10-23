@@ -38,6 +38,7 @@ export interface CompareRow {
     head: number | null
     delta?: number | null
     delta_pct?: number | null
+    diff?: number
     diff_ci?: [number, number]
     threshold_pct?: number
     status: Status

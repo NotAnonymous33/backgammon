@@ -44,8 +44,8 @@ def fmt_delta(row):
         return ""
     if row["kind"] == "rate" and row.get("diff_ci"):
         lo, hi = row["diff_ci"]
-        mid = (lo + hi) / 2
-        return f"{mid * 100:+.1f} pts [{lo * 100:+.1f}, {hi * 100:+.1f}]"
+        diff = row.get("diff", (lo + hi) / 2)
+        return f"{diff * 100:+.1f} pts [{lo * 100:+.1f}, {hi * 100:+.1f}]"
     if row.get("delta_pct") is not None and row["kind"] == "timing":
         return f"{row['delta_pct']:+.1%}"
     if row["delta"] == 0:

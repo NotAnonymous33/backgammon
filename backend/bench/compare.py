@@ -63,13 +63,15 @@ def compare_metric(base, head, same_host=True):
         if paired:
             pairs = [(x, y) for x, y in zip(_scores(bo), _scores(ho)) if x is not None and y is not None]
             diff, half = paired_diff([p[0] for p in pairs], [p[1] for p in pairs])
+            lo, hi = diff - half, diff + half
             row["test"] = f"paired over {len(pairs)} identical-dice games"
         else:
-            diff, half = two_prop_diff(bv * base.get("n", 0), base.get("n", 0),
-                                       hv * head.get("n", 0), head.get("n", 0))
+            diff, lo, hi = two_prop_diff(bv * base.get("n", 0), base.get("n", 0),
+                                         hv * head.get("n", 0), head.get("n", 0))
             row["test"] = "unpaired (different seeds or game counts)"
-        row["diff_ci"] = [diff - half, diff + half]
-        significant = half == half and abs(diff) > half  # half == half filters NaN
+        row["diff"] = diff
+        row["diff_ci"] = [lo, hi]  # not centred on diff for unpaired tests
+        significant = lo > 0 or hi < 0  # False for NaN
         row["status"] = _direction(diff, row["better"]) if significant else "unchanged"
         if not significant and diff != 0:
             row["note"] = "within 95% confidence interval"

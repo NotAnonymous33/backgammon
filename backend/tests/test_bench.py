@@ -125,6 +125,21 @@ class CompareTests(unittest.TestCase):
         self.assertIn("unpaired", row["test"])
         self.assertEqual(row["status"], "unchanged")
 
+    def test_unpaired_perfect_score_on_few_games_is_not_significant(self):
+        # A 100% rate has zero sample variance; a normal interval would call this an improvement.
+        base = self._rate("1" * 195 + "0" * 5, pairing="1:100")
+        head = self._rate("1" * 10, pairing="1:5")
+        row = compare.compare_metric(base, head)
+        self.assertEqual(row["status"], "unchanged")
+        self.assertAlmostEqual(row["diff"], 0.025)
+        self.assertLess(row["diff_ci"][0], 0)
+
+    def test_unpaired_rates_detect_large_differences(self):
+        base = self._rate("10" * 100, pairing="1:100")
+        head = self._rate("1" * 160 + "0" * 40, pairing="2:100")
+        self.assertEqual(compare.compare_metric(base, head)["status"], "improved")
+        self.assertEqual(compare.compare_metric(head, base)["status"], "regressed")
+
     def test_sections_missing_from_one_run_are_not_compared(self):
         full = _run("a", "1", metrics=[metric("rules.x", "x", 1), metric("speed.y", "y", 1.0)])
         partial = _run("b", "2", metrics=[metric("speed.y", "y", 1.0)])

@@ -73,9 +73,19 @@ def paired_diff(a, b, z=Z95):
 
 
 def two_prop_diff(k1, n1, k2, n2, z=Z95):
-    """Difference of proportions (p2 - p1) with an unpooled normal CI."""
+    """Difference of proportions (p2 - p1) with Newcombe's score CI. Returns (diff, lo, hi).
+
+    Built from the two Wilson intervals, so unlike the plain normal (Wald)
+    interval it stays honest when a rate is 0% or 100%: 10/10 wins has zero
+    sample variance but is not evidence of beating 195/200.
+    """
     if n1 == 0 or n2 == 0:
-        return (float("nan"), float("nan"))
+        nan = float("nan")
+        return (nan, nan, nan)
     p1, p2 = k1 / n1, k2 / n2
-    se = math.sqrt(p1 * (1 - p1) / n1 + p2 * (1 - p2) / n2)
-    return (p2 - p1, z * se)
+    l1, u1 = wilson(k1, n1, z)
+    l2, u2 = wilson(k2, n2, z)
+    diff = p2 - p1
+    lo = diff - math.sqrt((p2 - l2) ** 2 + (u1 - p1) ** 2)
+    hi = diff + math.sqrt((u2 - p2) ** 2 + (p1 - l1) ** 2)
+    return (diff, lo, hi)
