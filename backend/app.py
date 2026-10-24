@@ -177,19 +177,21 @@ def handle_move(data):
 
     print(f"moving from sequence {data['moveSequence']=}")
     
+    mover = board.turn
     move_result = board.move_from_sequence(data["moveSequence"])
     if move_result == False:
         print("move is false")
         emit("error", {"message": "Invalid move"}, room=request.sid)
         return
     else:
+        board_dict = board.convert()
+        update_board_db(room_code, board_dict)
+        board_dict["last_move"] = last_move_payload(mover, data["moveSequence"])
+        print("updated db, emitting update_board")
+        emit("update_board", board_dict, room=room_code)
         if move_result == True:
             print("move is true")
             emit("game_over", {"winner": "White" if board.white_off == 15 else "Black"}, room=room_code)
-        board_dict = board.convert()
-        update_board_db(room_code, board_dict)
-        print("updated db, emitting update_board")
-        emit("update_board", board_dict, room=room_code)
         
     
     # If the next turn belongs to an AI, trigger an AI move.
@@ -198,6 +200,10 @@ def handle_move(data):
     if next_player and next_player.get("type") == "ai":
         socketio.start_background_task(ai_move, room_code)
         socketio.sleep(1)
+
+def last_move_payload(player, sequence):
+    # Lets clients animate and highlight the move that produced the new board.
+    return {"player": player, "sequence": [list(step) for step in sequence]}
 
 def ai_move(room_code):
     with app.app_context(), rooms[room_code]["ai_lock"]:
@@ -251,10 +257,12 @@ def ai_move(room_code):
             # No valid moves.
             return
 
+        mover = board.turn
         board.move_from_sequence(chosen_sequence)
         print(f"ai move: {chosen_sequence}")
         board_dict = board.convert()
         update_board_db(room_code, board_dict)
+        board_dict["last_move"] = last_move_payload(mover, chosen_sequence)
         socketio.emit("update_board", board_dict, room=room_code)
         socketio.sleep(1)
         
