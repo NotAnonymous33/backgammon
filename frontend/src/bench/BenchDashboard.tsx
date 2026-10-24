@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { BACKEND_URL } from "../constants"
+import SkillPanel from "./SkillPanel"
 import TrendChart from "./TrendChart"
 import { fmtChange, fmtDate, fmtValue } from "./format"
 import { SECTION_TITLES, SECTIONS } from "./types"
@@ -34,11 +35,13 @@ function defaultBase(runs: RunSummary[], head: RunSummary | undefined) {
     return [...earlier].reverse().find(r => r.suite === head.suite && covers(r)) ?? earlier[earlier.length - 1]
 }
 
-/** First win-rate metric, else the first metric: a useful chart to open with. */
+/** First win rate, else the first agent's decision loss, else the first metric: a useful chart to open with. */
 function defaultMetric(run: RunSummary | undefined) {
     if (!run) return undefined
     const keys = Object.keys(run.metrics)
-    return keys.find(k => run.metrics[k].kind === "rate") ?? keys[0]
+    return keys.find(k => run.metrics[k].kind === "rate")
+        ?? keys.find(k => /^skill\[.+\]\.loss$/.test(k))
+        ?? keys[0]
 }
 
 export default function BenchDashboard() {
@@ -170,6 +173,12 @@ export default function BenchDashboard() {
                         </ul>
                     )}
                 </>
+            )}
+
+            {head && Object.keys(head.metrics).some(k => k.startsWith("skill[")) && (
+                <section className="panel">
+                    <SkillPanel run={head} selected={selected} onSelect={setSelected} />
+                </section>
             )}
 
             {selected && selectedMeta && (

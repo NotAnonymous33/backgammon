@@ -2,7 +2,7 @@
 
 export type Status = "improved" | "regressed" | "unchanged" | "new" | "removed" | "info"
 export type Better = "higher" | "lower" | "none"
-export type Kind = "timing" | "count" | "rate" | "value"
+export type Kind = "timing" | "count" | "rate" | "mean" | "rating" | "value"
 
 export interface MetricSummary {
     label: string
@@ -54,7 +54,7 @@ export interface Comparison {
     rows: CompareRow[]
 }
 
-export const SECTIONS = ["rules", "speed", "search", "training", "strength"] as const
+export const SECTIONS = ["rules", "speed", "search", "training", "strength", "skill", "ratings"] as const
 
 export const SECTION_TITLES: Record<string, string> = {
     rules: "Rules correctness",
@@ -62,4 +62,6 @@ export const SECTION_TITLES: Record<string, string> = {
     search: "MCTS search",
     training: "Neural-network training",
     strength: "Playing strength",
+    skill: "Decision quality",
+    ratings: "Elo ratings",
 }

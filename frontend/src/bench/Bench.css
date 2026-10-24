@@ -10,6 +10,8 @@
     --axis: #383835;
     --border: rgba(255, 255, 255, 0.10);
     --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
     --good: #0ca30c;
     --critical: #d03b3b;
     --warning: #fab219;
@@ -27,6 +29,8 @@
         --axis: #c3c2b7;
         --border: rgba(11, 11, 11, 0.10);
         --series-1: #2a78d6;
+        --series-2: #eb6834;
+        --series-3: #1baf7a;
     }
 }
 
@@ -199,3 +203,29 @@ table.runs tbody tr { cursor: default; }
 .tip-value { font-size: 1.05rem; font-weight: 600; color: var(--text-primary); }
 .tip-row.muted { color: var(--text-muted); }
 .trend-empty { color: var(--text-muted); padding: 1rem 0; }
+
+/* Decision quality: agents of one run side by side */
+.skill-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.skill-head h2 { margin-bottom: 0.25rem; }
+.skill-sub { font-size: 0.85rem; color: var(--text-muted); margin: 0 0 0.75rem; }
+.skill-legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.85rem; color: var(--text-secondary); }
+.skill-legend .key, table.skill .key { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 0.4rem; }
+.skill-chart { position: relative; margin: 0.5rem 0 1rem; }
+.skill-chart svg { display: block; overflow: visible; }
+.skill-chart .grid { stroke: var(--grid); stroke-width: 1; }
+.skill-chart .axis { stroke: var(--axis); stroke-width: 1; }
+.skill-chart .tick { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.skill-chart .axis-title { fill: var(--text-muted); font-size: 11px; }
+.skill-chart .ladder { fill: none; stroke-width: 2; stroke-linejoin: round; opacity: 0.6; }
+.skill-chart .whisker { stroke-width: 1.5; opacity: 0.55; }
+.skill-chart .pt { stroke: var(--surface-1); stroke-width: 2; }
+.skill-chart .pt-hollow { fill: var(--surface-1); stroke-width: 2; }
+.skill-chart .pt-label { fill: var(--text-secondary); font-size: 11px; }
+.skill-chart g.target { cursor: pointer; outline: none; }
+.skill-chart g.target:focus-visible .pt, .skill-chart g.target.active .pt { stroke: var(--text-primary); }
+.skill-chart g.target:focus-visible .pt-hollow, .skill-chart g.target.active .pt-hollow { stroke-width: 3; }
+.skill-chart .hit { fill: transparent; }
+.skill-chart .trend-tip { width: 220px; }
+table.skill .phase { text-align: center; padding: 0.3rem 0.25rem; }
+table.skill .cell { display: block; border-radius: 4px; padding: 0.15rem 0; font-variant-numeric: tabular-nums; }
+table.skill td.dim { color: var(--text-muted); }
