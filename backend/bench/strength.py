@@ -37,7 +37,13 @@ def play_game(white_spec, black_spec, seed, move_limit, cache=None):
     if torch is not None and torch.get_num_threads() != 1 and cache is _cache:
         torch.set_num_threads(1)
 
-    seed_agents(derive_seed(seed, "agents", white_spec, black_spec))
+    agent_seed = derive_seed(seed, "agents", white_spec, black_spec)
+    seed_agents(agent_seed)
+    from classes import board_cpp  # type: ignore
+
+    # MCTS rolls the native dice inside its search tree; with an iteration
+    # budget this makes its games reproducible too.
+    board_cpp.seed_dice(agent_seed & 0xFFFFFFFF)
     return play_agents(white, black, seed, move_limit)
 
 

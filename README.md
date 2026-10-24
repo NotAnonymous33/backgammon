@@ -114,7 +114,7 @@ A turn‑based Backgammon game server and client:
 
 ## 📊 Benchmarks
 
-Measure rules correctness, engine speed, MCTS iterations per second, neural-network training throughput and learning, and AI playing strength, and compare them across changes:
+Measure rules correctness, engine speed, MCTS iterations per second, neural-network training throughput and learning, and AI skill, and compare them across changes. Skill is measured three ways: head-to-head matches, the winning chance each agent gives up per decision on labelled reference positions (exact in the bearoff), and Elo ratings for a pool of agents:
 
 ```bash
 cd backend

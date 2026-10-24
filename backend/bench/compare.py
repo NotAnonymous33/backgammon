@@ -3,6 +3,8 @@
 Statuses: improved, regressed, unchanged (including within noise), new,
 removed, info (informational metrics are never flagged).
 """
+import math
+
 from .stats import paired_diff, two_prop_diff
 from .store import sections, summary
 
@@ -69,15 +71,44 @@ def compare_metric(base, head, same_host=True):
             diff, lo, hi = two_prop_diff(bv * base.get("n", 0), base.get("n", 0),
                                          hv * head.get("n", 0), head.get("n", 0))
             row["test"] = "unpaired (different seeds or game counts)"
-        row["diff"] = diff
-        row["diff_ci"] = [lo, hi]  # not centred on diff for unpaired tests
-        significant = lo > 0 or hi < 0  # False for NaN
-        row["status"] = _direction(diff, row["better"]) if significant else "unchanged"
-        if not significant and diff != 0:
-            row["note"] = "within 95% confidence interval"
+        _judge(row, diff, lo, hi)  # not centred on diff for unpaired tests
+    elif kind == "mean":
+        bs, hs = base.get("samples"), head.get("samples")
+        paired = bs and hs and len(bs) == len(hs) and base.get("pairing") == head.get("pairing")
+        if paired:
+            pairs = [(x, y) for x, y in zip(bs, hs) if x is not None and y is not None]
+            diff, half = paired_diff([p[0] for p in pairs], [p[1] for p in pairs])
+            row["test"] = f"paired over {len(pairs)} identical positions"
+        else:
+            diff = hv - bv
+            half = math.hypot(_half_width(base), _half_width(head))
+            row["test"] = "unpaired (different reference positions)"
+        _judge(row, diff, diff - half, diff + half)
+    elif kind == "rating":
+        # Both runs are measured against the same anchor, independently.
+        diff = hv - bv
+        half = math.hypot(_half_width(base), _half_width(head))
+        row["test"] = "independent intervals"
+        _judge(row, diff, diff - half, diff + half)
     else:
         row["status"] = "info"
     return row
+
+
+def _half_width(m):
+    ci = m.get("ci")
+    if not ci or ci[0] is None or ci[1] is None:
+        return float("inf")
+    return (ci[1] - ci[0]) / 2
+
+
+def _judge(row, diff, lo, hi):
+    row["diff"] = diff
+    row["diff_ci"] = [lo, hi]
+    significant = lo > 0 or hi < 0  # False for NaN
+    row["status"] = _direction(diff, row["better"]) if significant else "unchanged"
+    if not significant and diff != 0:
+        row["note"] = "within 95% confidence interval"
 
 
 def compare_runs(base, head):
@@ -106,6 +137,8 @@ def compare_runs(base, head):
         warnings.append("Runs come from different machines: speed metrics are shown but not judged.")
     if base.get("config", {}).get("positions") != head.get("config", {}).get("positions"):
         warnings.append("Position suites differ: rules and speed metrics measure different positions.")
+    if {"skill"} <= shared and base.get("config", {}).get("reference") != head.get("config", {}).get("reference"):
+        warnings.append("Reference labels differ: skill comparisons are unpaired.")
     if base.get("config", {}).get("seed") != head.get("config", {}).get("seed"):
         warnings.append("Seeds differ: strength comparisons are unpaired and less sensitive.")
     for label, run in (("base", base), ("head", head)):

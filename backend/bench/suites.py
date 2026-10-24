@@ -2,13 +2,39 @@
 
 ``quick`` is for a fast check while iterating; ``standard`` is for before
 merging; ``full`` adds an MCTS match and longer training, for milestones.
+
+Skill is measured two ways (see README.md): ``skill`` scores single
+decisions against labelled reference positions, which is fast and free of
+dice luck, and ``ratings`` places a pool of agents on one Elo scale from
+games. MCTS is measured with fixed iteration budgets (``iters=``), which are
+reproducible and isolate search quality from speed, alongside the time
+budget the server uses.
 """
 import copy
 
 DEFAULT_SEED = 20261023
-SECTIONS = ("rules", "speed", "search", "training", "strength")
+SECTIONS = ("rules", "speed", "search", "training", "strength", "skill", "ratings")
 
 _MATCHES = [("nn", "random"), ("nn", "heuristic"), ("heuristic", "random")]
+
+# Iteration budgets double, so skill against log2(iterations) shows what a
+# faster search would be worth.
+_MCTS_LADDER = ["mcts:iters=100", "mcts:iters=200", "mcts:iters=400", "mcts:iters=800", "mcts:iters=1600"]
+
+
+def _ratings(pool, **overrides):
+    cfg = {
+        "pool": pool,
+        "anchor": "heuristic",
+        "anchor_elo": 1500,
+        "initial_pairs": 20,
+        "batch_pairs": 20,
+        "max_pairs": 200,  # per matchup
+        "target_se": 20.0,  # Elo; about ±40 at 95%
+        "max_games": 4000,
+    }
+    cfg.update(overrides)
+    return cfg
 
 # The three MCTS evaluation modes cost very different amounts per iteration.
 _MCTS = ["mcts:time=0.1", "mcts:time=0.1,mode=heuristic,depth=40", "mcts:time=0.1,mode=neural,depth=40"]
@@ -48,6 +74,11 @@ SUITES = {
         "search_repeats": 1,
         "training": _training(),
         "matches": [{"a": a, "b": b, "pairs": 100} for a, b in _MATCHES],
+        "skill_agents": ["heuristic", "nn", "mcts:iters=100"],
+        "skill_repeats": 1,
+        "skill_positions": None,
+        "ratings": _ratings(["random", "first", "heuristic", "nn"], initial_pairs=25, max_pairs=100,
+                            target_se=30.0, max_games=1200),
     },
     "standard": {
         "repeats": 5,
@@ -59,7 +90,14 @@ SUITES = {
         "search_repeats": 2,
         "training": _training(speed_repeats=5, epoch_games=64, epoch_repeats=3,
                               learn_seeds=8, learn_games=3000, learn_pairs=100),
-        "matches": [{"a": a, "b": b, "pairs": 1000} for a, b in _MATCHES],
+        "matches": [{"a": a, "b": b, "pairs": 1000} for a, b in _MATCHES] + [{"a": "nn", "b": "mcts:iters=400", "pairs": 100}],
+        "skill_agents": ["heuristic", "nn", "nn:models/tdgammon/tdgammon_checkpoint_latest.pt"] + _MCTS_LADDER[:4]
+        + ["mcts:iters=400,mode=heuristic,depth=40", "mcts:time=1.0"],
+        "skill_repeats": 2,
+        "skill_positions": None,
+        # Slow MCTS budgets are rated in the full suite; skill covers them here.
+        "ratings": _ratings(["random", "first", "heuristic", "nn", "nn:models/tdgammon/tdgammon_checkpoint_latest.pt",
+                             "mcts:iters=100"], max_games=3000),
     },
     "full": {
         "repeats": 7,
@@ -72,7 +110,16 @@ SUITES = {
         "training": _training(speed_repeats=7, epoch_games=128, epoch_workers=8, epoch_repeats=3,
                               learn_seeds=16, learn_games=10000, learn_pairs=200),
         "matches": [{"a": a, "b": b, "pairs": 3000} for a, b in _MATCHES]
-        + [{"a": "mcts:time=0.05", "b": "heuristic", "pairs": 150}],
+        + [{"a": "mcts:time=0.05", "b": "heuristic", "pairs": 150}, {"a": "nn", "b": "mcts:iters=400", "pairs": 300}],
+        "skill_agents": ["heuristic", "nn", "nn:models/tdgammon/tdgammon_checkpoint_latest.pt",
+                         "nn:models/momentum/momentum_checkpoint_latest.pt"] + _MCTS_LADDER
+        + ["mcts:iters=400,mode=heuristic,depth=40", "mcts:iters=400,mode=neural,depth=40", "mcts:time=1.0"],
+        "skill_repeats": 3,
+        "skill_positions": None,
+        "ratings": _ratings(["random", "first", "heuristic", "nn", "nn:models/tdgammon/tdgammon_checkpoint_latest.pt",
+                             "nn:models/momentum/momentum_checkpoint_latest.pt", "nn:models/main/checkpoint_epoch_main50.pt",
+                             "nn:models/main/checkpoint_epoch_main150.pt", "mcts:iters=100", "mcts:iters=400",
+                             "mcts:iters=1600"], target_se=15.0, max_pairs=400, max_games=16000),
     },
 }
 

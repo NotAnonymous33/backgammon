@@ -1,9 +1,10 @@
 """Run the configured sections and assemble a run record."""
 import datetime as dt
+import os
 import sys
 import time
 
-from . import agents, env, positions, rules, search, speed, strength, training
+from . import agents, env, positions, ratings, reference, rules, search, skill, speed, strength, training
 
 
 BUSY_WARNING = 0.15  # fraction of all cores busy with other work
@@ -15,6 +16,10 @@ class StaleBuildError(RuntimeError):
 
 
 class ExtensionError(RuntimeError):
+    pass
+
+
+class ReferenceMissingError(RuntimeError):
     pass
 
 
@@ -36,6 +41,12 @@ def check_extensions():
         )
 
 
+def _reference_fingerprint(cfg):
+    if "skill" not in cfg["sections"] or not os.path.exists(reference.DATA_PATH):
+        return None
+    return reference.fingerprint(reference.load())
+
+
 def execute(cfg, suite_name, label=None, allow_stale=False, log=print):
     check_extensions()
     warnings = []
@@ -50,6 +61,14 @@ def execute(cfg, suite_name, label=None, allow_stale=False, log=print):
 
     specs = {m["a"] for m in cfg["matches"]} | {m["b"] for m in cfg["matches"]}
     specs |= set(cfg["latency_agents"]) | set(cfg["mcts_agents"])
+    if "skill" in cfg["sections"]:
+        specs |= set(cfg["skill_agents"])
+        if not os.path.exists(reference.DATA_PATH):
+            raise ReferenceMissingError(
+                f"{os.path.relpath(reference.DATA_PATH)} is missing; build it with `python -m bench reference --build`"
+            )
+    if "ratings" in cfg["sections"]:
+        specs |= set(cfg["ratings"]["pool"]) | {cfg["ratings"]["anchor"]}
     for spec in sorted(specs):
         agents.validate(spec)
     for spec in cfg["mcts_agents"]:
@@ -68,7 +87,8 @@ def execute(cfg, suite_name, label=None, allow_stale=False, log=print):
         "label": label,
         "suite": suite_name,
         "started_at": started.isoformat(timespec="seconds"),
-        "config": dict(cfg, positions=positions.suite_fingerprint(suite), position_count=len(suite["positions"])),
+        "config": dict(cfg, positions=positions.suite_fingerprint(suite), position_count=len(suite["positions"]),
+                       reference=_reference_fingerprint(cfg)),
         "agents": {s: agents.describe(s) for s in sorted(specs)},
         "env": environment,
         "warnings": warnings,
@@ -82,6 +102,8 @@ def execute(cfg, suite_name, label=None, allow_stale=False, log=print):
         "search": lambda: search.run(suite, cfg, log),
         "training": lambda: training.run(cfg, log),
         "strength": lambda: strength.run(cfg, log),
+        "skill": lambda: skill.run(cfg, log),
+        "ratings": lambda: ratings.run(cfg, log),
     }
     busy_log = run["env"]["host"]["cpu_busy_before"] = {}
     for name in cfg["sections"]:

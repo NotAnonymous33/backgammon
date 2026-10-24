@@ -11,6 +11,8 @@ of older commits). A metric looks like::
     timing  repeated measurements; noise estimated from their spread
     count   deterministic integer; any change is real
     rate    win rate over seeded games; ``outcomes`` allows paired tests
+    mean    mean over fixed items (e.g. positions); ``samples`` allows paired tests
+    rating  Elo rating against a fixed anchor, with a confidence interval
     value   informational, never flagged
 """
 import json
