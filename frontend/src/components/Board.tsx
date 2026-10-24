@@ -361,6 +361,8 @@ export default function Board() {
         if (animate) {
             setAnimating(true)
             setSelectedChecker(null)
+            setDragPointIndex(null)
+            setDragColor(null)
             setMoveSequence([])
             setLastMove(null)
         }
