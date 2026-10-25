@@ -78,7 +78,7 @@ SUITES = {
         "search_repeats": 1,
         "training": _training(),
         "matches": [{"a": a, "b": b, "pairs": 100} for a, b in _MATCHES],
-        "skill_agents": ["heuristic", "nn", "mcts:iters=100"],
+        "skill_agents": ["heuristic", "nn", "mcts:iters=100", "mcts:iters=200", "mcts:iters=400"],
         "skill_repeats": 1,
         "skill_positions": None,
         "ratings": _ratings(["random", "first", "heuristic", "nn"], initial_pairs=25, max_pairs=100,

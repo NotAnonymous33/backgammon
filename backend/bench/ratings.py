@@ -211,9 +211,13 @@ def run(cfg, log=print):
             played = play(schedule, pool_)
             total += played
             ladder.refit()
-            worst = max((i for i in range(ladder.n) if i != ladder.anchor), key=lambda i: ladder.se[i])
-            log(f"    round {rnd}: {played} games ({total} total, {time.perf_counter() - start:.0f}s); "
-                f"least precise: {ladder.pool[worst]} ±{1.96 * ladder.se[worst]:.0f} Elo")
+            # random is always the least precise and hides the agents that matter, so it is not reported.
+            candidates = [i for i in range(ladder.n) if i != ladder.anchor and ladder.pool[i] != "random"]
+            line = f"    round {rnd}: {played} games ({total} total, {time.perf_counter() - start:.0f}s)"
+            if candidates:
+                worst = max(candidates, key=lambda i: ladder.se[i])
+                line += f"; least precise: {ladder.pool[worst]} ±{1.96 * ladder.se[worst]:.0f} Elo"
+            log(line)
             if total >= rc["max_games"]:
                 log(f"    stopping at the game budget ({rc['max_games']})")
                 break
