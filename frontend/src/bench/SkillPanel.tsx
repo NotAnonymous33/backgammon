@@ -116,12 +116,13 @@ export default function SkillPanel({ run, selected, onSelect }: Props) {
 
     if (agents.length === 0) return null
 
-    const plotted = agents.filter(a => a.timeMs !== undefined && a.timeMs > 0)
-    const times = plotted.map(a => a.timeMs!)
+    // An agent whose decisions all failed has no loss to plot; with none plotted the chart is left out.
+    const plotted = agents.filter(a => a.timeMs !== undefined && a.timeMs > 0 && Number.isFinite(a.loss.value))
+    const times = plotted.length > 0 ? plotted.map(a => a.timeMs!) : [1]
     // Extend to whole decades so both ends carry a tick.
     const tLo = Math.min(Math.log10(Math.min(...times) / 1.6), Math.floor(Math.log10(Math.min(...times))))
     const tHi = Math.max(Math.log10(Math.max(...times) * 1.6), Math.ceil(Math.log10(Math.max(...times))))
-    const yHi = Math.max(...plotted.map(a => a.loss.ci?.[1] ?? a.loss.value!)) * 1.1 || 0.01
+    const yHi = Math.max(0, ...plotted.map(a => a.loss.ci?.[1] ?? a.loss.value!)) * 1.1 || 0.01
     const innerW = width - PAD.left - PAD.right
     const innerH = HEIGHT - PAD.top - PAD.bottom
     const x = (ms: number) => PAD.left + (Math.log10(ms) - tLo) / (tHi - tLo || 1) * innerW
@@ -158,7 +159,7 @@ export default function SkillPanel({ run, selected, onSelect }: Props) {
             </div>
 
             <div className="skill-chart" ref={wrapRef}>
-                <svg width={width} height={HEIGHT} role="img"
+                {plotted.length > 0 && <svg width={width} height={HEIGHT} role="img"
                     aria-label="Winning chance lost per decision against mean decision time, one point per agent">
                     {ticks.map(t => (
                         <g key={t}>
@@ -204,7 +205,7 @@ export default function SkillPanel({ run, selected, onSelect }: Props) {
                             </g>
                         )
                     })}
-                </svg>
+                </svg>}
                 {hp && (
                     <div className="trend-tip" style={{ left: tipLeft, top: Math.max(0, y(hp.loss.value!) - 20) }}>
                         <div className="tip-value">{pct(hp.loss.value, 2)} lost</div>
