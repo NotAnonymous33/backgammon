@@ -87,3 +87,13 @@ body {
     background-color: #004080;
     transform: translateY(0);
 }
+.home-error {
+    margin: 0.75rem 0 0;
+    color: #ff9aa2;
+}
+
+.button-newgame:disabled,
+.button-join:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
