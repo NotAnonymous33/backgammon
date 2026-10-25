@@ -8,6 +8,7 @@ from classes.agents.HeuristicAgent import HeuristicAgent
 from classes.agents.RandomAgent import RandomAgent
 from classes.agents.CMCTS2 import MCTSAgent2 as MCTSAgent  # type: ignore
 from classes.agents.NNAgent import FinalNNAgent
+import functools
 from bench.api import bp as bench_bp
 import threading
 
@@ -26,6 +27,12 @@ app.register_blueprint(bench_bp)
 db.init_app(app)
 
 rooms = {}
+
+
+@functools.lru_cache(maxsize=1)
+def neural_agent():
+    """The server's network player; it keeps no per-game state, so one instance serves every room."""
+    return FinalNNAgent()  # loads NNAgent.DEFAULT_CHECKPOINT
 
 verbose = True
 
@@ -241,7 +248,7 @@ def ai_move(room_code):
         elif ai_model == "mcts":
             ai = MCTSAgent(time_budget=5)
         elif ai_model == "neural":
-            ai = FinalNNAgent(checkpoint_path="models/main/main_checkpoint_latest.pt")
+            ai = neural_agent()
             
             
         print("selecting move")

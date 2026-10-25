@@ -32,7 +32,8 @@ AGENTS = {
     # 'MH10': (MCTSAgent2, {'mode': 'heuristic', 'eval_depth': 10, 'time_budget': 1}),
     'HDef': (HeuristicAgent, {}),
     'HOne': (HeuristicAgent, {'weights': [1]*10}),
-    'NN': (FinalNNAgent, {'checkpoint_path': 'models/main/main_checkpoint_latest.pt'}),
+    'NN': (FinalNNAgent, {}),  # the default network (models/canonical)
+    'NNMain': (FinalNNAgent, {'checkpoint_path': 'models/main/main_checkpoint_latest.pt'}),
     'NN25': (FinalNNAgent, {'checkpoint_path': 'models/main/checkpoint_epoch_main65.pt'}),
     'NN50': (FinalNNAgent, {'checkpoint_path': 'models/main/checkpoint_epoch_main130.pt'}),
     'NN75': (FinalNNAgent, {'checkpoint_path': 'models/main/checkpoint_epoch_main195.pt'}),

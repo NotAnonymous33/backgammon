@@ -22,6 +22,8 @@ This list is ranked by expected impact. Effort is relative to this project. Conf
 
    Define one value convention, such as white-win probability with targets `{0,1}`, and test learning on short, hand-calculable trajectories. Make terminal transitions explicit and use a consistent discount convention. These findings concern the current training code; they do not establish how historical checkpoints were trained.
 
+   *Status: done.* The network outputs P(side to roll wins), with targets in `[0, 1]`. Every state is trained, the last one on the actual outcome, and games cut off by the move limit get no terminal target. Training is undiscounted, and the trace sign flips with the point of view. `tests/test_network.py` checks the update against an independent white-frame TD(λ) and on a hand-calculable two-state game. In the benchmark's 8 × 3,000-game learning check, the score against `heuristic` rose from 24.3% to 67.5%.
+
 3. **Correct MCTS's treatment of chance and player perspective.**  
    **Impact: critical · Effort: medium–large**
 
@@ -93,6 +95,8 @@ This list is ranked by expected impact. Effort is relative to this project. Conf
 
     Define whether the network evaluates a position before rolling, a rolled decision state, or an afterstate. Include player-to-move information or canonicalize around a consistently defined player. Include dice when the chosen state definition requires them. Add color-swap augmentation and experiment with nonlinear checker-count channels, which can represent blots and made points more directly. Correct the anchor feature orientation and version feature semantics with the model.
 
+    *Status: partly done.* The `canonical-34` schema (`backend/classes/agents/features.py`) evaluates a position before rolling, from the side to roll, with the board mirrored for black. Colour symmetry is therefore built in rather than augmented. The 34 features are otherwise unchanged; the "anchor" features are relabelled as home-board points, which is what they count. Nonlinear checker-count channels remain to be tried.
+
 12. **Replace pip-only race play with race and bearoff evaluation.**  
     **Impact: high playing-strength opportunity · Effort: medium–large**
 
@@ -120,6 +124,8 @@ This list is ranked by expected impact. Effort is relative to this project. Conf
     Training currently constructs a `34 → 40 → 1` network, while serving hardcodes `34 → 128 → 128 → 1`. Resume filenames disagree with saved filenames, and `main()` overwrites the requested epoch count. See [NNAgent.py:749](backend/classes/agents/NNAgent.py#L749) and [NNAgent.py:819](backend/classes/agents/NNAgent.py#L819).
 
     Store architecture, feature schema, reward convention, rules version, configuration, RNG state, code revision, and evaluation evidence with each artifact. Use one strict loader across training, serving, and evaluation, with atomic checkpoint writes. Correct resume epoch accounting and learning-rate scheduling, and distinguish self-play white-win fraction from external evaluation strength.
+
+    *Status: partly done.* Checkpoints store `feature_schema` (including the value convention) and `architecture`, and are written atomically. `load_network` is the one strict loader: serving, MCTS and the benchmark use it, and resuming training refuses a checkpoint with a different schema. The resume path now matches the saved filename. Not yet stored: rules version, configuration, RNG state, code revision and evaluation evidence. `main()` still overrides the requested epoch count.
 
 16. **Refactor the frontend around authoritative state plus a draft turn.**  
     **Impact: high · Effort: medium**

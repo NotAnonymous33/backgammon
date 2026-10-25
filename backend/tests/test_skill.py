@@ -1,14 +1,25 @@
 """Tests for the skill evaluation: bearoff truth, reference labels, decision scoring and ratings."""
+import json
+import os
 import random
+import tempfile
 import unittest
 
 import numpy as np
 
 from bench import agents, bearoff, compare, ratings, reference, skill
+from bench import store
 from bench.store import metric
 
 DEFAULT_NN = agents.resolve_path(agents.DEFAULT_NN)
 TDGAMMON = agents.resolve_path("models/tdgammon/tdgammon_checkpoint_latest.pt")
+
+
+class Broken:
+    """An agent that fails every decision."""
+
+    def select_move(self, board):
+        raise RuntimeError("boom")
 
 
 def _board(white, black, turn=1):
@@ -157,6 +168,33 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(ms["skill[x].loss"]["samples"], [0.1, 0.4])
         self.assertAlmostEqual(ms["skill[x].best_rate"]["value"], 0.25)
         self.assertAlmostEqual(ms["skill[x].blunder_rate"]["value"], 0.75)
+
+    def test_intervals_need_two_scored_decisions(self):
+        entries = [_entry([0.6, 0.5], category="contact"), _entry([0.9, 0.2], category="exact")]
+        ids = [e["id"] for e in entries]
+        failed = {m["key"]: m for m in skill.agent_metrics("x", entries, {}, [], ["RuntimeError: boom"], "pair")}
+        self.assertNotIn("ci", failed["skill[x].loss"])  # NaN has no interval
+        self.assertEqual(failed["skill[x].unlabeled"]["detail"]["errors"], ["RuntimeError: boom"])
+        single = {m["key"]: m for m in skill.agent_metrics("x", entries, {ids[0]: ["a0"]}, [0.001], [], "pair")}
+        self.assertNotIn("ci", single["skill[x].loss"])  # one sample gives an infinite interval
+        self.assertEqual(single["skill[x].loss"]["n"], 1)
+        both = {m["key"]: m for m in skill.agent_metrics("x", entries, {ids[0]: ["a0"], ids[1]: ["a0"]},
+                                                         [0.001], [], "pair")}
+        self.assertIn("ci", both["skill[x].loss"])
+
+    def test_an_agent_that_always_fails_does_not_stop_the_run(self):
+        lines = []
+        out = skill.run({"skill_agents": ["first", "py:tests.test_skill:Broken"], "skill_positions": 3, "workers": 1},
+                        log=lines.append)
+        by_key = {m["key"]: m for m in out}
+        self.assertIn("ci", by_key["skill[first].loss"])
+        broken = by_key["skill[py:tests.test_skill:Broken].loss"]
+        self.assertNotIn("ci", broken)
+        self.assertTrue(any("no scored decisions" in line and "boom" in line for line in lines), lines)
+        with tempfile.TemporaryDirectory() as d:  # the results still save as strict JSON
+            path = store.save({"id": "r", "metrics": out}, d)
+            with open(path) as f:
+                json.load(f, parse_constant=lambda c: self.fail(f"{c} in saved results"))
 
     def test_repeats_only_for_stochastic_agents(self):
         self.assertEqual(skill.repeats_for("nn", 3), 1)

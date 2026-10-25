@@ -15,7 +15,11 @@ import copy
 DEFAULT_SEED = 20261023
 SECTIONS = ("rules", "speed", "search", "training", "strength", "skill", "ratings")
 
-_MATCHES = [("nn", "random"), ("nn", "heuristic"), ("heuristic", "random")]
+# `nn` is the default network (canonical-34, 128x128). The white-34 network that was the default
+# before it stays in the pools as the reference point for what the canonical network improved on.
+_SHIPPED_NN = "nn:models/main/main_checkpoint_latest.pt"
+
+_MATCHES = [("nn", "random"), ("nn", "heuristic"), ("heuristic", "random"), ("nn", _SHIPPED_NN)]
 
 # Iteration budgets double, so skill against log2(iterations) shows what a
 # faster search would be worth.
@@ -91,13 +95,13 @@ SUITES = {
         "training": _training(speed_repeats=5, epoch_games=64, epoch_repeats=3,
                               learn_seeds=8, learn_games=3000, learn_pairs=100),
         "matches": [{"a": a, "b": b, "pairs": 1000} for a, b in _MATCHES] + [{"a": "nn", "b": "mcts:iters=400", "pairs": 100}],
-        "skill_agents": ["heuristic", "nn", "nn:models/tdgammon/tdgammon_checkpoint_latest.pt"] + _MCTS_LADDER[:4]
+        "skill_agents": ["heuristic", "nn", _SHIPPED_NN, "nn:models/tdgammon/tdgammon_checkpoint_latest.pt"] + _MCTS_LADDER[:4]
         + ["mcts:iters=400,mode=heuristic,depth=40", "mcts:time=1.0"],
         "skill_repeats": 2,
         "skill_positions": None,
         # Slow MCTS budgets are rated in the full suite; skill covers them here.
-        "ratings": _ratings(["random", "first", "heuristic", "nn", "nn:models/tdgammon/tdgammon_checkpoint_latest.pt",
-                             "mcts:iters=100"], max_games=3000),
+        "ratings": _ratings(["random", "first", "heuristic", "nn", _SHIPPED_NN,
+                             "nn:models/tdgammon/tdgammon_checkpoint_latest.pt", "mcts:iters=100"], max_games=3500),
     },
     "full": {
         "repeats": 7,
@@ -111,12 +115,13 @@ SUITES = {
                               learn_seeds=16, learn_games=10000, learn_pairs=200),
         "matches": [{"a": a, "b": b, "pairs": 3000} for a, b in _MATCHES]
         + [{"a": "mcts:time=0.05", "b": "heuristic", "pairs": 150}, {"a": "nn", "b": "mcts:iters=400", "pairs": 300}],
-        "skill_agents": ["heuristic", "nn", "nn:models/tdgammon/tdgammon_checkpoint_latest.pt",
+        "skill_agents": ["heuristic", "nn", _SHIPPED_NN, "nn:models/tdgammon/tdgammon_checkpoint_latest.pt",
                          "nn:models/momentum/momentum_checkpoint_latest.pt"] + _MCTS_LADDER
         + ["mcts:iters=400,mode=heuristic,depth=40", "mcts:iters=400,mode=neural,depth=40", "mcts:time=1.0"],
         "skill_repeats": 3,
         "skill_positions": None,
-        "ratings": _ratings(["random", "first", "heuristic", "nn", "nn:models/tdgammon/tdgammon_checkpoint_latest.pt",
+        "ratings": _ratings(["random", "first", "heuristic", "nn", _SHIPPED_NN,
+                             "nn:models/tdgammon/tdgammon_checkpoint_latest.pt",
                              "nn:models/momentum/momentum_checkpoint_latest.pt", "nn:models/main/checkpoint_epoch_main50.pt",
                              "nn:models/main/checkpoint_epoch_main150.pt", "mcts:iters=100", "mcts:iters=400",
                              "mcts:iters=1600"], target_se=15.0, max_pairs=400, max_games=16000),

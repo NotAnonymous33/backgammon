@@ -4,7 +4,6 @@ import math
 import cython
 from .HeuristicAgent import HeuristicAgent
 from .NNAgent import FinalNNAgent
-import torch
 
 cdef class Node:
     cdef public object state
@@ -282,13 +281,10 @@ cdef class MCTSBackgammonAgent:
             return math.tanh(score)
 
         elif self.mode == "neural":
-            # get network‐predicted win‐probability in [0,1]
-            feats = torch.tensor(self.nn_agent.extract_features(state),
-                                 dtype=torch.float32).unsqueeze(0)
-            with torch.no_grad():
-                p = self.nn_agent.model(feats).item()
-            # map to [-1,1]
-            return 2.0 * p - 1.0
+            # The network's chance that the searching player wins, whatever its
+            # feature schema (white-34 or canonical), mapped to [-1, 1] like
+            # the other evaluations.
+            return 2.0 * self.nn_agent.win_probability(state, self.player_color) - 1.0
 
         else:
             # default: pip‐count heuristic as before

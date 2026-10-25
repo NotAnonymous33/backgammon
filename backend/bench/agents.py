@@ -3,7 +3,7 @@
     random                         RandomAgent
     first                          FirstAgent
     heuristic                      HeuristicAgent with default weights
-    nn                             FinalNNAgent, models/main/main_checkpoint_latest.pt
+    nn                             FinalNNAgent, models/canonical/canonical_128x128_100k.pt
     nn:models/main/x.pt            FinalNNAgent with another checkpoint
     mcts:time=0.5                  MCTSAgent2 (keys: time, iters, mode, depth, sim, c, nn)
     mcts:iters=400                 MCTSAgent2 stopping after 400 iterations per move
@@ -19,7 +19,7 @@ import importlib
 import os
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_NN = "models/main/main_checkpoint_latest.pt"
+DEFAULT_NN = "models/canonical/canonical_128x128_100k.pt"  # same file as NNAgent.DEFAULT_CHECKPOINT
 
 KINDS = ("random", "first", "heuristic", "nn", "mcts", "py")
 MCTS_KEYS = ("time", "iters", "mode", "depth", "sim", "c", "nn")

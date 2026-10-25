@@ -16,6 +16,7 @@ of older commits). A metric looks like::
     value   informational, never flagged
 """
 import json
+import math
 import os
 import re
 
@@ -37,12 +38,23 @@ def metric(key, label, value, unit="", kind="value", better="none", **extra):
     return m
 
 
+def _finite(x):
+    """``x`` with NaN and infinite numbers replaced by None: they are not valid JSON."""
+    if isinstance(x, float):
+        return x if math.isfinite(x) else None
+    if isinstance(x, dict):
+        return {k: _finite(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_finite(v) for v in x]
+    return x
+
+
 def save(run, results_dir=RESULTS_DIR):
     os.makedirs(results_dir, exist_ok=True)
     path = os.path.join(results_dir, f"{run['id']}.json")
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
-        json.dump(run, f, indent=1)
+        json.dump(_finite(run), f, indent=1, allow_nan=False)
         f.write("\n")
     os.replace(tmp, path)
     return path

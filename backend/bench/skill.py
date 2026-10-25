@@ -23,6 +23,7 @@ different seeds. Their per-position loss is the mean over those repeats.
 For network agents the section also checks the value function itself: the
 network's estimate for every labelled afterstate against the label.
 """
+import math
 import multiprocessing as mp
 import os
 import sys
@@ -111,11 +112,15 @@ def noise_floor(entries):
     return sum(floors) / len(floors) if floors else float("nan")
 
 
+def _interval(mean, half):
+    """``[low, high]``, or None when there is no usable interval: no samples (NaN) or one sample (infinite)."""
+    return [mean - half, mean + half] if math.isfinite(half) else None
+
+
 def _mean_metric(key, label, samples, better, pairing, unit="fraction", detail=None):
     clean = [s for s in samples if s is not None]
     mean, half = mean_ci(clean)
-    return metric(key, label, mean, unit=unit, kind="mean", better=better,
-                  ci=[mean - half, mean + half] if clean else None, n=len(clean),
+    return metric(key, label, mean, unit=unit, kind="mean", better=better, ci=_interval(mean, half), n=len(clean),
                   samples=[None if s is None else round(s, 5) for s in samples], pairing=pairing, detail=detail)
 
 
@@ -192,6 +197,9 @@ def value_metrics(spec, entries, pairing):
     net = ValueNet.from_checkpoint(agent_specs.resolve_path(target))
     errors = {"exact": [], "rollout": []}
     signed = []
+    # Error in P(white wins), split by who is on roll after the move: a network
+    # that cannot see the turn is biased in opposite directions for the two.
+    on_roll = {(side, group): [] for side in (1, -1) for group in ("exact", "rollout")}
     for e in entries:
         board = to_board(e)
         children = {aid: child for aid, (_, child) in reference.afterstates(board).items()}
@@ -203,8 +211,10 @@ def value_metrics(spec, entries, pairing):
                 continue  # the network is never asked about finished games
             v = net.value(child)
             err = reference.mover_value(v, e["turn"]) - reference.mover_value(label["p"], e["turn"])
-            errors["exact" if label.get("exact") else "rollout"].append(abs(err))
+            group = "exact" if label.get("exact") else "rollout"
+            errors[group].append(abs(err))
             signed.append(err)
+            on_roll[(child.turn, group)].append(v - label["p"])
     base = f"skill[{spec}]"
     out = []
     for group, vals in errors.items():
@@ -215,7 +225,18 @@ def value_metrics(spec, entries, pairing):
     if signed:
         mean, half = mean_ci(signed)
         out.append(metric(f"{base}.value_bias", f"{spec}: value bias (+ = overrates its own plays)", mean,
-                          unit="fraction", ci=[mean - half, mean + half], n=len(signed)))
+                          unit="fraction", ci=_interval(mean, half), n=len(signed)))
+    for side, name in ((1, "white"), (-1, "black")):
+        vals = on_roll[(side, "exact")] + on_roll[(side, "rollout")]
+        if not vals:
+            continue
+        mean, half = mean_ci(vals)
+        exact = on_roll[(side, "exact")]
+        out.append(metric(
+            f"{base}.value_bias.{name}_on_roll",
+            f"{spec}: P(white wins) error with {name} on roll (+ = overrates white)", mean,
+            unit="fraction", ci=_interval(mean, half), n=len(vals),
+            detail={"exact_only": sum(exact) / len(exact) if exact else None, "exact_n": len(exact)}))
     return out
 
 
@@ -278,7 +299,12 @@ def run(cfg, log=print):
             ms += value_metrics(spec, entries, pairing)
         out += ms
         loss = ms[0]
-        by_cat = ", ".join(f"{c} {v:.1%}" for c, v in loss["detail"]["by_category"].items() if v is not None)
-        log(f"  {spec}: loses {loss['value']:.2%} per decision (95% CI {loss['ci'][0]:.2%}–{loss['ci'][1]:.2%}); "
-            f"{by_cat}")
+        if loss.get("ci"):
+            by_cat = ", ".join(f"{c} {v:.1%}" for c, v in loss["detail"]["by_category"].items() if v is not None)
+            log(f"  {spec}: loses {loss['value']:.2%} per decision "
+                f"(95% CI {loss['ci'][0]:.2%}–{loss['ci'][1]:.2%}); {by_cat}")
+        else:
+            # An agent that fails every decision must not stop the other agents or sections being saved.
+            log(f"  {spec}: no scored decisions ({loss['n']} of {len(entries)} positions); "
+                f"first errors: {errors[spec][:3] or 'none recorded'}")
     return out
