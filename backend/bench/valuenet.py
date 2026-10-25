@@ -3,63 +3,38 @@
 ``FinalNNAgent`` evaluates afterstates with PyTorch, whose per-call overhead
 dominates for networks this small (performance.md #17). Reference rollouts
 make millions of such decisions, so they use this evaluator instead. It
-reproduces ``classes.agents.NNAgent.extract_features`` and the
-``BackgammonNN`` layer layout exactly; tests/test_skill.py checks that it
-chooses the same moves as ``FinalNNAgent``.
+uses the same feature schemas (classes/agents/features.py) and the
+``BackgammonNN`` layer layout; tests check that it chooses the same moves as
+``FinalNNAgent`` for both ``white-34`` and ``canonical-34`` networks.
 
 The architecture is read from the checkpoint's weight shapes, so 34-40-1
-(``tdgammon``) and 34-128-128-1 (``main``) checkpoints both load. Loading is
-strict: unexpected or missing tensors raise instead of silently leaving
-layers at their random initialisation.
+(``tdgammon``) and 34-128-128-1 (``main``) checkpoints both load, and the
+feature schema from the checkpoint itself (``white-34`` when absent).
+Loading is strict: unexpected or missing tensors raise instead of silently
+leaving layers at their random initialisation.
 """
 import re
 
 import numpy as np
 
-N_FEATURES = 34
+from classes.agents import features as feature_schemas
+
+N_FEATURES = feature_schemas.LEGACY.size
+features = feature_schemas.legacy_features  # white-34 features, as NNAgent.extract_features
 
 
-def features(board):
-    """The 34 inputs of ``NNAgent.extract_features``, in one pass over the points."""
-    pos = board.positions
-    f = [p / 15.0 for p in pos]
-    white_singles = black_singles = 0
-    white_run = black_run = white_prime = black_prime = 0
-    for p in pos:
-        if p >= 2:
-            white_run += 1
-            black_run = 0
-            if white_run > white_prime:
-                white_prime = white_run
-        elif p <= -2:
-            black_run += 1
-            white_run = 0
-            if black_run > black_prime:
-                black_prime = black_run
-        else:
-            white_run = black_run = 0
-            if p == 1:
-                white_singles += 1
-            elif p == -1:
-                black_singles += 1
-    # Same orientation as the original: white "anchors" on 18-23, black on 0-5.
-    white_anchors = (pos[18] >= 2) + (pos[19] >= 2) + (pos[20] >= 2) + (pos[21] >= 2) + (pos[22] >= 2) + (pos[23] >= 2)
-    black_anchors = (pos[0] <= -2) + (pos[1] <= -2) + (pos[2] <= -2) + (pos[3] <= -2) + (pos[4] <= -2) + (pos[5] <= -2)
-    f += (
-        board.white_bar / 15.0, board.black_bar / 15.0, board.white_off / 15.0, board.black_off / 15.0,
-        white_singles / 15.0, black_singles / 15.0, white_prime / 6.0, black_prime / 6.0,
-        white_anchors / 6.0, black_anchors / 6.0,
-    )
-    return f
-
-
-def load_state_dict(path):
+def load_checkpoint(path):
+    """(state dict, feature schema) of a checkpoint or bare state dict."""
     import torch
 
     ckpt = torch.load(path, map_location="cpu")
     if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
-        return ckpt["model_state_dict"]
-    return ckpt
+        return ckpt["model_state_dict"], feature_schemas.from_description(ckpt.get("feature_schema"))
+    return ckpt, feature_schemas.LEGACY
+
+
+def load_state_dict(path):
+    return load_checkpoint(path)[0]
 
 
 def layer_shapes(state_dict):
@@ -89,10 +64,11 @@ def hidden_sizes(state_dict):
 
 
 class ValueNet:
-    """P(white wins) for positions, as estimated by a ``BackgammonNN`` checkpoint."""
+    """Position values from a ``BackgammonNN`` checkpoint, interpreted through its feature schema."""
 
-    def __init__(self, state_dict):
+    def __init__(self, state_dict, schema=feature_schemas.LEGACY):
         shapes = layer_shapes(state_dict)
+        self.schema = schema
         self.hidden = [out for _, out in shapes[:-1]]
         self.layers = [
             (state_dict[f"model.{2 * i}.weight"].detach().cpu().numpy().astype(np.float32).T.copy(),
@@ -102,10 +78,10 @@ class ValueNet:
 
     @classmethod
     def from_checkpoint(cls, path):
-        return cls(load_state_dict(path))
+        return cls(*load_checkpoint(path))
 
     def evaluate(self, rows):
-        """Win probabilities for white, one per feature row."""
+        """Raw network outputs, one per feature row (see the schema for their meaning)."""
         x = np.asarray(rows, dtype=np.float32)
         last = len(self.layers) - 1
         for i, (w, b) in enumerate(self.layers):
@@ -116,17 +92,24 @@ class ValueNet:
         return 1.0 / (1.0 + np.exp(-x))
 
     def value(self, board):
-        return float(self.evaluate([features(board)])[0])
+        """The network's P(white wins) for ``board`` with ``board.turn`` about to roll."""
+        if board.game_over:
+            return self.schema.win_probability(board, None, 1)
+        output = float(self.evaluate([self.schema.features(board)])[0])
+        return self.schema.win_probability(board, output, 1)
 
     def choose(self, board, moves=None):
-        """Index of the move FinalNNAgent would play, and every afterstate's white-win value."""
+        """Index of the move FinalNNAgent would play, and the raw network output for each afterstate."""
         moves = board.valid_moves if moves is None else moves
         children = []
         for move in moves:
             child = board.clone()
             child.move_from_sequence(move)
             children.append(child)
-        values = self.evaluate([features(c) for c in children])
+        values = self.evaluate(self.schema.afterstate_rows(board.turn, children))
+        if self.schema.canonical:
+            return self.schema.best_index(board.turn, children, values), values
+        # white-34: exactly FinalNNAgent's argmax/argmin, including how ties break.
         best = int(values.argmax() if board.turn == 1 else values.argmin())
         return best, values
 

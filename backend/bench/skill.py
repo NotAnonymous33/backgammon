@@ -197,6 +197,9 @@ def value_metrics(spec, entries, pairing):
     net = ValueNet.from_checkpoint(agent_specs.resolve_path(target))
     errors = {"exact": [], "rollout": []}
     signed = []
+    # Error in P(white wins), split by who is on roll after the move: a network
+    # that cannot see the turn is biased in opposite directions for the two.
+    on_roll = {(side, group): [] for side in (1, -1) for group in ("exact", "rollout")}
     for e in entries:
         board = to_board(e)
         children = {aid: child for aid, (_, child) in reference.afterstates(board).items()}
@@ -208,8 +211,10 @@ def value_metrics(spec, entries, pairing):
                 continue  # the network is never asked about finished games
             v = net.value(child)
             err = reference.mover_value(v, e["turn"]) - reference.mover_value(label["p"], e["turn"])
-            errors["exact" if label.get("exact") else "rollout"].append(abs(err))
+            group = "exact" if label.get("exact") else "rollout"
+            errors[group].append(abs(err))
             signed.append(err)
+            on_roll[(child.turn, group)].append(v - label["p"])
     base = f"skill[{spec}]"
     out = []
     for group, vals in errors.items():
@@ -221,6 +226,17 @@ def value_metrics(spec, entries, pairing):
         mean, half = mean_ci(signed)
         out.append(metric(f"{base}.value_bias", f"{spec}: value bias (+ = overrates its own plays)", mean,
                           unit="fraction", ci=_interval(mean, half), n=len(signed)))
+    for side, name in ((1, "white"), (-1, "black")):
+        vals = on_roll[(side, "exact")] + on_roll[(side, "rollout")]
+        if not vals:
+            continue
+        mean, half = mean_ci(vals)
+        exact = on_roll[(side, "exact")]
+        out.append(metric(
+            f"{base}.value_bias.{name}_on_roll",
+            f"{spec}: P(white wins) error with {name} on roll (+ = overrates white)", mean,
+            unit="fraction", ci=_interval(mean, half), n=len(vals),
+            detail={"exact_only": sum(exact) / len(exact) if exact else None, "exact_n": len(exact)}))
     return out
 
 

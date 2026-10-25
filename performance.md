@@ -271,6 +271,8 @@ Measured and **not** worth doing: `torch.set_num_threads(1)` made no difference 
 
 ## 11. Training pipeline
 
+*Status (2026-10-25): partly done.* `torch.compile` and anomaly detection are removed, self-play copies boards with `clone()`, and a game's states travel as one NumPy array (#13). In the benchmark, self-play went from 1,228 to 3,995 positions/s, TD updates from 2,668 to 3,943, and `train_epoch` from 6.2 to 9.2 games/s. Persistent pools and hand-written gradients (#16) remain.
+
 **Effort: small–medium · affects offline training only**
 
 - `torch.autograd.set_detect_anomaly(True)` is enabled for normal training ([NNAgent.py:807](backend/classes/agents/NNAgent.py#L807)). It records stack traces for every op and commonly slows backward passes several times. Remove it or put it behind a flag.

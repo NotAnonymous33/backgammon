@@ -2,11 +2,15 @@ try:
     from classes.board_cpp import Board # type: ignore
     from classes.agents.RandomAgent import RandomAgent
     from classes.agents.HeuristicAgent import HeuristicAgent
+    from classes.agents import features as feature_schemas
 except ImportError:
     
     from board_cpp import Board # type: ignore
     from .RandomAgent import RandomAgent
     from .HeuristicAgent import HeuristicAgent
+    from . import features as feature_schemas
+from collections import namedtuple
+import numpy as np
 import torch
 import torch.nn as nn
 import random
@@ -18,18 +22,13 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-import torch._dynamo as dynamo
-
-# Enable verbose logging to understand why compilation fails
-dynamo.config.verbose = True
-
-# Raise an error instead of falling back to eager mode
-dynamo.config.suppress_errors = False
-
 torch.set_float32_matmul_precision('medium')
 
 def extract_features(board):
-    """    
+    """The original ``white-34`` features (see features.py), kept as the reference implementation.
+
+    New networks use ``features.CANONICAL``, which takes the side to roll's point of view.
+
     Args:
         board: A Board object representing the current game state
         
@@ -101,15 +100,32 @@ class BackgammonNN(nn.Module):
 
 
 class TDLambda:
-    def __init__(self, model, learning_rate=0.1, lambda_param=0.7, gamma=0.99):
+    def __init__(self, model, learning_rate=0.1, lambda_param=0.7, gamma=1.0):
         """
-        TD(λ) with explicit eligibility traces for updating a value function.
-        
+        Online TD(λ) with eligibility traces for a value network.
+
+        Value convention (``features.CANONICAL``): V(s) is the probability that
+        the side about to roll in s wins, so targets lie in [0, 1]:
+
+        * between turns, the target for V(s_t) is 1 - V(s_{t+1}) when the next
+          state belongs to the opponent (it always does in backgammon, even
+          after a pass), or V(s_{t+1}) for the same player;
+        * the last state of a finished game gets the outcome itself: 1 if its
+          player won (the side that bears off last always wins on its own
+          turn), else 0;
+        * the last state of a game cut off by the move limit gets no target,
+          because nobody won it.
+
+        Because the point of view flips each turn, the eligibility trace flips
+        sign with it (see ``update``); this is exactly TD(λ) on the white-win
+        probability, written in the network's own perspective.
+
         Args:
             model: Neural network model.
             learning_rate: Step size for parameter updates.
             lambda_param: Decay rate for eligibility traces.
-            gamma: Discount factor.
+            gamma: Discount factor. Backgammon has no intermediate rewards and
+                the value is a probability, so the default is 1 (undiscounted).
         """
         self.model = model
         self.initial_learning_rate = learning_rate
@@ -123,83 +139,89 @@ class TDLambda:
         for name, param in self.model.named_parameters():
             self.eligibility[name] = torch.zeros_like(param, dtype=torch.float32)
     
-    @torch.compile(mode="reduce-overhead")
-    def update(self, states, reward, epoch_num=0):
+    def update(self, states, players, winner, epoch_num=0):
         """
-        Update model parameters using TD(λ) with eligibility traces.
-        Assumes a single episode with final reward provided.
-        
+        Update model parameters from one self-play game.
+
         Args:
-            states: List of state representations (as tensors or convertible objects)
-            reward: Final reward of the episode (e.g., 1 for win, 0 for loss)
+            states: Feature rows, one per turn, each from the point of view of
+                the side about to roll (array-like of shape [turns, inputs]).
+            players: The side to roll for each state (1 white, -1 black).
+            winner: 1 or -1, or None if the game hit the move limit.
+            epoch_num: Epoch number, for learning-rate decay.
+
+        In white's fixed frame, W_t = V_t when white is on roll and 1 - V_t
+        otherwise, and ordinary TD(λ) applies to W. Substituting gives the
+        update below: the TD error is target - V_t and the trace is decayed
+        by +γλ when consecutive states belong to the same player and -γλ
+        when the player changes.
         """
-        if len(states) < 2:
+        x = torch.as_tensor(np.asarray(states, dtype=np.float32)).reshape(len(players), -1)
+        n = len(players)
+        if n == 0:
             return
-        
-        # Convert states to tensors if necessary.
-        state_tensors = [
-            s if isinstance(s, torch.Tensor) else torch.tensor(s, dtype=torch.float32)
-            for s in states
-        ]
-        
+        lr = self.initial_learning_rate * 0.999 ** epoch_num
         self.model.train()
-        
-        # Clear eligibility traces at the start of the episode.
-        for name, param in self.model.named_parameters():
+        params = [(name, p) for name, p in self.model.named_parameters()]
+        for name, _ in params:
             self.eligibility[name].zero_()
-        
-        # Process each time step in the episode.
-        for t in range(len(state_tensors) - 1):
-            # Zero gradients for the current step.
-            self.optimizer.zero_grad()
-            
-            # Compute the current state's value V(s_t).
-            V_t = self.model(state_tensors[t])
-            
-            # Determine target value:
-            # For all steps except the last, use V(s_{t+1}); at the final step, use the terminal reward.
-            if t == len(state_tensors) - 2:
-                # Last transition: use final reward as target.
-                V_target = torch.tensor([[reward]], dtype=torch.float32)
+
+        for t in range(n):
+            if t == n - 1:
+                if winner is None:
+                    break  # cut off by the move limit: no outcome to learn from
+                target = 1.0 if winner == players[t] else 0.0
             else:
-                # Use the next state's value (no immediate reward assumed until terminal).
                 with torch.no_grad():
-                    V_target = self.model(state_tensors[t + 1])
-            
-            # Compute the TD error: δ = target - V(s_t)
-            delta = V_target - V_t
-            
-            # Backpropagate to compute gradients of V(s_t) w.r.t. parameters.
-            V_t.backward(retain_graph=True)
-            
-            # Update eligibility traces and parameters.
+                    v_next = self.model(x[t + 1:t + 2]).item()
+                target = v_next if players[t + 1] == players[t] else 1.0 - v_next
+
+            self.optimizer.zero_grad()
+            v = self.model(x[t:t + 1])
+            v.backward()
+            delta = target - v.item()
+            decay = self.gamma * self.lambda_param
+            if t > 0 and players[t] != players[t - 1]:
+                decay = -decay
             with torch.no_grad():
-                for name, param in self.model.named_parameters():
+                for name, param in params:
                     if param.grad is None:
                         continue
-                    # Update trace: decay the old trace and add current gradient.
-                    self.eligibility[name] = (
-                        self.gamma * self.lambda_param * self.eligibility[name] + param.grad
-                    )
-                    # Update parameters using the TD error weighted by the eligibility trace.
-                    param.add_((self.initial_learning_rate * 0.999 ** epoch_num) * delta.item() * self.eligibility[name])
-            
-            # Zero gradients before next iteration.
-            self.optimizer.zero_grad()
+                    trace = self.eligibility[name]
+                    trace.mul_(decay).add_(param.grad)
+                    param.add_(trace, alpha=lr * delta)
+        self.optimizer.zero_grad()
+
+
+def as_schema(features_or_schema):
+    """A feature schema, accepting the legacy ``extract_features`` function for old call sites."""
+    if features_or_schema is None:
+        return feature_schemas.DEFAULT
+    if isinstance(features_or_schema, feature_schemas.Schema):
+        return features_or_schema
+    if features_or_schema is extract_features:
+        return feature_schemas.LEGACY
+    raise TypeError("pass a features.Schema (e.g. features.CANONICAL), or extract_features for white-34 networks")
+
+
+Episode = namedtuple("Episode", ["states", "players", "winner"])
+Episode.__doc__ = """One self-play game: per-turn feature rows, who was on roll, and the winner (None if cut off)."""
 
 
 class NNAgent:
-    def __init__(self, model, extract_features_fn, exploration_rate=0.1):
+    def __init__(self, model, schema=None, exploration_rate=0.1):
         """
-        Neural network-based agent for backgammon.
+        Neural network-based agent for backgammon, as used in training.
         
         Args:
             model: Trained neural network model
-            extract_features_fn: Function to extract features from a board
+            schema: Feature schema the model was trained with (default
+                features.CANONICAL); ``extract_features`` means white-34
             exploration_rate: Rate of random exploration (0.0 to 1.0)
         """
         self.model = model
-        self.extract_features = extract_features_fn
+        self.schema = as_schema(schema)
+        self.extract_features = self.schema.features
         self.exploration_rate = exploration_rate
         
         
@@ -211,38 +233,37 @@ class NNAgent:
         if random.random() < self.exploration_rate:
             return random.choice(board.valid_moves)
         
-        board_copies = [deepcopy(board) for _ in board.valid_moves]
-        for i, move in enumerate(board.valid_moves):
-            board_copies[i].move_from_sequence(move)
+        moves = board.valid_moves
+        children = [board.clone() for _ in moves]
+        for child, move in zip(children, moves):
+            child.move_from_sequence(move)
         
-        features_batch = torch.stack([torch.tensor(self.extract_features(b), dtype=torch.float32) for b in board_copies])
-        
+        rows = self.schema.afterstate_rows(board.turn, children)
         with torch.no_grad():
             self.model.eval()
-            values = self.model(features_batch).squeeze()
-        
-        if board.turn == 1:
-            best_idx = values.argmax().item()
-        else:
-            best_idx = values.argmin().item()
-        return board.valid_moves[best_idx]
+            values = self.model(torch.tensor(rows, dtype=torch.float32)).reshape(-1).tolist()
+        return moves[self.schema.best_index(board.turn, children, values)]
 
 
 class BackgammonTrainer:
-    def __init__(self, model, extract_features_fn, td_lambda, games_per_epoch=1000, eval_games=100, num_workers=None):
+    def __init__(self, model, schema, td_lambda, games_per_epoch=1000, eval_games=100, num_workers=None):
         """
         Training pipeline for backgammon AI.
         
         Args:
             model: Neural network model
-            extract_features_fn: Function to extract features from a board
+            schema: Feature schema to train with; only features.CANONICAL
+                matches the value convention TDLambda trains towards
             td_lambda: TD(λ) learning implementation
             games_per_epoch: Number of games to play per training epoch
             eval_games: Number of games to evaluate the model
             num_workers: Number of workers for data loading (optional)
         """
         self.model = model
-        self.extract_features = extract_features_fn
+        self.schema = as_schema(schema)
+        if not self.schema.canonical:
+            raise ValueError("TDLambda trains P(side to roll wins); use features.CANONICAL")
+        self.extract_features = self.schema.features
         self.td_lambda = td_lambda
         self.games_per_epoch = games_per_epoch
         self.eval_games = eval_games
@@ -265,10 +286,16 @@ class BackgammonTrainer:
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': optimizer_state,
             'win_rate': getattr(self, 'last_win_rate', 0.0),
-            'training_results': getattr(self, 'training_results', [])
+            'training_results': getattr(self, 'training_results', []),
+            # Self-describing: loaders need these to use the network correctly.
+            'feature_schema': self.schema.describe(),
+            'architecture': {'input_size': self.schema.size, 'hidden_sizes': hidden_sizes_of(self.model.state_dict())},
         }
         
-        torch.save(checkpoint, filename)
+        os.makedirs(os.path.dirname(filename) or ".", exist_ok=True)
+        tmp = filename + ".tmp"
+        torch.save(checkpoint, tmp)
+        os.replace(tmp, filename)  # never leave a half-written checkpoint behind
         print(f"Model checkpoint saved to {filename}")
     
     def load_checkpoint(self, filename):
@@ -287,6 +314,10 @@ class BackgammonTrainer:
             return 0, []
         try:
             checkpoint = torch.load(filename)
+            schema = feature_schemas.from_description(checkpoint.get('feature_schema'))
+            if schema is not self.schema:
+                raise feature_schemas.SchemaError(
+                    f"{filename} was trained with {schema.name} v{schema.version}, not {self.schema.name} v{self.schema.version}")
             
             # Load model state
             self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -324,14 +355,14 @@ class BackgammonTrainer:
             )
 
             # Iterate and update immediately
-            for winner, states in tqdm(
+            for episode in tqdm(
                 game_results,
                 total=self.games_per_epoch,
                 desc=f"Epoch {epoch_num+1} rollout & learn"
             ):
                 # on‑the‑fly TD‑λ update
-                self.td_lambda.update(states, float(winner), epoch_num)
-                if winner == 1:
+                self.td_lambda.update(episode.states, episode.players, episode.winner, epoch_num)
+                if episode.winner == 1:
                     wins_white += 1
 
         return wins_white / self.games_per_epoch
@@ -341,13 +372,17 @@ class BackgammonTrainer:
         Play a complete game of backgammon using the current model.
         
         Returns:
-            winner: The winner of the game (1 for white, -1 for black)
-            states: List of player state tensors
+            Episode(states, players, winner): one feature row per turn, from
+            the point of view of the side about to roll, as a float32 array
+            (cheap to send back from worker processes); who was on roll at
+            each turn; and the winner (1 white, -1 black), or None if the game
+            reached the move limit.
         """
         board = Board()
-        agent = NNAgent(self.model, self.extract_features)
+        agent = NNAgent(self.model, self.schema)
         
         states = []
+        players = []
         
         move_count = 0
         max_moves = 200  # Prevent infinite games
@@ -356,12 +391,9 @@ class BackgammonTrainer:
             # Roll dice
             board.roll_dice()         
     
-            # Extract features from current state
-            features = self.extract_features(board)
-            state_tensor = torch.tensor([features], dtype=torch.float32)
-            
-            # Store state
-            states.append(state_tensor)
+            # Record the state from the roller's point of view
+            states.append(self.schema.features(board))
+            players.append(board.turn)
             # Choose move
             move = agent.select_move(board)
             
@@ -369,20 +401,8 @@ class BackgammonTrainer:
             board.move_from_sequence(move)
             move_count += 1
         
-        # Force an end if max moves reached
-        if move_count >= max_moves:
-            # The player with more pieces borne off wins
-            if board.white_off == board.black_off:
-                winner = 1 if board.white_left < board.black_left else -1
-            else:
-                winner = 1 if board.white_off > board.black_off else -1
-        else:
-            winner = 1 if board.white_off == 15 else -1
-        
-        if not states:
-            states.append(torch.zeros([1, self.extract_features(board).shape[0]], dtype=torch.float32))
-            
-        return winner, states
+        winner = (1 if board.white_off == 15 else -1) if board.game_over else None
+        return Episode(np.asarray(states, dtype=np.float32).reshape(len(players), self.schema.size), players, winner)
     
     def train(self, num_epochs=100, resume_from=None, checkpoint_interval=5, name=""):
         """
@@ -422,7 +442,7 @@ class BackgammonTrainer:
                 else:
                     self.save_checkpoint(f"models/checkpoint_epoch_{epoch+1}.pt", epoch=epoch+1)
             
-            e = Evaluator(NNAgent(self.model, self.extract_features, exploration_rate=0.0), opponent_agent=HeuristicAgent(), num_games=self.eval_games)
+            e = Evaluator(NNAgent(self.model, self.schema, exploration_rate=0.0), opponent_agent=HeuristicAgent(), num_games=self.eval_games)
             eval_results = e.evaluate()                
 
             print("\nEvaluation Results:")
@@ -746,46 +766,71 @@ def longest_prime(board, color):
                     current = 0
         return longest
 
+def hidden_sizes_of(state_dict):
+    """Hidden layer widths of a BackgammonNN state dict (Linear layers sit at model.0, model.2, ...)."""
+    weights = sorted((int(k.split(".")[1]), v) for k, v in state_dict.items() if k.endswith(".weight"))
+    return [int(w.shape[0]) for _, w in weights[:-1]]
+
+
+# The network the server, neural MCTS and the benchmark use unless told otherwise.
+DEFAULT_CHECKPOINT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                                  "models", "canonical", "canonical_128x128_100k.pt")
+
+
+def load_network(path):
+    """(model in eval mode, feature schema) for a checkpoint or bare state dict.
+
+    The schema comes from the checkpoint; files saved before schemas existed
+    are ``white-34``. Loading is strict: a partial load would leave layers at
+    random initialisation.
+    """
+    ckpt = torch.load(path)
+    if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
+        state_dict = ckpt["model_state_dict"]
+        schema = feature_schemas.from_description(ckpt.get("feature_schema"))
+    else:
+        state_dict = ckpt
+        schema = feature_schemas.LEGACY
+    model = BackgammonNN(schema.size, hidden_sizes=hidden_sizes_of(state_dict))
+    model.load_state_dict(state_dict)
+    model.eval()
+    return model, schema
+
+
 class FinalNNAgent:
-    def __init__(self, model_path: str = None, checkpoint_path: str = None,extract_features_fn=extract_features,
+    def __init__(self, model_path: str = None, checkpoint_path: str = None, extract_features_fn=None,
                  hidden_sizes=None):
         """
         Args:
             model_path (str): Path to a raw model state_dict (.pt/.pth).
             checkpoint_path (str, optional): Full checkpoint file (with optimizer, epoch, etc.).
                                              If provided, this is used instead of `model_path`.
-            extract_features_fn: function(Board) -> feature vector.
+                                             With neither, `DEFAULT_CHECKPOINT` is loaded.
+            extract_features_fn: override the features of a white-34 network
+                                 (the checkpoint's schema decides otherwise).
             hidden_sizes: hidden layer widths; read from the checkpoint when omitted,
                           so 34-40-1 and 34-128-128-1 networks both load.
         """
-        self.extract_features = extract_features_fn
-        input_dim = len(self.extract_features(Board()))
-
-        # decide which file to load
-        load_path = checkpoint_path or model_path
-        ckpt = torch.load(load_path)
-
-        # if it's a training checkpoint, grab the nested model_state_dict
-        if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
-            state_dict = ckpt["model_state_dict"]
-        else:
-            # assume ckpt _is_ a bare state dict
-            state_dict = ckpt
-
-        if hidden_sizes is None:
-            # Linear layers sit at model.0, model.2, ...; every one but the last is hidden.
-            weights = sorted((int(k.split(".")[1]), v) for k, v in state_dict.items() if k.endswith(".weight"))
-            hidden_sizes = [w.shape[0] for _, w in weights[:-1]]
-        self.model = BackgammonNN(input_dim, hidden_sizes=hidden_sizes)
-
-        # Strict: a partial load would leave layers at random initialisation.
-        self.model.load_state_dict(state_dict)
-
-        self.model.eval()
+        load_path = checkpoint_path or model_path or DEFAULT_CHECKPOINT
+        self.model, self.schema = load_network(load_path)
+        if hidden_sizes is not None and list(hidden_sizes) != hidden_sizes_of(self.model.state_dict()):
+            raise ValueError(f"{load_path} has hidden layers {hidden_sizes_of(self.model.state_dict())}, not {hidden_sizes}")
+        if extract_features_fn is not None and self.schema.canonical:
+            raise ValueError(f"{load_path} uses the {self.schema.name} schema; its features cannot be overridden")
+        self.extract_features = extract_features_fn or self.schema.features
     
     def select_move(self, board):
         if not board.valid_moves:
             return []
+        if self.schema.canonical:
+            moves = board.valid_moves
+            children = [board.clone() for _ in moves]
+            for child, move in zip(children, moves):
+                child.move_from_sequence(move)
+            rows = self.schema.afterstate_rows(board.turn, children)
+            with torch.no_grad():
+                values = self.model(torch.tensor(rows, dtype=torch.float32)).reshape(-1).tolist()
+            return moves[self.schema.best_index(board.turn, children, values)]
         
         board_copies = [deepcopy(board) for _ in board.valid_moves]
         for i, move in enumerate(board.valid_moves):
@@ -803,13 +848,18 @@ class FinalNNAgent:
             best_idx = values.argmin().item()
         return board.valid_moves[best_idx] 
 
-def main(resume=False, epoch_count=20):
-    torch.autograd.set_detect_anomaly(True)
+    def win_probability(self, board, player):
+        """The network's P(``player`` wins) for ``board`` with ``board.turn`` about to roll."""
+        if board.game_over:
+            return self.schema.win_probability(board, None, player)
+        with torch.no_grad():
+            output = self.model(torch.tensor([self.extract_features(board)], dtype=torch.float32)).item()
+        return self.schema.win_probability(board, output, player)
+
+def main(resume=False, epoch_count=20, name="canonical"):
     """Main function to train and evaluate the backgammon AI."""
-    # Assuming the extract_features function already exists
-    
-    # Define input size based on feature extractor output
-    input_size = len(extract_features(Board()))
+    schema = feature_schemas.CANONICAL
+    input_size = schema.size
     
     print(f"Feature vector size: {input_size}")
     
@@ -831,7 +881,7 @@ def main(resume=False, epoch_count=20):
     # Create trainer
     trainer = BackgammonTrainer(
         model=model,
-        extract_features_fn=extract_features,
+        schema=schema,
         td_lambda=td_lambda,
         games_per_epoch=games_per_epoch,
         eval_games=eval_games
@@ -845,12 +895,12 @@ def main(resume=False, epoch_count=20):
     
     # Define a function to train a model
     def train_model(trainer: BackgammonTrainer, name, num_epochs, resume=False):
-        return trainer.train(num_epochs=num_epochs, name=name, resume_from=f"models/{name}/latest.pt" if resume else None)
+        # The same path train() writes the latest checkpoint to.
+        resume_from = f"models/{name}/{name}_checkpoint_latest.pt" if resume else None
+        return trainer.train(num_epochs=num_epochs, name=name, resume_from=resume_from)
     
-    if resume:
-        train_model(trainer, "tdgammon2", epoch_count, resume=True)
-    else:
-        train_model(trainer, "tdgammon2", epoch_count)
+    # A new name, so a canonical run never overwrites the committed white-34 checkpoints.
+    train_model(trainer, name, epoch_count, resume=resume)
     
 
     # trainer.plot_learning_curve(save_path="learning_curve.png")
@@ -870,6 +920,7 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type=int, default=20, help='Number of epochs to train')
     parser.add_argument('--evaluate', action='store_true', help='Only evaluate the model without training')
     parser.add_argument('--model', type=str, default='final_model.pt', help='Model path for evaluation')
+    parser.add_argument('--name', type=str, default='canonical', help='Run name: checkpoints go to models/<name>/')
     
     args = parser.parse_args()
     
@@ -889,5 +940,5 @@ if __name__ == "__main__":
             print(f"{key}: {value}")
     else:
         # Run training
-        main(resume=args.resume, epoch_count=args.epochs)
+        main(resume=args.resume, epoch_count=args.epochs, name=args.name)
 

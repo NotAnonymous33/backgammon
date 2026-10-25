@@ -61,15 +61,15 @@ default (pip count), heuristic and neural rollout evaluations at 0.1 s.
 
 Everything drives the project's own `BackgammonNN`, `TDLambda` and
 `BackgammonTrainer`, with the configuration `NNAgent.main()` uses (hidden
-layer of 40, learning rate 0.1, λ 0.7; see `suites.py`). Changes to the
-training code therefore show up directly.
+layer of 40, learning rate 0.1, λ 0.7, `canonical-34` features; see
+`suites.py`). Changes to the training code therefore show up directly.
 
 - **Throughput** has three parts. *Self-play* runs `play_game` in one process
   (positions/s, so game length doesn't matter). *TD update* runs
   `TDLambda.update` over recorded games (positions/s). *Epoch* runs a whole
   `train_epoch`, including its worker pool and the serial updates (games/s).
-  The first update's `torch.compile` time is reported separately, since it
-  depends on PyTorch's on-disk cache.
+  The first update is reported separately, since it pays one-off start-up
+  costs.
 - **Learning** trains several fresh networks from fixed seeds. Each plays N
   self-play games and gets one TD update per finished game, as
   `train_epoch` does. Each network is then played, before and after
@@ -78,20 +78,66 @@ training code therefore show up directly.
   identical code yields identical networks and identical games, so changes
   to targets, features or learning rates can be compared game by game.
 
-Learning only shows after thousands of games. In the project's own logged
-training (`eval_results/results_main.txt`, 500 games per epoch), the score
-against the heuristic agent stayed around 16–23% for the first 15 epochs.
-It only climbed past 50% after roughly 9,000 games. The quick suite
-therefore measures throughput only. The standard budget of 8 runs × 3,000
-games does show learning: on the current code, the score against
-`heuristic` rose from 9.8% untrained to 24.3% (95% CI 22.3–26.5%), and
-against `random` from 57% to 68%. That took about 6.5 minutes on 16 cores.
+Learning only shows after thousands of games, so the quick suite measures
+throughput only. The standard budget is 8 runs × 3,000 games:
+
+| Training code | vs `random` | vs `heuristic` (95% CI) |
+|---|---|---|
+| Original: white's-view features, ±1 targets on a sigmoid, terminal reward one step early | 57% → 68% | 9.8% → 24.3% (22.3–26.5%) |
+| Current: `canonical-34`, targets in [0, 1], every state trained (see "Network value convention") | 42% → 99.8% | 3.0% → 67.5% (65.2–69.8%) |
+
+The shipped main network (about 130,000 games of the original training)
+scores about 69% against `heuristic`, so the current code reaches roughly
+the same strength in 3,000 games.
 
 Throughput runs in a fresh process, in an order that never runs batched
 inference before `train_epoch` forks. Once a process has run batched
 inference (as in `play_game`), the worker pool `train_epoch` forks next
 deadlocks. The real training loop never runs inference in its parent, but
 any new code that calls `train_epoch` should keep this in mind.
+
+### Network value convention
+
+New networks use the `canonical-34` feature schema (`classes/agents/features.py`):
+
+- **Inputs from the side to roll.** The board is mirrored for black, so the
+  side about to roll always sees its own checkers as positive, moving
+  towards point 23. Being on roll is part of every input.
+- **Output is P(side to roll wins).** To choose a move, the mover evaluates
+  each reachable position with the opponent on roll and picks the lowest
+  value. A move that ends the game is always taken.
+- **TD targets lie in [0, 1].** Between turns, the target for V(s_t) is
+  1 − V(s_{t+1}). The last state of a finished game is trained on the
+  outcome, 1 for the side that bore off. A game cut off by the move limit
+  gets no final target. The eligibility trace flips sign with the point of
+  view, which makes this exactly TD(λ) on P(white wins).
+  `tests/test_network.py` checks it against an independent white-frame
+  implementation.
+
+The original `white-34` networks remain loadable. Their features are always
+from white's side and their output is P(white wins), with no input saying
+whose turn it is. Checkpoints now store `feature_schema` (name, version,
+inputs, perspective, value meaning, feature names) and `architecture`.
+`FinalNNAgent`, the benchmark and neural MCTS read both, and files without a
+schema are treated as `white-34`. Unknown schemas fail to load rather than
+being misread.
+
+Results on the first canonical networks (2026-10-25), each trained on 100,000
+self-play games with `main()`'s settings and evaluated over 500 game pairs:
+
+| Network | vs shipped `nn` (white-34, 128×128, ~130k games) | vs `heuristic` | Loss per decision | Value error, exact / rollout |
+|---|---|---|---|---|
+| shipped `nn` | — | 69.0% | 1.50% | 22.1% / 8.3% |
+| `models/canonical/canonical_40_100k.pt` (34-40-1) | 52.5% (49.4–55.6%) | 69.4% | 1.54% | 8.9% / 6.3% |
+| `models/canonical/canonical_128x128_100k.pt` | **60.4% (57.3–63.4%)** | 75.0% | 1.36% | 8.1% / 5.7% |
+
+The on-roll bias is gone too. In exact bearoffs with white on roll, the
+shipped network's P(white wins) is 31 points low; both canonical networks
+are within 5 points. Loss per decision differs little between the networks.
+The table's skill columns use the labels rebuilt on 2026-10-25 from the
+128×128 network's own play (see "Measuring skill"), which may favour it
+slightly; the previous labels, from the shipped network, gave 1.52%, 1.60%
+and 1.41% in the same order.
 
 ## Measuring skill
 
@@ -124,7 +170,7 @@ each one can lead to, it stores white's chance of winning from there:
   the native move generator, and a test checks that its moves agree with the
   native board's on thousands of rolls.
 - **Rollouts.** Everywhere else, the game is played out from each position
-  with greedy play by the pinned main network (`valuenet.py`, a NumPy copy
+  with greedy play by the pinned network (the default `nn`; `valuenet.py`, a NumPy copy
   of `FinalNNAgent` that is tested to choose the same moves). All plays from
   one position share their dice (common random numbers), rollouts stop
   exactly once they reach the bearoff database, and plays that could still
@@ -148,11 +194,18 @@ Reading the numbers:
 - **Value accuracy.** For network agents, `value_error` compares the
   network's own estimate of every labelled position with the label. It
   checks the value function directly, not just the moves it leads to.
+  `value_bias.white_on_roll` and `value_bias.black_on_roll` split the error
+  in P(white wins) by who is on roll. A network that cannot see the turn is
+  biased in opposite directions for the two: the original main network
+  underrates white by about 31 points in exact bearoffs when white is on
+  roll.
 - **Repeats.** Random and MCTS agents play each position `--skill-repeats`
   times with different seeds. Their per-position loss is the mean.
 
 The labels depend only on the positions, the pinned network and the rules,
-so they are committed. Rebuilding them (`python -m bench reference --build
+so they are committed. They were last rebuilt on 2026-10-25 with the default
+`nn` (`canonical_128x128_100k.pt`) as the pinned network, replacing the
+`white-34` main network that pinned the first version. Rebuilding them (`python -m bench reference --build
 --force`, about 30 minutes on 16 threads) changes every skill result and
 makes comparisons with earlier runs unpaired. Do it deliberately, for
 example after fixing the move generator. `python -m bench reference` shows
@@ -213,7 +266,7 @@ ratings, trust the scores against fixed opponents.
 | Suite | Strength games per match (95% CI near 70%) | MCTS positions | Training learning check | Skill agents | Rating pool | Time on 16 threads |
 |---|---|---|---|---|---|---|
 | `quick` (default) | 200 (±6 points) | 20 | off | heuristic, nn, `mcts:iters=100` | random, first, heuristic, nn | ~1.5 min |
-| `standard` | 2,000 (±2 points), plus nn vs `mcts:iters=400` | 60 | 8 runs × 3,000 games | + tdgammon network, MCTS at 100–800 iterations, heuristic-rollout MCTS, `mcts:time=1.0` | + tdgammon, `mcts:iters=100` | ~15 min |
+| `standard` | 2,000 (±2 points), plus nn vs `mcts:iters=400` | 60 | 8 runs × 3,000 games | + canonical and tdgammon networks, MCTS at 100–800 iterations, heuristic-rollout MCTS, `mcts:time=1.0` | + canonical, tdgammon, `mcts:iters=100` | ~15 min |
 | `full` | 6,000 (±1.2 points), plus MCTS matches | 120 | 16 runs × 10,000 games | + momentum network, MCTS up to 1,600 iterations, neural-rollout MCTS | + momentum and earlier main checkpoints, `mcts:iters=400`, `mcts:iters=1600` | several hours (not timed) |
 
 Comparisons between runs with the same seed are **paired** (see below). They
@@ -237,7 +290,7 @@ python -m bench run --only ratings --pool nn --pool mcts:iters=400 --pool heuris
 | Spec | Agent |
 |---|---|
 | `random`, `first`, `heuristic` | the simple agents |
-| `nn` / `nn:path/to/checkpoint.pt` | FinalNNAgent (default `models/main/main_checkpoint_latest.pt`) |
+| `nn` / `nn:path/to/checkpoint.pt` | FinalNNAgent (default `models/canonical/canonical_128x128_100k.pt`, also the server's network) |
 | `mcts:time=0.5,mode=heuristic,depth=40` | MCTSAgent2 (keys: `time`, `iters`, `mode`, `depth`, `sim`, `c`, `nn`) |
 | `mcts:iters=400` | MCTSAgent2 stopping after exactly 400 iterations per move (reproducible) |
 | `py:package.module:Class,key=value` | any class with `select_move(board)` |

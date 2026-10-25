@@ -3,7 +3,8 @@
 Everything here drives the project's own training code in
 classes/agents/NNAgent.py (BackgammonNN, TDLambda, BackgammonTrainer), so
 changes to that code show up directly. The model configuration mirrors
-``NNAgent.main()`` and lives in the suite definition.
+``NNAgent.main()`` and lives in the suite definition; networks use the
+``canonical-34`` feature schema that ``main()`` trains.
 
 Throughput (timing metrics)
     self-play      BackgammonTrainer.play_game, positions/s in one process
@@ -43,7 +44,8 @@ def build(model_cfg, seed, epoch_games=32, epoch_workers=1):
     """Seeded network, TD(λ) learner and trainer configured like NNAgent.main()."""
     import torch
     from classes import board_cpp  # type: ignore
-    from classes.agents.NNAgent import BackgammonNN, BackgammonTrainer, TDLambda, extract_features
+    from classes.agents.NNAgent import BackgammonNN, BackgammonTrainer, TDLambda
+    from classes.agents.features import CANONICAL
 
     seed32 = seed & 0xFFFFFFFF
     torch.manual_seed(seed32)
@@ -51,9 +53,9 @@ def build(model_cfg, seed, epoch_games=32, epoch_workers=1):
     seeded = hasattr(board_cpp, "seed_dice")
     if seeded:
         board_cpp.seed_dice(seed32)
-    model = BackgammonNN(len(extract_features(board_cpp.Board())), hidden_sizes=list(model_cfg["hidden"]))
+    model = BackgammonNN(CANONICAL.size, hidden_sizes=list(model_cfg["hidden"]))
     td = TDLambda(model, learning_rate=model_cfg["lr"], lambda_param=model_cfg["lambda"])
-    trainer = BackgammonTrainer(model, extract_features, td, games_per_epoch=epoch_games,
+    trainer = BackgammonTrainer(model, CANONICAL, td, games_per_epoch=epoch_games,
                                 eval_games=0, num_workers=epoch_workers)
     return model, td, trainer, seeded
 
@@ -68,10 +70,11 @@ def throughput(cfg, log=print):
 
 
 def _random_trajectories(n, seed):
-    """Feature trajectories from random play: shaped like training data, no network involved."""
-    import torch
+    """Episodes from random play: shaped like training data, no network involved."""
+    import numpy as np
     from classes.board_cpp import Board  # type: ignore
-    from classes.agents.NNAgent import extract_features
+    from classes.agents.features import CANONICAL
+    from classes.agents.NNAgent import Episode
     from .seeding import DiceStream
 
     rng = random.Random(seed)
@@ -79,12 +82,14 @@ def _random_trajectories(n, seed):
     for g in range(n):
         dice = DiceStream(derive_seed(seed, g))
         board = Board()
-        states = []
+        states, players = [], []
         while not board.game_over and len(states) < 200:
             board.set_dice(dice.next())
-            states.append(torch.tensor([extract_features(board)], dtype=torch.float32))
+            states.append(CANONICAL.features(board))
+            players.append(board.turn)
             board.move_from_sequence(rng.choice(board.valid_moves) if board.valid_moves else [])
-        out.append((1 if board.white_off == 15 else -1, states))
+        winner = (1 if board.white_off == 15 else -1) if board.game_over else None
+        out.append(Episode(np.asarray(states, dtype=np.float32), players, winner))
     return out
 
 
@@ -94,7 +99,7 @@ def _throughput_task(cfg):
     Batched inference (as in play_game) starts PyTorch's intra-op thread pool,
     and a process forked after that deadlocks inside train_epoch's worker pool.
     The real training loop never runs inference in the parent, so this mirrors
-    it: compile and time epochs first, run self-play in this process last.
+    it: time epochs first, run self-play in this process last.
     """
     _quiet()
     log = print
@@ -104,13 +109,12 @@ def _throughput_task(cfg):
     _, td, trainer, _ = build(tc["model"], derive_seed("training-speed"), tc["epoch_games"], tc["epoch_workers"])
     results = []
 
-    # The first update triggers torch.compile; report it separately.
+    # The first update pays one-off start-up costs; report it separately.
     warm = _random_trajectories(1, derive_seed("training-warmup"))[0]
     start = time.perf_counter()
-    td.update(warm[1], float(warm[0]), 0)
+    td.update(warm.states, warm.players, warm.winner, 0)
     first = time.perf_counter() - start
-    results.append(metric("training.first_update_s", "First TD update (includes torch.compile)", first,
-                          unit="s", detail={"note": "depends on the on-disk compile cache"}))
+    results.append(metric("training.first_update_s", "First TD update (one-off start-up)", first, unit="s"))
 
     samples = []
     for _ in range(tc["epoch_repeats"]):
@@ -121,21 +125,21 @@ def _throughput_task(cfg):
                       f"{tc['epoch_workers']} workers)", "games/s", samples,
                       better="higher", noise_floor=EPOCH_FLOOR)
     results.append(m)
-    log(f"  train_epoch: {m['value']:.1f} games/s (first TD update {first:.1f}s incl. compile)", flush=True)
+    log(f"  train_epoch: {m['value']:.1f} games/s (first TD update {first:.1f}s)", flush=True)
 
     # No forking from here on.
     games = []
 
     def selfplay():
-        winner, states = trainer.play_game()
-        games.append((winner, states))
-        return len(states)
+        episode = trainer.play_game()
+        games.append(episode)
+        return len(episode.players)
 
     samples = throughput_samples(selfplay, repeats, min_time)
     m = timing_metric("training.selfplay", "Self-play (play_game, one process)", "pos/s", samples,
                       better="higher", noise_floor=SELFPLAY_FLOOR)
     m["detail"] = {"games": len(games), "mean_positions_per_game":
-                   round(sum(len(s) for _, s in games) / len(games), 1)}
+                   round(sum(len(e.players) for e in games) / len(games), 1)}
     results.append(m)
     log(f"  self-play: {m['value']:,.0f} positions/s", flush=True)
 
@@ -143,10 +147,10 @@ def _throughput_task(cfg):
     cursor = [0]
 
     def update():
-        winner, states = recorded[cursor[0] % len(recorded)]
+        episode = recorded[cursor[0] % len(recorded)]
         cursor[0] += 1
-        td.update(states, float(winner), 0)
-        return len(states)
+        td.update(episode.states, episode.players, episode.winner, 0)
+        return len(episode.players)
 
     samples = throughput_samples(update, repeats, min_time)
     m = timing_metric("training.td_update", "TD(λ) update (TDLambda.update)", "pos/s", samples,
@@ -197,10 +201,10 @@ def _learn_task(args):
     import torch
 
     torch.set_num_threads(1)
-    from classes.agents.NNAgent import NNAgent, extract_features
+    from classes.agents.NNAgent import NNAgent
 
     model, td, trainer, seeded = build(tc["model"], derive_seed(base_seed, "train", index))
-    agent = NNAgent(model, extract_features, exploration_rate=0.0)
+    agent = NNAgent(model, trainer.schema, exploration_rate=0.0)
     before = _evaluate(agent, tc["learn_opponents"], tc["learn_pairs"], base_seed, move_limit)
 
     # Re-seed so training does not depend on how much randomness evaluation used.
@@ -214,10 +218,11 @@ def _learn_task(args):
     white_wins = 0
     positions = 0
     for _ in range(tc["learn_games"]):
-        winner, states = trainer.play_game()
-        td.update(states, float(winner), 0)  # what train_epoch does for each finished game
-        white_wins += winner == 1
-        positions += len(states)
+        episode = trainer.play_game()
+        # What train_epoch does for each finished game.
+        td.update(episode.states, episode.players, episode.winner, 0)
+        white_wins += episode.winner == 1
+        positions += len(episode.players)
     train_s = time.perf_counter() - start
 
     after = _evaluate(agent, tc["learn_opponents"], tc["learn_pairs"], base_seed, move_limit)
