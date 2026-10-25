@@ -114,6 +114,7 @@ cdef class MCTSBackgammonAgent:
     cdef public object root
     cdef public int player_color
     cdef public int sim_count
+    cdef public int max_iterations
     cdef public list probability_table
     cdef public list ratio_table
 
@@ -123,9 +124,15 @@ cdef class MCTSBackgammonAgent:
                  mode="default",
                  int eval_depth=-1,
                  heuristic_agent=None,
-                 nn_agent=None):
-        """Initialize the MCTS agent with a mode and evaluation depth."""
+                 nn_agent=None,
+                 int max_iterations=0):
+        """Initialize the MCTS agent with a mode and evaluation depth.
+
+        max_iterations > 0 also stops each search after that many iterations,
+        which makes searches reproducible and independent of machine speed.
+        """
         self.exploration_weight = exploration_weight
+        self.max_iterations = max_iterations
         self.simulation_depth = simulation_depth
         # when eval_depth < 0, just use simulation_depth
         self.eval_depth = eval_depth if eval_depth > 0 else simulation_depth
@@ -178,7 +185,8 @@ cdef class MCTSBackgammonAgent:
         self.sim_count = 0
         """Run MCTS for the specified time."""
 
-        while time.time() - start_time < time_budget:
+        while time.time() - start_time < time_budget and \
+                (self.max_iterations <= 0 or self.sim_count < self.max_iterations):
             # 1. Selection: traverse tree until we reach a leaf node
             node = self.select_node()
 
@@ -410,7 +418,8 @@ cdef class MCTSAgent2:
                  int eval_depth=-1,
                  float time_budget=2.0,
                  heuristic_agent=None,
-                 nn_agent=None):
+                 nn_agent=None,
+                 int max_iterations=0):
         """High‐level wrapper: pass mode and eval_depth through."""
         self.mcts = MCTSBackgammonAgent(
             exploration_weight=exploration_weight,
@@ -418,7 +427,8 @@ cdef class MCTSAgent2:
             mode=mode,
             eval_depth=eval_depth,
             heuristic_agent=heuristic_agent,
-            nn_agent=nn_agent
+            nn_agent=nn_agent,
+            max_iterations=max_iterations
         )
         self.time_budget = time_budget
 

@@ -17,3 +17,6 @@ backend/classes/build/
 
 # Benchmark runs are machine-specific; untracked, they also survive checkouts
 backend/bench/results/
+
+# Derived data rebuilt on demand (e.g. the bearoff database)
+backend/bench/cache/

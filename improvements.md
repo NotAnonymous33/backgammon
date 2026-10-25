@@ -38,6 +38,8 @@ This list is ranked by expected impact. Effort is relative to this project. Conf
 
    Seed the native dice source explicitly; seeding Python alone does not control the C++ generator. Include contact, race, and bearoff slices in the position suite, and verify expected versus completed tournament game counts.
 
+   *Status:* the benchmark now covers most of this; see [backend/bench/README.md](backend/bench/README.md#measuring-skill). Its `strength` section uses seeded, colour-swapped pairs with confidence intervals. Its `skill` section measures equity loss per decision by game phase against an exact bearoff database and rollout-labelled positions, plus network value error. Its `ratings` section places agents on one Elo scale. MCTS can be measured at fixed iteration budgets. A pinned external engine and a corrected heuristic are still missing.
+
 5. **Route every mutation through one authorized game command service.**  
    **Impact: critical · Effort: medium**
 

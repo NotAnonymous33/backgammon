@@ -29,7 +29,9 @@ def fmt(value, unit):
     if isinstance(value, float) and value != value:
         return "n/a"
     if unit == "fraction":
-        return f"{value:.1%}"
+        return f"{value:.2%}" if abs(value) < 0.1 else f"{value:.1%}"
+    if unit == "Elo":
+        return f"{value:.0f} Elo"
     if unit == "ms":
         return f"{value:.2f} ms"
     if unit.endswith("/s"):
@@ -42,10 +44,15 @@ def fmt(value, unit):
 def fmt_delta(row):
     if row.get("delta") is None:
         return ""
-    if row["kind"] == "rate" and row.get("diff_ci"):
+    if row["kind"] in ("rate", "mean") and row.get("diff_ci") and row["unit"] == "fraction":
         lo, hi = row["diff_ci"]
         diff = row.get("diff", (lo + hi) / 2)
-        return f"{diff * 100:+.1f} pts [{lo * 100:+.1f}, {hi * 100:+.1f}]"
+        digits = 2 if row["kind"] == "mean" else 1
+        return f"{diff * 100:+.{digits}f} pts [{lo * 100:+.{digits}f}, {hi * 100:+.{digits}f}]"
+    if row.get("diff_ci"):
+        lo, hi = row["diff_ci"]
+        diff = row.get("diff", (lo + hi) / 2)
+        return f"{diff:+.3g} [{lo:+.3g}, {hi:+.3g}]"
     if row.get("delta_pct") is not None and row["kind"] == "timing":
         return f"{row['delta_pct']:+.1%}"
     if row["delta"] == 0:
@@ -104,10 +111,36 @@ def print_run(run):
         table = []
         for m in ms:
             extra = ""
-            if m.get("ci") and m["unit"] == "fraction":
-                extra = f"95% CI {m['ci'][0]:.1%}–{m['ci'][1]:.1%}"
+            if m.get("ci") and m["unit"] in ("fraction", "Elo"):
+                extra = f"95% CI {fmt(m['ci'][0], m['unit'])} – {fmt(m['ci'][1], m['unit'])}"
             table.append([m["label"], fmt(m["value"], m["unit"]), extra])
         print("\n".join(_table(table, ["metric", "value", ""])))
+    print_matchups(run)
+
+
+def print_matchups(run):
+    """Score table of the rating games: row agent's score against column agent."""
+    games = next((m for m in run["metrics"] if m["key"] == "ratings.games"), None)
+    if not games or not games.get("detail"):
+        return
+    detail = games["detail"]
+    ratings = {m["key"][len("ratings["):-len("].elo")]: m["value"] for m in run["metrics"]
+               if m["key"].startswith("ratings[") and m["key"].endswith("].elo")}
+    pool = sorted(detail["pool"], key=lambda s: -(ratings.get(s) or 0))
+    scores = {}
+    for row in detail["matchups"]:
+        scores[(row["a"], row["b"])] = (row["score"], row["games"])
+        scores[(row["b"], row["a"])] = (None if row["score"] is None else 1 - row["score"], row["games"])
+    names = [f"{i + 1}. {s}" for i, s in enumerate(pool)]
+    table = []
+    for name, a in zip(names, pool):
+        cells = []
+        for b in pool:
+            score, n = scores.get((a, b), (None, 0))
+            cells.append("" if a == b else ("—" if score is None else f"{score:.0%}/{n}"))
+        table.append([name] + cells)
+    print("\nRATING GAMES (row's score against column / games played)")
+    print("\n".join(_table(table, ["agent"] + [str(i + 1) for i in range(len(pool))])))
 
 
 def _resolve(ref, runs):
@@ -140,6 +173,16 @@ def cmd_run(args):
         cfg["latency_agents"] = args.latency_agent
     if args.mcts_agent is not None:
         cfg["mcts_agents"] = args.mcts_agent
+    if args.skill_agent is not None:
+        cfg["skill_agents"] = args.skill_agent
+    if args.skill_repeats is not None:
+        cfg["skill_repeats"] = args.skill_repeats
+    if args.pool is not None:
+        cfg["ratings"]["pool"] = args.pool
+    if args.anchor is not None:
+        cfg["ratings"]["anchor"] = args.anchor
+    if args.max_games is not None:
+        cfg["ratings"]["max_games"] = args.max_games
     if args.training_games:
         cfg["training"]["learn_games"] = args.training_games
     if args.seed is not None:
@@ -149,7 +192,7 @@ def cmd_run(args):
     runs = store.load_all()
     try:
         run = runner.execute(cfg, args.suite, label=args.label, allow_stale=args.allow_stale)
-    except (runner.StaleBuildError, runner.ExtensionError, SpecError) as e:
+    except (runner.StaleBuildError, runner.ExtensionError, runner.ReferenceMissingError, SpecError) as e:
         sys.exit(f"error: {e}")
     path = store.save(run)
     print(f"\nsaved {run['id']} → {os.path.relpath(path)}")
@@ -234,6 +277,49 @@ def cmd_positions(args):
     return 0
 
 
+def cmd_reference(args):
+    from . import reference, runner
+
+    if args.build:
+        try:
+            runner.check_extensions()
+        except runner.ExtensionError as e:
+            sys.exit(f"error: {e}")
+        if os.path.exists(args.path) and not args.force:
+            sys.exit("error: the reference labels exist; rebuilding changes every skill result, so skill "
+                     "comparisons with earlier runs become unpaired. Pass --force to replace them.")
+        from .bearoff import BearoffDB
+        from .valuenet import ValueNet
+
+        print("loading the bearoff database (built on first use, about 10 s)")
+        db = BearoffDB.load()
+        net = ValueNet.from_checkpoint(reference.agent_specs.resolve_path(reference.POLICY))
+        per_category = None
+        if args.per_category:
+            per_category = {c: args.per_category for c in reference.PER_CATEGORY}
+        positions_list = reference.generate_positions(net, db, per_category=per_category, seed=args.seed)
+        stages = tuple(int(x) for x in args.stages.split(","))
+        doc = reference.build(positions_list, db, stages=stages, workers=args.workers)
+        doc["seed"] = args.seed
+        reference.save(doc, args.path)
+        print(f"wrote {len(doc['positions'])} labelled positions to {os.path.relpath(args.path)}")
+    try:
+        doc = reference.load(args.path)
+    except FileNotFoundError:
+        sys.exit(f"error: {os.path.relpath(args.path)} does not exist; build it with --build")
+    counts = {}
+    for p in doc["positions"]:
+        c = counts.setdefault(p["category"], [0, 0, 0])
+        c[0] += 1
+        c[1] += len(p["afterstates"])
+        c[2] += sum(1 for a in p["afterstates"].values() if a.get("exact"))
+    print(f"{len(doc['positions'])} positions, fingerprint {reference.fingerprint(doc)}, "
+          f"policy {doc['policy']['spec']} ({doc['policy']['digest']}), rollouts {doc['stages']}")
+    for cat, (n, a, e) in counts.items():
+        print(f"  {cat:8} {n:4} positions  {a:5} afterstates  {e:5} exact")
+    return 0
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="python -m bench", description="Backgammon benchmark suite")
     sub = p.add_subparsers(dest="command", required=True)
@@ -249,6 +335,14 @@ def build_parser():
                    help="replace the agents timed per decision (repeatable)")
     r.add_argument("--mcts-agent", action="append", metavar="SPEC",
                    help="replace the MCTS configurations whose iterations are counted (repeatable)")
+    r.add_argument("--skill-agent", action="append", metavar="SPEC",
+                   help="replace the agents scored on the reference decisions (repeatable)")
+    r.add_argument("--skill-repeats", type=int, metavar="N",
+                   help="decisions per position for stochastic agents (random, MCTS)")
+    r.add_argument("--pool", action="append", metavar="SPEC",
+                   help="replace the agents rated against each other (repeatable)")
+    r.add_argument("--anchor", metavar="SPEC", help="agent fixed at 1500 Elo (default: heuristic)")
+    r.add_argument("--max-games", type=int, metavar="N", help="game budget for the ratings")
     r.add_argument("--training-games", type=int, metavar="N",
                    help="self-play games per learning run in the training section")
     r.add_argument("--seed", type=int, help="base seed (keep the default so runs stay paired)")
@@ -281,6 +375,19 @@ def build_parser():
     ps.add_argument("--per-category", type=int, default=80)
     ps.add_argument("--seed", type=int, default=1)
     ps.set_defaults(func=cmd_positions)
+
+    ref = sub.add_parser("reference", help="inspect or rebuild the labelled decisions the skill section uses")
+    ref.add_argument("--build", action="store_true", help="sample positions and roll out every play (~20 min)")
+    ref.add_argument("--force", action="store_true")
+    ref.add_argument("--stages", default=",".join(str(s) for s in (128, 640)),
+                     help="rollouts per afterstate, then per candidate best play (default 128,640)")
+    ref.add_argument("--per-category", type=int, help="positions per category (default: contact 120, "
+                     "bar 60, race 60, exact 100)")
+    ref.add_argument("--seed", type=int, default=1)
+    ref.add_argument("--workers", type=int)
+    ref.add_argument("--path", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "data",
+                                                    "reference.json"), help=argparse.SUPPRESS)
+    ref.set_defaults(func=cmd_reference)
     return p
 
 

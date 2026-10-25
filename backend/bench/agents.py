@@ -5,7 +5,8 @@
     heuristic                      HeuristicAgent with default weights
     nn                             FinalNNAgent, models/main/main_checkpoint_latest.pt
     nn:models/main/x.pt            FinalNNAgent with another checkpoint
-    mcts:time=0.5                  MCTSAgent2 (keys: time, mode, depth, sim, c, nn)
+    mcts:time=0.5                  MCTSAgent2 (keys: time, iters, mode, depth, sim, c, nn)
+    mcts:iters=400                 MCTSAgent2 stopping after 400 iterations per move
     py:package.module:Class,k=v    any class with select_move(board), built with k=v
 
 Heavy resources (neural checkpoints) are loaded once per process and shared;
@@ -21,6 +22,8 @@ BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_NN = "models/main/main_checkpoint_latest.pt"
 
 KINDS = ("random", "first", "heuristic", "nn", "mcts", "py")
+MCTS_KEYS = ("time", "iters", "mode", "depth", "sim", "c", "nn")
+ITERATION_TIME_CAP = 600.0  # seconds; only reached if a search stalls
 
 
 class SpecError(ValueError):
@@ -59,6 +62,11 @@ def parse(spec):
             raise SpecError(f"cannot parse {part!r} in {spec!r}; use key=value")
     if kind == "nn":
         target = kwargs.pop("path", target) or DEFAULT_NN
+    if kind == "mcts":
+        unknown = set(kwargs) - set(MCTS_KEYS)
+        if unknown:
+            raise SpecError(f"unknown mcts key(s) {', '.join(sorted(unknown))} in {spec!r}; "
+                            f"expected {', '.join(MCTS_KEYS)}")
     return kind, target, kwargs
 
 
@@ -138,8 +146,13 @@ def make_agent(spec, cache):
         from classes.agents.CMCTS2 import MCTSAgent2  # type: ignore
 
         mode = kwargs.get("mode", "default")
+        iters = int(kwargs.get("iters", 0))
+        # An iteration budget makes searches reproducible and independent of
+        # machine speed; time then only caps a runaway search.
+        default_time = ITERATION_TIME_CAP if iters else 1.0
         args = {
-            "time_budget": float(kwargs.get("time", 1.0)),
+            "time_budget": float(kwargs.get("time", default_time)),
+            "max_iterations": iters,
             "mode": mode,
             "eval_depth": int(kwargs.get("depth", -1)),
             "simulation_depth": int(kwargs.get("sim", 50)),

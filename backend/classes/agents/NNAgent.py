@@ -747,17 +747,19 @@ def longest_prime(board, color):
         return longest
 
 class FinalNNAgent:
-    def __init__(self, model_path: str = None, checkpoint_path: str = None,extract_features_fn=extract_features):
+    def __init__(self, model_path: str = None, checkpoint_path: str = None,extract_features_fn=extract_features,
+                 hidden_sizes=None):
         """
         Args:
             model_path (str): Path to a raw model state_dict (.pt/.pth).
             checkpoint_path (str, optional): Full checkpoint file (with optimizer, epoch, etc.).
                                              If provided, this is used instead of `model_path`.
             extract_features_fn: function(Board) -> feature vector.
+            hidden_sizes: hidden layer widths; read from the checkpoint when omitted,
+                          so 34-40-1 and 34-128-128-1 networks both load.
         """
         self.extract_features = extract_features_fn
         input_dim = len(self.extract_features(Board()))
-        self.model = BackgammonNN(input_dim, hidden_sizes=[128, 128])
 
         # decide which file to load
         load_path = checkpoint_path or model_path
@@ -770,16 +772,14 @@ class FinalNNAgent:
             # assume ckpt _is_ a bare state dict
             state_dict = ckpt
 
-        # now safe to load
-        try:
-            self.model.load_state_dict(state_dict)
-        except RuntimeError as e:
-            # if you still get missing/unexpected key errors, you can relax strictness:
-            print(
-                "Warning: strict load failed, retrying with strict=False.\n",
-                e
-            )
-            self.model.load_state_dict(state_dict, strict=False)
+        if hidden_sizes is None:
+            # Linear layers sit at model.0, model.2, ...; every one but the last is hidden.
+            weights = sorted((int(k.split(".")[1]), v) for k, v in state_dict.items() if k.endswith(".weight"))
+            hidden_sizes = [w.shape[0] for _, w in weights[:-1]]
+        self.model = BackgammonNN(input_dim, hidden_sizes=hidden_sizes)
+
+        # Strict: a partial load would leave layers at random initialisation.
+        self.model.load_state_dict(state_dict)
 
         self.model.eval()
     

@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { RunSummary } from "./types"
-import { betterText, fmtDate, fmtTick, fmtValue } from "./format"
+import { betterText, fmtDate, fmtTick, fmtValue, niceTicks } from "./format"
 
 interface Props {
     runs: RunSummary[]
@@ -11,18 +11,6 @@ interface Props {
 
 const HEIGHT = 240
 const PAD = { top: 28, right: 24, bottom: 36, left: 64 }
-
-/** Round-numbered ticks; steps of 1, 2 or 5 × 10^n keep tick labels short. */
-function niceTicks(lo: number, hi: number, count = 4): { ticks: number[], step: number } {
-    const span = hi - lo || Math.abs(hi) || 1
-    const raw = span / count
-    const mag = 10 ** Math.floor(Math.log10(raw))
-    const step = [1, 2, 5, 10].map(m => m * mag).find(s => s >= raw) ?? raw
-    const start = Math.ceil(lo / step) * step
-    const ticks = []
-    for (let i = 0; start + i * step <= hi + step * 1e-9; i++) ticks.push(start + i * step)
-    return { ticks, step }
-}
 
 /** One metric across every recorded run, oldest to newest. */
 export default function TrendChart({ runs, metricKey, baseId, headId }: Props) {
