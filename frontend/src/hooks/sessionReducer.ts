@@ -1,5 +1,17 @@
 import { snapshotFromBoard, snapshotKey, withDice } from "../game/snapshot"
-import type { Move, MoveSequence, Role, ServerBoard, ServerDice, Snapshot } from "../game/types"
+import { sideOfTurn } from "../game/types"
+import type { LastMove, Move, MoveSequence, Role, ServerBoard, ServerDice, Snapshot } from "../game/types"
+
+/** The move behind the latest board update, kept so it can be replayed and highlighted. */
+export type Replay = {
+    /** Revision of the board this move produced. A new id means a new move. */
+    id: number
+    /** The position the move was played from, if we had seen it. */
+    before: Snapshot | null
+    last: LastMove
+    /** Worth animating: someone else played it and we saw the position it started from. */
+    animate: boolean
+}
 
 export type Connection = "connecting" | "connected" | "disconnected"
 
@@ -16,6 +28,8 @@ export type SessionState = {
     snapshot: Snapshot | null
     /** Bumped each time the authoritative position changes; anything tied to the old one is stale. */
     revision: number
+    /** The latest opponent move, or null after our own move. Dice updates leave it in place. */
+    replay: Replay | null
     /** Moves the player has made this turn but not yet submitted. Applied on top of `snapshot`. */
     draft: MoveSequence
     pending: Pending
@@ -31,6 +45,7 @@ export const initialSession: SessionState = {
     role: null,
     snapshot: null,
     revision: 0,
+    replay: null,
     draft: [],
     pending: null,
     error: null,
@@ -69,6 +84,23 @@ function replaceSnapshot(state: SessionState, next: Snapshot): SessionState {
     }
 }
 
+/** Attach the move that produced a freshly installed board, if the server said which one it was. */
+function withReplay(before: SessionState, after: SessionState, last: LastMove | undefined): SessionState {
+    if (!last || after.revision === before.revision) return after
+    const mine = before.role !== null && before.role !== "spectator" && sideOfTurn(last.player) === before.role
+    if (mine) return { ...after, replay: null }
+    const seen = before.snapshot
+    return {
+        ...after,
+        replay: {
+            id: after.revision,
+            before: seen,
+            last,
+            animate: before.role !== null && seen !== null && seen.turn === last.player,
+        },
+    }
+}
+
 export function sessionReducer(state: SessionState, action: SessionAction): SessionState {
     switch (action.type) {
         case "connection":
@@ -82,7 +114,7 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
         case "room_joined":
             return { ...state, inRoom: true }
         case "board":
-            return replaceSnapshot(state, snapshotFromBoard(action.data))
+            return withReplay(state, replaceSnapshot(state, snapshotFromBoard(action.data)), action.data.last_move)
         case "dice":
             return state.snapshot ? replaceSnapshot(state, withDice(state.snapshot, action.data)) : state
         case "role":

@@ -10,6 +10,12 @@ export const BAR = -1
 export const WHITE_OFF = 100
 export const BLACK_OFF = -100
 
+/** The turn that produced an `update_board`, as the server reports it. */
+export type LastMove = {
+    player: 1 | -1
+    sequence: MoveSequence
+}
+
 /** Wire format of the server's `update_board` event. */
 export type ServerBoard = {
     positions: number[]
@@ -23,6 +29,8 @@ export type ServerBoard = {
     rolled: boolean
     valid_moves: MoveSequence[]
     game_over?: boolean
+    /** Present only on the update that follows a move. */
+    last_move?: LastMove
 }
 
 /** Wire format of the server's `update_dice` event. */

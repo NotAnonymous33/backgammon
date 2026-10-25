@@ -6,11 +6,14 @@ import BoardView from "./BoardView"
 import Dice from "./Dice"
 import Lobby from "./Lobby"
 import { winnerOf } from "../game/snapshot"
+import { sideOfTurn } from "../game/types"
 import { useGameSession } from "../hooks/useGameSession"
 import type { GameSession } from "../hooks/useGameSession"
+import { useMoveReplay } from "../hooks/useMoveReplay"
 
-function statusLine(s: GameSession): string {
+function statusLine(s: GameSession, replaying: boolean): string {
     if (!s.snapshot || !s.turnSide) return ""
+    if (replaying) return "Watching the last move…"
     if (s.snapshot.gameOver) return "Game over"
     if (s.role === "spectator") return "Spectating"
     if (s.pending === "roll") return "Rolling…"
@@ -36,7 +39,9 @@ export default function Board() {
     const { room_code: roomCode = "" } = useParams()
     const { width, height } = useWindowSize()
     const session = useGameSession(roomCode)
-    const { snapshot, preview, role } = session
+    const { snapshot, role } = session
+    const replay = useMoveReplay(snapshot, session.replay, role, session.turnSide)
+    const preview = replay.preview ?? session.preview
 
     const offline = session.connection !== "connected"
 
@@ -61,19 +66,32 @@ export default function Board() {
         return <Lobby busy={session.pending === "claim"} error={session.error} onJoin={session.join} />
     }
 
-    const winner = winnerOf(snapshot)
-    const rolling = session.pending === "roll"
-    const pulseRoll = session.canRoll
+    // The server's position already includes the move being replayed, so hold back the result.
+    const busy = replay.playing
+    const gameOver = snapshot.gameOver && !busy
+    const winner = gameOver ? winnerOf(snapshot) : null
+    const rolling = session.pending === "roll" || replay.diceSpinning
+    const canRoll = session.canRoll && !busy
+    const canConfirm = session.canConfirm && !busy
+    const canUndo = session.canMove && !busy && session.draft.length > 0
 
     return (
         <>
-            {snapshot.gameOver && <Confetti width={width} height={height} />}
+            {gameOver && <Confetti width={width} height={height} />}
 
             <div className="turn-indicator">
-                {snapshot.gameOver
+                {gameOver
                     ? <h1><strong>{winner ? `${winner} wins!` : "Game over"}</strong></h1>
-                    : <h1><strong>{session.turnSide === "white" ? "White" : "Black"}</strong> to move</h1>}
-                <p className="status-line" role="status">{statusLine(session)}</p>
+                    : <h1><strong>{sideOfTurn(preview.turn) === "white" ? "White" : "Black"}</strong> to move</h1>}
+                <p className="status-line" role="status">{statusLine(session, busy)}</p>
+                <p className="last-move-text">
+                    {replay.highlight && (
+                        <>
+                            <span className="last-move-swatch" />
+                            {replay.highlight.text}
+                        </>
+                    )}
+                </p>
             </div>
 
             {offline && <Notice tone="info">Connection lost — reconnecting. Your unsent moves are kept.</Notice>}
@@ -87,15 +105,17 @@ export default function Board() {
                 <BoardView
                     key={session.revision}
                     preview={preview}
-                    interactive={session.canMove}
+                    interactive={session.canMove && !busy}
                     onMove={session.addMove}
+                    landings={replay.landings}
+                    marks={replay.highlight?.marks}
                 />
 
                 <div className="controls">
-                    <button onClick={session.roll} className={`btn btn-roll${pulseRoll ? " pulse" : ""}`} disabled={!session.canRoll}>🎲 Roll Dice</button>
-                    <button onClick={session.confirm} className="btn btn-confirm" disabled={!session.canConfirm}>✅ Confirm</button>
-                    <button onClick={session.undo} className="btn btn-reset" disabled={!session.canMove || session.draft.length === 0}>↩️ Undo</button>
-                    <button onClick={session.reset} className="btn btn-reset" disabled={!session.canMove || session.draft.length === 0}>🔄 Reset</button>
+                    <button onClick={session.roll} className={`btn btn-roll${canRoll ? " pulse" : ""}`} disabled={!canRoll}>🎲 Roll Dice</button>
+                    <button onClick={session.confirm} className="btn btn-confirm" disabled={!canConfirm}>✅ Confirm</button>
+                    <button onClick={session.undo} className="btn btn-reset" disabled={!canUndo}>↩️ Undo</button>
+                    <button onClick={session.reset} className="btn btn-reset" disabled={!canUndo}>🔄 Reset</button>
                 </div>
             </div>
 

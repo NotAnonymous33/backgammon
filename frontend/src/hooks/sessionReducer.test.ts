@@ -99,4 +99,54 @@ describe("sessionReducer", () => {
         expect(s.pending).toBeNull()
         expect(s.draft).toEqual([[1, 2]])
     })
+
+    describe("replay", () => {
+        const played = { player: 1 as const, sequence: [[0, 3]] as [number, number][] }
+        const moved = (extra: Partial<ServerBoard> = {}) =>
+            serverBoard({ turn: -1, last_move: played, ...extra })
+
+        it("animates the opponent's move from the position we last saw", () => {
+            const s = run([
+                { type: "role", role: "black" },
+                { type: "board", data: serverBoard({ rolled: true }) },
+                { type: "board", data: moved() },
+            ])
+            expect(s.replay).toMatchObject({ id: 2, animate: true, last: played })
+            expect(s.replay?.before?.turn).toBe(1)
+        })
+
+        it("does not replay our own move", () => {
+            const s = run([
+                { type: "role", role: "white" },
+                { type: "board", data: serverBoard({ rolled: true }) },
+                { type: "board", data: moved() },
+            ])
+            expect(s.replay).toBeNull()
+        })
+
+        it("clears an earlier highlight once we move", () => {
+            const s = run([
+                { type: "role", role: "black" },
+                { type: "board", data: serverBoard({ rolled: true }) },
+                { type: "board", data: moved() },
+                { type: "board", data: serverBoard({ turn: 1, last_move: { player: -1, sequence: [] } }) },
+            ])
+            expect(s.replay).toBeNull()
+        })
+
+        it("keeps the highlight across a dice update", () => {
+            const s = run([
+                { type: "role", role: "black" },
+                { type: "board", data: serverBoard({ rolled: true }) },
+                { type: "board", data: moved() },
+                { type: "dice", data: { dice: [2, 3], invalidDice: [], validMoves: [], rolled: true } },
+            ])
+            expect(s.replay?.id).toBe(2)
+        })
+
+        it("shows a move without animating it when we have not seen the start", () => {
+            const s = run([{ type: "role", role: "black" }, { type: "board", data: moved() }])
+            expect(s.replay).toMatchObject({ animate: false, before: null })
+        })
+    })
 })
