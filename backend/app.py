@@ -252,7 +252,7 @@ def ai_move(room_code):
         elif ai_model == "random":
             ai = RandomAgent()
         elif ai_model == "mcts":
-            ai = MCTSAgent(time_budget=5)
+            ai = MCTSAgent(time_budget=5, nn_agent=neural_agent())
         elif ai_model == "neural":
             ai = neural_agent()
             

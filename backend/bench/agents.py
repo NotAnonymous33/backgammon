@@ -7,6 +7,7 @@
     nn:models/main/x.pt            FinalNNAgent with another checkpoint
     mcts:time=0.5                  MCTSAgent2 (keys: time, iters, mode, depth, sim, c, nn)
     mcts:iters=400                 MCTSAgent2 stopping after 400 iterations per move
+    mcts:iters=400,mode=rollout    ... evaluating leaves by random rollouts instead of the network
     emm:ply=2                      ExpectiminimaxAgent over the default network (keys: ply, nn, width, margin, reply)
     py:package.module:Class,k=v    any class with select_move(board), built with k=v
 
@@ -91,10 +92,14 @@ def file_digest(path):
     return _hash_cache[path]
 
 
+def _mcts_mode(kwargs):
+    return kwargs.get("mode", "neural")  # MCTSAgent2's default leaf evaluation
+
+
 def checkpoints_of(kind, target, kwargs):
     if kind == "nn":
         return [target]
-    if kind == "mcts" and kwargs.get("mode") == "neural":
+    if kind == "mcts" and _mcts_mode(kwargs) == "neural":
         return [kwargs.get("nn", DEFAULT_NN)]
     if kind == "emm":
         return [kwargs.get("nn", DEFAULT_NN)]
@@ -157,7 +162,7 @@ def make_agent(spec, cache):
     if kind == "mcts":
         from classes.agents.CMCTS2 import MCTSAgent2  # type: ignore
 
-        mode = kwargs.get("mode", "default")
+        mode = _mcts_mode(kwargs)
         iters = int(kwargs.get("iters", 0))
         # An iteration budget makes searches reproducible and independent of
         # machine speed; time then only caps a runaway search.
@@ -168,7 +173,8 @@ def make_agent(spec, cache):
             "mode": mode,
             "eval_depth": int(kwargs.get("depth", -1)),
             "simulation_depth": int(kwargs.get("sim", 50)),
-            "exploration_weight": float(kwargs.get("c", 1.0)),
+            # Below 0, MCTSAgent2 uses its default for the mode.
+            "exploration_weight": float(kwargs.get("c", -1.0)),
         }
         if mode == "neural":
             args["nn_agent"] = _load_nn(kwargs.get("nn", DEFAULT_NN), cache)

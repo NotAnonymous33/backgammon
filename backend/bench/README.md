@@ -49,13 +49,15 @@ positions, listed under `detail.examples` in the run file.
 
 Each MCTS configuration searches every non-forced contact position in the
 suite from a fresh tree. MCTSAgent2 skips search for forced moves and race
-positions. One iteration is one selection, expansion, rollout and
-backpropagation; `mcts.sim_count` counts them. The headline metric is the
+positions. One iteration is one selection, expansion, leaf evaluation and
+backup; `mcts.sim_count` counts them. The headline metric is the
 median over positions of iterations per second of measured search time,
 which doesn't depend on the time budget. Iterations per decision at the
 configured budget are reported alongside. Rollout dice are seeded per
-position, so every run simulates the same games. The quick suite times the
-default (pip count), heuristic and neural rollout evaluations at 0.1 s.
+position, so every run simulates the same games. The suites time the
+default network leaf, random rollouts (`mode=rollout`), heuristic rollouts
+and network-after-rollout evaluations at 0.1 s. They cost very different
+amounts per iteration, so compare a mode only with itself.
 
 ### Neural-network training
 
@@ -234,10 +236,17 @@ itself. On the first runs (2026-10-24), 1,600-iteration MCTS beat
 `heuristic` it scored 7.0% against 6.2% (paired difference +0.8 points,
 95% CI −5.6 to +7.1). Against `nn` it scored 1.6% against 0%, and its loss
 per decision did not fall (+0.40 points, CI −0.05 to +0.85). Deeper search
-only learned to exploit shallower search. With the current random-rollout
-evaluation and chance handling (improvements.md #3), more speed does not
-make MCTS stronger. Fix the search first, then the iteration ladder shows
-what speed is worth.
+only learned to exploit shallower search. The search backed results up with
+the wrong sign whenever a playout started an even number of plies deep, and
+fixed one dice roll per node (improvements.md #3).
+
+With those fixed (2026-10-26), contact loss falls with the budget: 2.66%,
+2.66%, 2.24% and 2.07% at 100, 200, 400 and 800 iterations, against 11.0%,
+11.1%, 10.5% and 11.2% before. At 800 iterations MCTS gives up less than
+`nn` itself in contact positions (2.4%). Its overall loss (2.8%) is still
+higher than `nn`'s (1.4%) because races and bearoffs skip the search and
+play by pip count: 5.3% lost per exact bearoff decision, against 0.3%
+(improvements.md #12).
 
 ### Expectiminimax (`emm`)
 
@@ -306,7 +315,7 @@ ratings, trust the scores against fixed opponents.
 | Suite | Strength games per match (95% CI near 70%) | MCTS positions | Training learning check | Skill agents | Rating pool | Time on 16 threads |
 |---|---|---|---|---|---|---|
 | `quick` (default) | 200 (±6 points) | 20 | off | heuristic, nn, MCTS at 100–400 iterations, `emm:ply=2`, `emm:ply=3` | random, first, heuristic, nn | ~3.5 min |
-| `standard` | 2,000 (±2 points), plus nn vs `mcts:iters=400` and `emm:ply=2` vs nn | 60 | 8 runs × 3,000 games | + canonical and tdgammon networks, MCTS at 100–800 iterations, heuristic-rollout MCTS, `mcts:time=1.0` | + canonical, tdgammon, `mcts:iters=100`, `emm:ply=2` | ~20 min (estimated) |
+| `standard` | 2,000 (±2 points), plus nn vs `mcts:iters=400` and `emm:ply=2` vs nn | 60 | 8 runs × 3,000 games | + canonical and tdgammon networks, MCTS at 100–800 iterations, random- and heuristic-rollout MCTS, `mcts:time=1.0` | + canonical, tdgammon, `mcts:iters=100`, `emm:ply=2` | ~20 min (estimated) |
 | `full` | 6,000 (±1.2 points), plus MCTS and expectiminimax matches | 120 | 16 runs × 10,000 games | + momentum network, MCTS up to 1,600 iterations, neural-rollout MCTS | + momentum and earlier main checkpoints, `mcts:iters=400`, `mcts:iters=1600`, `emm:ply=2`, `emm:ply=3` | several hours (not timed) |
 
 Comparisons between runs with the same seed are **paired** (see below). They
@@ -321,7 +330,7 @@ python -m bench run --only speed --latency-agent "mcts:time=0.1"
 python -m bench run --only search --mcts-agent "mcts:time=0.5,mode=neural,depth=20"
 python -m bench run --only training --training-games 2000   # learning check in any suite
 python -m bench run --only skill --skill-agent nn:models/main/checkpoint_epoch_main130.pt --skill-agent nn
-python -m bench run --only skill --skill-agent mcts:iters=400 --skill-agent mcts:iters=400,c=2.0 --skill-repeats 3
+python -m bench run --only skill --skill-agent mcts:iters=400 --skill-agent mcts:iters=400,c=0.05 --skill-repeats 3
 python -m bench run --only ratings --pool nn --pool mcts:iters=400 --pool heuristic --max-games 2000
 ```
 
@@ -333,8 +342,15 @@ python -m bench run --only ratings --pool nn --pool mcts:iters=400 --pool heuris
 | `nn` / `nn:path/to/checkpoint.pt` | FinalNNAgent (default `models/canonical/canonical_128x128_100k.pt`, also the server's network) |
 | `mcts:time=0.5,mode=heuristic,depth=40` | MCTSAgent2 (keys: `time`, `iters`, `mode`, `depth`, `sim`, `c`, `nn`) |
 | `mcts:iters=400` | MCTSAgent2 stopping after exactly 400 iterations per move (reproducible) |
+| `mcts:iters=400,mode=rollout` | ... evaluating leaves by random rollouts (`depth`, default `sim` = 50 plies) instead of the network |
 | `emm:ply=2` | ExpectiminimaxAgent over the default network (keys: `ply`, `nn`, `width`, `margin`, `reply`) |
 | `py:package.module:Class,key=value` | any class with `select_move(board)` |
+
+MCTS `mode` is `neural` (default: the network's value of the leaf, `nn`
+checkpoint as for `nn` agents), `rollout` (random play, then pip count) or
+`heuristic`. `depth` random plies are played before the evaluation; it
+defaults to 0, except 50 for `rollout`. `c` defaults to the exploration
+constant tuned for the mode in `CMCTS2.pyx`.
 
 Each run records a SHA-256 digest of every checkpoint it used, so retraining
 over the same file name remains visible. Checkpoints of any `BackgammonNN`
