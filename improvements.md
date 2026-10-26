@@ -31,6 +31,12 @@ This list is ranked by expected impact. Effort is relative to this project. Conf
 
    Introduce separate decision and chance nodes. Sample chance outcomes repeatedly or enumerate the 21 unordered rolls with their correct probabilities: `1/36` for each double and `2/36` for each non-double. Choose one value perspective and apply it consistently through evaluation, selection, and backup.
 
+   *Status: done.* These were why MCTS did not get stronger with more iterations. Backpropagation negated a value that was already from the root's point of view, so a move was scored with the right sign only when its playout started an odd number of plies deep. Tree nodes are now dice-free. Each visit draws a roll with the probabilities above, and each roll a node has met gets its own decision, keyed by resulting position so that move orders reaching the same position share a child ([CMCTS2.pyx:179](backend/classes/agents/CMCTS2.pyx#L179)). Each node scores results for the player who moved into it ([CMCTS2.pyx:220](backend/classes/agents/CMCTS2.pyx#L220)).
+
+   Three other changes came with it. Leaves are evaluated by the value network with no random playout (`mode="neural"`, now the default); random rollouts remain as `mode="rollout"`. Selection is plain UCB1 on win probabilities in `[0, 1]`, with exploration constants tuned per mode: c=1 had swamped value gaps of a few points. The heuristic leaf now scores for the searching side rather than always for white.
+
+   In the standard benchmark (runs `20261025-233404` → `20261026-033922`), contact loss per decision at 100 / 200 / 400 / 800 iterations went from 11.0 / 11.1 / 10.5 / 11.2% to 2.7 / 2.7 / 2.2 / 2.1%. The `nn` agent loses 2.4% in contact. `mcts:iters=100` rose from 1008 to 1685 Elo, and `nn` now scores 56.5% against `mcts:iters=400` instead of 98.5%. `tests/test_mcts.py` checks the backup invariant, the dice distribution and afterstate merging. The remaining MCTS gaps are #12 and #13.
+
 4. **Rebuild evaluation around reproducible playing strength.**  
    **Impact: critical · Effort: medium**
 
@@ -100,14 +106,18 @@ This list is ranked by expected impact. Effort is relative to this project. Conf
 12. **Replace pip-only race play with race and bearoff evaluation.**  
     **Impact: high playing-strength opportunity · Effort: medium–large**
 
-    Once players pass, the agent switches to pip-minimizing play. Equal pip reductions can leave very different future bearoff prospects. See [CMCTS2.pyx:438](backend/classes/agents/CMCTS2.pyx#L438).
+    Once players pass, the agent switches to pip-minimizing play. Equal pip reductions can leave very different future bearoff prospects. See [CMCTS2.pyx:451](backend/classes/agents/CMCTS2.pyx#L451).
 
     Add an exact bearoff database or dynamic program for a manageable endgame subset, plus a calibrated race evaluator outside its coverage. Account for who moves next. These components also provide useful ground truth for model evaluation.
+
+    *Measured cost:* this is now MCTS's largest remaining loss. The search never runs in these positions, so no iteration budget changes them. MCTS loses 5.3% per exact bearoff decision and 0.7% per race decision, against 0.3% and 0.4% for the `nn` agent. The exact category alone adds about 1.4 points to MCTS's overall loss of 2.8%, which is roughly the gap to `nn`'s 1.4%. The pass-time D²/S evaluation inside the search also ignores who is on roll. The exact bearoff database in `backend/bench/bearoff.py` already exists. Within its coverage, `select_move_for_passed_board` should pick the play with the highest bearoff probability. Elsewhere, it should use the network (or search the race normally) instead of pip count.
 
 13. **Benchmark shallow expectiminimax against corrected MCTS.**  
     **Impact: potentially high · Effort: medium–large**
 
     Score distinct afterstates with the network, retain promising candidates, then evaluate opponent replies over weighted dice outcomes. Compare this with chance-aware MCTS at equal decision latency.
+
+    *Why it matters now:* with #3 fixed, network-leaf MCTS only slightly improves on a single network lookup. Its contact loss is 2.1–2.2% at 400–800 iterations, against 2.4% for `nn`, and a 1 s search reaches 2.1%. The tuned exploration constant is tiny (0.01), so the search behaves like the network's greedy choice refined by sampled replies. Sampling dice and replies adds noise that an exact 21-roll expectation does not. Averaged backups also include the opponent's exploratory replies. A 2-ply search over all 21 rolls with candidate pruning, as in TD-Gammon and GNU Backgammon, is the most likely way to gain more. Measure it with the `skill` section, against `mcts:time=1.0` at matching decision time. If MCTS is kept, its next improvements are network priors for selection (PUCT), enumerating the 21 rolls at chance nodes instead of sampling, and faster leaf evaluation (performance.md #17).
 
     This gives the project a concrete algorithmic alternative to increasingly expensive random rollouts. Neural evaluation combined with shallow search has direct precedent in [Tesauro's TD-Gammon work](https://www.bkgm.com/articles/tesauro/tdl.html). The winning approach here still requires experiments.
 
