@@ -7,11 +7,12 @@ const PHASES = ["opening", "contact", "bar", "race", "exact"] as const
 const RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
 const RAMP_MAX = 0.09
 
-type Family = "nn" | "other" | "mcts"
+type Family = "nn" | "other" | "mcts" | "emm"
 const FAMILIES: Record<Family, { label: string, color: string }> = {
     nn: { label: "Networks", color: "var(--series-1)" },
     other: { label: "Other agents", color: "var(--series-2)" },
     mcts: { label: "MCTS", color: "var(--series-3)" },
+    emm: { label: "Expectiminimax", color: "var(--series-4)" },
 }
 
 interface Agent {
@@ -24,7 +25,7 @@ interface Agent {
     blunders?: number
     timeMs?: number
     iterations?: number
-    /** MCTS settings other than the budget; points sharing one form an iteration ladder. */
+    /** Search settings other than the budget (MCTS iterations, expectiminimax ply); points sharing one form a ladder. */
     config?: string
     budget?: number
     pointLabel: string
@@ -52,7 +53,8 @@ function skillAgents(run: RunSummary): Agent[] {
         if (!m || run.metrics[key].value === null) continue
         const spec = m[1]
         const base = `skill[${spec}]`
-        const family: Family = spec.startsWith("mcts") ? "mcts" : spec.startsWith("nn") ? "nn" : "other"
+        const family: Family = spec.startsWith("mcts") ? "mcts" : spec.startsWith("emm") ? "emm"
+            : spec.startsWith("nn") ? "nn" : "other"
         const agent: Agent = {
             spec, family, name: shortName(spec), loss: run.metrics[key],
             phases: PHASES.map(p => value(run, `${base}.loss.${p}`) ?? null),
@@ -62,9 +64,9 @@ function skillAgents(run: RunSummary): Agent[] {
             iterations: value(run, `${base}.iterations`),
             pointLabel: shortName(spec),
         }
+        const settings = spec.split(":")[1]?.split(",").filter(Boolean) ?? []
+        const get = (k: string) => settings.find(s => s.startsWith(`${k}=`))?.split("=")[1]
         if (family === "mcts") {
-            const settings = spec.split(":")[1]?.split(",").filter(Boolean) ?? []
-            const get = (k: string) => settings.find(s => s.startsWith(`${k}=`))?.split("=")[1]
             const iters = get("iters")
             const time = get("time")
             agent.budget = iters ? Number(iters) : undefined
@@ -73,10 +75,15 @@ function skillAgents(run: RunSummary): Agent[] {
             // Variants of the default search are named after their mode (or settings), e.g. "heuristic 400".
             const variant = get("mode") ?? agent.config
             agent.pointLabel = agent.config ? `${variant} ${budget}`.trim() : budget || "mcts"
+        } else if (family === "emm") {
+            const ply = Number(get("ply") ?? 2)
+            agent.budget = ply
+            agent.config = settings.filter(s => !s.startsWith("ply=")).sort().join(",")
+            agent.pointLabel = agent.config ? `${agent.config} ${ply}-ply` : `${ply}-ply`
         }
         agents.push(agent)
     }
-    const order: Record<Family, number> = { nn: 0, other: 1, mcts: 2 }
+    const order: Record<Family, number> = { nn: 0, other: 1, emm: 2, mcts: 3 }
     return agents.sort((a, b) =>
         order[a.family] - order[b.family]
         || (a.config ?? "").localeCompare(b.config ?? "")
@@ -133,8 +140,9 @@ export default function SkillPanel({ run, selected, onSelect }: Props) {
 
     const ladders = new Map<string, Agent[]>()
     for (const a of plotted) {
-        if (a.family === "mcts" && a.budget !== undefined) {
-            ladders.set(a.config!, [...(ladders.get(a.config!) ?? []), a])
+        if (a.budget !== undefined) {
+            const key = `${a.family}:${a.config}`
+            ladders.set(key, [...(ladders.get(key) ?? []), a])
         }
     }
     const families = (Object.keys(FAMILIES) as Family[]).filter(f => agents.some(a => a.family === f))
@@ -148,7 +156,7 @@ export default function SkillPanel({ run, selected, onSelect }: Props) {
                     <h2>Decision quality by agent</h2>
                     <p className="skill-sub">
                         Winning chance lost per decision on the labelled reference positions (lower is better), against
-                        mean decision time. Whiskers are 95% intervals; MCTS iteration budgets are joined into ladders.
+                        mean decision time. Whiskers are 95% intervals; MCTS iteration budgets and expectiminimax depths are joined into ladders.
                     </p>
                 </div>
                 <div className="skill-legend">
@@ -177,7 +185,7 @@ export default function SkillPanel({ run, selected, onSelect }: Props) {
                     <text className="axis-title" x={PAD.left + innerW} y={HEIGHT - 4} textAnchor="end">mean time per decision (log scale)</text>
 
                     {[...ladders.values()].filter(l => l.length > 1).map(l => (
-                        <polyline key={l[0].config} className="ladder" stroke={FAMILIES.mcts.color}
+                        <polyline key={`${l[0].family}:${l[0].config}`} className="ladder" stroke={FAMILIES[l[0].family].color}
                             points={[...l].sort((a, b) => a.timeMs! - b.timeMs!).map(a => `${x(a.timeMs!)},${y(a.loss.value!)}`).join(" ")} />
                     ))}
 
@@ -185,9 +193,10 @@ export default function SkillPanel({ run, selected, onSelect }: Props) {
                         const cx = x(a.timeMs!)
                         const cy = y(a.loss.value!)
                         const color = FAMILIES[a.family].color
-                        // Default MCTS budgets are labelled above; variants get a hollow marker and a label below.
-                        const variant = a.family === "mcts" && !!a.config
-                        const above = a.family === "mcts" && !variant
+                        // Default search budgets are labelled above; variants get a hollow marker and a label below.
+                        const searched = a.budget !== undefined || a.family === "mcts"
+                        const variant = searched && !!a.config
+                        const above = searched && !variant
                         return (
                             <g key={a.spec} className={`target${hover === a.spec ? " active" : ""}`} tabIndex={0}
                                 aria-label={`${a.spec}: ${pct(a.loss.value, 2)} lost per decision, ${fmtMs(a.timeMs!)} per decision`}

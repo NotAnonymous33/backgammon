@@ -37,7 +37,7 @@ from .stats import mean_ci
 from .store import metric
 
 BLUNDER = 0.05  # a play giving up at least 5 points of winning chance
-DETERMINISTIC = ("first", "heuristic", "nn")
+DETERMINISTIC = ("first", "heuristic", "nn", "emm")
 
 _cache = {}
 

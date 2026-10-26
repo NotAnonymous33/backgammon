@@ -11,7 +11,7 @@ interpreters cannot load them.
 
 ```bash
 source venv/bin/activate                 # Windows: .\venv\Scripts\Activate.ps1
-python -m bench run --label baseline     # record a run (quick suite, ~1 min)
+python -m bench run --label baseline     # record a run (quick suite, ~4 min)
 # ...make a change, rebuild native extensions if you touched them...
 python -m bench run                      # records, then compares with the previous run
 python -m bench compare baseline latest  # compare any two runs
@@ -248,6 +248,46 @@ higher than `nn`'s (1.4%) because races and bearoffs skip the search and
 play by pip count: 5.3% lost per exact bearoff decision, against 0.3%
 (improvements.md #12).
 
+### Expectiminimax (`emm`)
+
+`emm:ply=N` (`classes/agents/Expectiminimax.py`) searches N moves ahead,
+counting the one being chosen, and averages over all 21 rolls between moves.
+The default network scores the positions where the search stops. `ply=1` is
+the greedy `nn` agent. Every roll is enumerated, so the agent is
+deterministic and the skill section plays each position once.
+
+Searching every branch at ply 3 would mean about 20 × 21 × 20 × 21 × 20
+leaves per decision, so moves are pruned forward. Before searching a move
+choice deeper, the network ranks its plays and only the best are expanded:
+
+- at the root, up to `width` (8) plays within `margin` (0.12) winning chance
+  of the network's favourite;
+- at inner move choices, up to `reply` (3) replies. Only ply 3 and deeper
+  have these.
+
+Leaves are evaluated in batches with the NumPy network (`valuenet.py`), and a
+position reached twice in one decision is evaluated once.
+`tests/test_expectiminimax.py` checks that, with pruning off, the agent
+chooses a play exactly as good as a naive full-width search.
+
+First results (2026-10-25, quick-suite skill on all 355 positions; games on
+the benchmark's seeded dice):
+
+| Agent | Loss per decision | Paired vs `nn` | Mean decision time* | Score vs `nn` (95% CI) |
+|---|---|---|---|---|
+| `nn` | 1.36% | — | 3 ms | — |
+| `emm:ply=2` | 0.91% | −0.45 points (±0.26) | 63 ms | 60.0% (56.0–63.8%), 300 pairs |
+| `emm:ply=3` | 0.86% | −0.50 points (±0.25) | 4.2 s | 71.0% (61.5–79.0%), 50 pairs |
+
+\* With 16 decisions running in parallel. A single 3-ply decision takes
+about 2 s on its own.
+
+Expectiminimax beats greedy play even when it is measured against rollouts of
+greedy play. 3-ply's skill gain over 2-ply is within noise (−0.04 ± 0.19
+points), yet it wins more games. Widening the pruning (`width=16,margin=0.3`
+or `reply=5`) changed loss by under 0.02 points and cost up to 1.8 times as
+much time.
+
 ### Elo ratings (`ratings`)
 
 Every pair of agents in the pool plays seeded, colour-swapped game pairs.
@@ -274,9 +314,9 @@ ratings, trust the scores against fixed opponents.
 
 | Suite | Strength games per match (95% CI near 70%) | MCTS positions | Training learning check | Skill agents | Rating pool | Time on 16 threads |
 |---|---|---|---|---|---|---|
-| `quick` (default) | 200 (±6 points) | 20 | off | heuristic, nn, `mcts:iters=100` | random, first, heuristic, nn | ~1.5 min |
-| `standard` | 2,000 (±2 points), plus nn vs `mcts:iters=400` | 60 | 8 runs × 3,000 games | + canonical and tdgammon networks, MCTS at 100–800 iterations, random- and heuristic-rollout MCTS, `mcts:time=1.0` | + canonical, tdgammon, `mcts:iters=100` | ~15 min |
-| `full` | 6,000 (±1.2 points), plus MCTS matches | 120 | 16 runs × 10,000 games | + momentum network, MCTS up to 1,600 iterations, neural-rollout MCTS | + momentum and earlier main checkpoints, `mcts:iters=400`, `mcts:iters=1600` | several hours (not timed) |
+| `quick` (default) | 200 (±6 points) | 20 | off | heuristic, nn, MCTS at 100–400 iterations, `emm:ply=2`, `emm:ply=3` | random, first, heuristic, nn | ~3.5 min |
+| `standard` | 2,000 (±2 points), plus nn vs `mcts:iters=400` and `emm:ply=2` vs nn | 60 | 8 runs × 3,000 games | + canonical and tdgammon networks, MCTS at 100–800 iterations, random- and heuristic-rollout MCTS, `mcts:time=1.0` | + canonical, tdgammon, `mcts:iters=100`, `emm:ply=2` | ~20 min (estimated) |
+| `full` | 6,000 (±1.2 points), plus MCTS and expectiminimax matches | 120 | 16 runs × 10,000 games | + momentum network, MCTS up to 1,600 iterations, neural-rollout MCTS | + momentum and earlier main checkpoints, `mcts:iters=400`, `mcts:iters=1600`, `emm:ply=2`, `emm:ply=3` | several hours (not timed) |
 
 Comparisons between runs with the same seed are **paired** (see below). They
 cancel shared dice luck, so they detect smaller changes than these
@@ -303,13 +343,14 @@ python -m bench run --only ratings --pool nn --pool mcts:iters=400 --pool heuris
 | `mcts:time=0.5,mode=heuristic,depth=40` | MCTSAgent2 (keys: `time`, `iters`, `mode`, `depth`, `sim`, `c`, `nn`) |
 | `mcts:iters=400` | MCTSAgent2 stopping after exactly 400 iterations per move (reproducible) |
 | `mcts:iters=400,mode=rollout` | ... evaluating leaves by random rollouts (`depth`, default `sim` = 50 plies) instead of the network |
+| `emm:ply=2` | ExpectiminimaxAgent over the default network (keys: `ply`, `nn`, `width`, `margin`, `reply`) |
+| `py:package.module:Class,key=value` | any class with `select_move(board)` |
 
 MCTS `mode` is `neural` (default: the network's value of the leaf, `nn`
 checkpoint as for `nn` agents), `rollout` (random play, then pip count) or
 `heuristic`. `depth` random plies are played before the evaluation; it
 defaults to 0, except 50 for `rollout`. `c` defaults to the exploration
 constant tuned for the mode in `CMCTS2.pyx`.
-| `py:package.module:Class,key=value` | any class with `select_move(board)` |
 
 Each run records a SHA-256 digest of every checkpoint it used, so retraining
 over the same file name remains visible. Checkpoints of any `BackgammonNN`

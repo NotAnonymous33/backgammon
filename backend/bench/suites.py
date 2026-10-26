@@ -25,6 +25,9 @@ _MATCHES = [("nn", "random"), ("nn", "heuristic"), ("heuristic", "random"), ("nn
 # faster search would be worth.
 _MCTS_LADDER = ["mcts:iters=100", "mcts:iters=200", "mcts:iters=400", "mcts:iters=800", "mcts:iters=1600"]
 
+# Expectiminimax over the default network; ply=1 would be `nn` itself.
+_EMM = ["emm:ply=2", "emm:ply=3"]
+
 
 def _ratings(pool, **overrides):
     cfg = {
@@ -79,7 +82,7 @@ SUITES = {
         "search_repeats": 1,
         "training": _training(),
         "matches": [{"a": a, "b": b, "pairs": 100} for a, b in _MATCHES],
-        "skill_agents": ["heuristic", "nn", "mcts:iters=100", "mcts:iters=200", "mcts:iters=400"],
+        "skill_agents": ["heuristic", "nn", "mcts:iters=100", "mcts:iters=200", "mcts:iters=400"] + _EMM,
         "skill_repeats": 1,
         "skill_positions": None,
         "ratings": _ratings(["random", "first", "heuristic", "nn"], initial_pairs=25, max_pairs=100,
@@ -95,14 +98,16 @@ SUITES = {
         "search_repeats": 2,
         "training": _training(speed_repeats=5, epoch_games=64, epoch_repeats=3,
                               learn_seeds=8, learn_games=3000, learn_pairs=100),
-        "matches": [{"a": a, "b": b, "pairs": 1000} for a, b in _MATCHES] + [{"a": "nn", "b": "mcts:iters=400", "pairs": 100}],
+        "matches": [{"a": a, "b": b, "pairs": 1000} for a, b in _MATCHES] + [{"a": "nn", "b": "mcts:iters=400", "pairs": 100},
+                                                                              {"a": "emm:ply=2", "b": "nn", "pairs": 300}],
         "skill_agents": ["heuristic", "nn", _SHIPPED_NN, "nn:models/tdgammon/tdgammon_checkpoint_latest.pt"] + _MCTS_LADDER[:4]
-        + ["mcts:iters=400,mode=rollout", "mcts:iters=400,mode=heuristic,depth=40", "mcts:time=1.0"],
+        + ["mcts:iters=400,mode=rollout", "mcts:iters=400,mode=heuristic,depth=40", "mcts:time=1.0"] + _EMM,
         "skill_repeats": 2,
         "skill_positions": None,
         # Slow MCTS budgets are rated in the full suite; skill covers them here.
         "ratings": _ratings(["random", "first", "heuristic", "nn", _SHIPPED_NN,
-                             "nn:models/tdgammon/tdgammon_checkpoint_latest.pt", "mcts:iters=100"], max_games=3500),
+                             "nn:models/tdgammon/tdgammon_checkpoint_latest.pt", "mcts:iters=100", "emm:ply=2"],
+                            max_games=3500),
     },
     "full": {
         "repeats": 7,
@@ -115,18 +120,19 @@ SUITES = {
         "training": _training(speed_repeats=7, epoch_games=128, epoch_workers=8, epoch_repeats=3,
                               learn_seeds=16, learn_games=10000, learn_pairs=200),
         "matches": [{"a": a, "b": b, "pairs": 3000} for a, b in _MATCHES]
-        + [{"a": "mcts:time=0.05", "b": "heuristic", "pairs": 150}, {"a": "nn", "b": "mcts:iters=400", "pairs": 300}],
+        + [{"a": "mcts:time=0.05", "b": "heuristic", "pairs": 150}, {"a": "nn", "b": "mcts:iters=400", "pairs": 300},
+           {"a": "emm:ply=2", "b": "nn", "pairs": 1000}, {"a": "emm:ply=3", "b": "nn", "pairs": 150}],
         "skill_agents": ["heuristic", "nn", _SHIPPED_NN, "nn:models/tdgammon/tdgammon_checkpoint_latest.pt",
                          "nn:models/momentum/momentum_checkpoint_latest.pt"] + _MCTS_LADDER
         + ["mcts:iters=400,mode=rollout", "mcts:iters=400,mode=heuristic,depth=40", "mcts:iters=400,mode=neural,depth=40",
-           "mcts:time=1.0"],
+           "mcts:time=1.0"] + _EMM,
         "skill_repeats": 3,
         "skill_positions": None,
         "ratings": _ratings(["random", "first", "heuristic", "nn", _SHIPPED_NN,
                              "nn:models/tdgammon/tdgammon_checkpoint_latest.pt",
                              "nn:models/momentum/momentum_checkpoint_latest.pt", "nn:models/main/checkpoint_epoch_main50.pt",
                              "nn:models/main/checkpoint_epoch_main150.pt", "mcts:iters=100", "mcts:iters=400",
-                             "mcts:iters=1600"], target_se=15.0, max_pairs=400, max_games=16000),
+                             "mcts:iters=1600"] + _EMM, target_se=15.0, max_pairs=400, max_games=16000),
     },
 }
 

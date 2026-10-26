@@ -121,6 +121,8 @@ This list is ranked by expected impact. Effort is relative to this project. Conf
 
     This gives the project a concrete algorithmic alternative to increasingly expensive random rollouts. Neural evaluation combined with shallow search has direct precedent in [Tesauro's TD-Gammon work](https://www.bkgm.com/articles/tesauro/tdl.html). The winning approach here still requires experiments.
 
+    *Status: partly done.* `classes/agents/Expectiminimax.py` implements forward-pruned expectiminimax over the network, benchmarked as `emm:ply=2` and `emm:ply=3` (see backend/bench/README.md). Both beat greedy `nn`: 60% and 71% of games, and about 0.5 points less winning chance lost per decision. Not yet done: the equal-latency comparison with corrected MCTS, and serving it in the app.
+
 14. **Make rollout generation a persistent, explicitly versioned pipeline.**  
     **Impact: high for training throughput · Effort: medium–large**
 

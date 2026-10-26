@@ -8,6 +8,7 @@
     mcts:time=0.5                  MCTSAgent2 (keys: time, iters, mode, depth, sim, c, nn)
     mcts:iters=400                 MCTSAgent2 stopping after 400 iterations per move
     mcts:iters=400,mode=rollout    ... evaluating leaves by random rollouts instead of the network
+    emm:ply=2                      ExpectiminimaxAgent over the default network (keys: ply, nn, width, margin, reply)
     py:package.module:Class,k=v    any class with select_move(board), built with k=v
 
 Heavy resources (neural checkpoints) are loaded once per process and shared;
@@ -22,8 +23,9 @@ import os
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_NN = "models/canonical/canonical_128x128_100k.pt"  # same file as NNAgent.DEFAULT_CHECKPOINT
 
-KINDS = ("random", "first", "heuristic", "nn", "mcts", "py")
+KINDS = ("random", "first", "heuristic", "nn", "mcts", "emm", "py")
 MCTS_KEYS = ("time", "iters", "mode", "depth", "sim", "c", "nn")
+EMM_KEYS = ("ply", "nn", "width", "margin", "reply")
 ITERATION_TIME_CAP = 600.0  # seconds; only reached if a search stalls
 
 
@@ -63,11 +65,12 @@ def parse(spec):
             raise SpecError(f"cannot parse {part!r} in {spec!r}; use key=value")
     if kind == "nn":
         target = kwargs.pop("path", target) or DEFAULT_NN
-    if kind == "mcts":
-        unknown = set(kwargs) - set(MCTS_KEYS)
+    allowed = {"mcts": MCTS_KEYS, "emm": EMM_KEYS}.get(kind)
+    if allowed:
+        unknown = set(kwargs) - set(allowed)
         if unknown:
-            raise SpecError(f"unknown mcts key(s) {', '.join(sorted(unknown))} in {spec!r}; "
-                            f"expected {', '.join(MCTS_KEYS)}")
+            raise SpecError(f"unknown {kind} key(s) {', '.join(sorted(unknown))} in {spec!r}; "
+                            f"expected {', '.join(allowed)}")
     return kind, target, kwargs
 
 
@@ -93,15 +96,21 @@ def _mcts_mode(kwargs):
     return kwargs.get("mode", "neural")  # MCTSAgent2's default leaf evaluation
 
 
+def checkpoints_of(kind, target, kwargs):
+    if kind == "nn":
+        return [target]
+    if kind == "mcts" and _mcts_mode(kwargs) == "neural":
+        return [kwargs.get("nn", DEFAULT_NN)]
+    if kind == "emm":
+        return [kwargs.get("nn", DEFAULT_NN)]
+    return []
+
+
 def describe(spec):
     """Metadata identifying exactly what a spec ran, including checkpoint digests."""
     kind, target, kwargs = parse(spec)
     info = {"spec": spec, "kind": kind}
-    checkpoints = []
-    if kind == "nn":
-        checkpoints.append(target)
-    if kind == "mcts" and _mcts_mode(kwargs) == "neural":
-        checkpoints.append(kwargs.get("nn", DEFAULT_NN))
+    checkpoints = checkpoints_of(kind, target, kwargs)
     if checkpoints:
         info["checkpoints"] = {p: file_digest(p) for p in checkpoints}
     return info
@@ -109,13 +118,7 @@ def describe(spec):
 
 def validate(spec):
     """Fail fast on a typo or missing checkpoint before spawning workers."""
-    kind, target, kwargs = parse(spec)
-    paths = []
-    if kind == "nn":
-        paths.append(target)
-    if kind == "mcts" and _mcts_mode(kwargs) == "neural":
-        paths.append(kwargs.get("nn", DEFAULT_NN))
-    for p in paths:
+    for p in checkpoints_of(*parse(spec)):
         if not os.path.exists(resolve_path(p)):
             raise SpecError(f"checkpoint not found for {spec!r}: {p}")
 
@@ -126,6 +129,15 @@ def _load_nn(path, cache):
         from classes.agents.NNAgent import FinalNNAgent
 
         cache[key] = FinalNNAgent(checkpoint_path=resolve_path(path))
+    return cache[key]
+
+
+def _load_valuenet(path, cache):
+    key = ("valuenet", resolve_path(path))
+    if key not in cache:
+        from .valuenet import ValueNet
+
+        cache[key] = ValueNet.from_checkpoint(resolve_path(path))
     return cache[key]
 
 
@@ -167,6 +179,14 @@ def make_agent(spec, cache):
         if mode == "neural":
             args["nn_agent"] = _load_nn(kwargs.get("nn", DEFAULT_NN), cache)
         return MCTSAgent2(**args)
+    if kind == "emm":
+        from classes.agents.Expectiminimax import ExpectiminimaxAgent
+
+        args = {"ply": int(kwargs.get("ply", 2))}
+        for key, arg, conv in (("width", "width", int), ("margin", "margin", float), ("reply", "reply_width", int)):
+            if key in kwargs:
+                args[arg] = conv(kwargs[key])
+        return ExpectiminimaxAgent(_load_valuenet(kwargs.get("nn", DEFAULT_NN), cache), **args)
     module_name, _, class_name = target.partition(":")
     cls = getattr(importlib.import_module(module_name), class_name)
     return cls(**kwargs)
