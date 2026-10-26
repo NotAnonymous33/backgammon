@@ -7,6 +7,7 @@
     nn:models/main/x.pt            FinalNNAgent with another checkpoint
     mcts:time=0.5                  MCTSAgent2 (keys: time, iters, mode, depth, sim, c, nn)
     mcts:iters=400                 MCTSAgent2 stopping after 400 iterations per move
+    mcts:iters=400,mode=rollout    ... evaluating leaves by random rollouts instead of the network
     py:package.module:Class,k=v    any class with select_move(board), built with k=v
 
 Heavy resources (neural checkpoints) are loaded once per process and shared;
@@ -88,6 +89,10 @@ def file_digest(path):
     return _hash_cache[path]
 
 
+def _mcts_mode(kwargs):
+    return kwargs.get("mode", "neural")  # MCTSAgent2's default leaf evaluation
+
+
 def describe(spec):
     """Metadata identifying exactly what a spec ran, including checkpoint digests."""
     kind, target, kwargs = parse(spec)
@@ -95,7 +100,7 @@ def describe(spec):
     checkpoints = []
     if kind == "nn":
         checkpoints.append(target)
-    if kind == "mcts" and kwargs.get("mode") == "neural":
+    if kind == "mcts" and _mcts_mode(kwargs) == "neural":
         checkpoints.append(kwargs.get("nn", DEFAULT_NN))
     if checkpoints:
         info["checkpoints"] = {p: file_digest(p) for p in checkpoints}
@@ -108,7 +113,7 @@ def validate(spec):
     paths = []
     if kind == "nn":
         paths.append(target)
-    if kind == "mcts" and kwargs.get("mode") == "neural":
+    if kind == "mcts" and _mcts_mode(kwargs) == "neural":
         paths.append(kwargs.get("nn", DEFAULT_NN))
     for p in paths:
         if not os.path.exists(resolve_path(p)):
@@ -145,7 +150,7 @@ def make_agent(spec, cache):
     if kind == "mcts":
         from classes.agents.CMCTS2 import MCTSAgent2  # type: ignore
 
-        mode = kwargs.get("mode", "default")
+        mode = _mcts_mode(kwargs)
         iters = int(kwargs.get("iters", 0))
         # An iteration budget makes searches reproducible and independent of
         # machine speed; time then only caps a runaway search.
@@ -156,7 +161,8 @@ def make_agent(spec, cache):
             "mode": mode,
             "eval_depth": int(kwargs.get("depth", -1)),
             "simulation_depth": int(kwargs.get("sim", 50)),
-            "exploration_weight": float(kwargs.get("c", 1.0)),
+            # Below 0, MCTSAgent2 uses its default for the mode.
+            "exploration_weight": float(kwargs.get("c", -1.0)),
         }
         if mode == "neural":
             args["nn_agent"] = _load_nn(kwargs.get("nn", DEFAULT_NN), cache)

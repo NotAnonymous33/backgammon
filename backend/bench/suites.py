@@ -41,7 +41,8 @@ def _ratings(pool, **overrides):
     return cfg
 
 # The three MCTS evaluation modes cost very different amounts per iteration.
-_MCTS = ["mcts:time=0.1", "mcts:time=0.1,mode=heuristic,depth=40", "mcts:time=0.1,mode=neural,depth=40"]
+_MCTS = ["mcts:time=0.1", "mcts:time=0.1,mode=rollout", "mcts:time=0.1,mode=heuristic,depth=40",
+         "mcts:time=0.1,mode=neural,depth=40"]
 
 # Mirrors the network and learner constructed in NNAgent.main().
 _TRAIN_MODEL = {"hidden": [40], "lr": 0.1, "lambda": 0.7}
@@ -96,7 +97,7 @@ SUITES = {
                               learn_seeds=8, learn_games=3000, learn_pairs=100),
         "matches": [{"a": a, "b": b, "pairs": 1000} for a, b in _MATCHES] + [{"a": "nn", "b": "mcts:iters=400", "pairs": 100}],
         "skill_agents": ["heuristic", "nn", _SHIPPED_NN, "nn:models/tdgammon/tdgammon_checkpoint_latest.pt"] + _MCTS_LADDER[:4]
-        + ["mcts:iters=400,mode=heuristic,depth=40", "mcts:time=1.0"],
+        + ["mcts:iters=400,mode=rollout", "mcts:iters=400,mode=heuristic,depth=40", "mcts:time=1.0"],
         "skill_repeats": 2,
         "skill_positions": None,
         # Slow MCTS budgets are rated in the full suite; skill covers them here.
@@ -117,7 +118,8 @@ SUITES = {
         + [{"a": "mcts:time=0.05", "b": "heuristic", "pairs": 150}, {"a": "nn", "b": "mcts:iters=400", "pairs": 300}],
         "skill_agents": ["heuristic", "nn", _SHIPPED_NN, "nn:models/tdgammon/tdgammon_checkpoint_latest.pt",
                          "nn:models/momentum/momentum_checkpoint_latest.pt"] + _MCTS_LADDER
-        + ["mcts:iters=400,mode=heuristic,depth=40", "mcts:iters=400,mode=neural,depth=40", "mcts:time=1.0"],
+        + ["mcts:iters=400,mode=rollout", "mcts:iters=400,mode=heuristic,depth=40", "mcts:iters=400,mode=neural,depth=40",
+           "mcts:time=1.0"],
         "skill_repeats": 3,
         "skill_positions": None,
         "ratings": _ratings(["random", "first", "heuristic", "nn", _SHIPPED_NN,
