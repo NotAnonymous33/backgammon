@@ -30,6 +30,7 @@ import sys
 import time
 
 from . import agents as agent_specs
+from . import progress
 from . import reference
 from .positions import to_board
 from .seeding import derive_seed, seed_agents
@@ -272,6 +273,7 @@ def run(cfg, log=print):
             times[spec].append(elapsed)
             if n is not None:
                 sims[spec].append(n)
+        progress.update(done, len(tasks), "decisions")
         now = time.perf_counter()
         if now - last > 5 or done == len(tasks):
             last = now

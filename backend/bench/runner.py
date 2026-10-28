@@ -4,7 +4,7 @@ import os
 import sys
 import time
 
-from . import agents, env, positions, ratings, reference, rules, search, skill, speed, strength, training
+from . import agents, env, positions, progress, ratings, reference, rules, search, skill, speed, strength, training
 
 
 BUSY_WARNING = 0.15  # fraction of all cores busy with other work
@@ -115,6 +115,7 @@ def execute(cfg, suite_name, label=None, allow_stale=False, log=print):
                 run["warnings"].append(msg)
                 log(f"warning: {msg}")
         log(f"[{name}]")
+        progress.section(name)
         s0 = time.perf_counter()
         run["metrics"].extend(sections[name]())
         run["timings"][name] = round(time.perf_counter() - s0, 2)

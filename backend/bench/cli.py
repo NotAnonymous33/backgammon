@@ -151,9 +151,16 @@ def _resolve(ref, runs):
 
 
 def cmd_run(args):
-    from . import runner
+    from . import progress, runner
 
-    cfg = suites.get(args.suite)
+    suite_name = args.suite
+    if args.config:
+        # A complete configuration, as the dashboard writes it (see jobs.py).
+        with open(args.config) as f:
+            doc = json.load(f)
+        suite_name, cfg = doc["suite"], doc["config"]
+    else:
+        cfg = suites.get(args.suite)
     if args.only:
         cfg["sections"] = [s for s in suites.SECTIONS if s in args.only.split(",")]
         unknown = set(args.only.split(",")) - set(suites.SECTIONS)
@@ -187,14 +194,26 @@ def cmd_run(args):
         cfg["training"]["learn_games"] = args.training_games
     if args.seed is not None:
         cfg["seed"] = args.seed
-    cfg["workers"] = args.workers or os.cpu_count() or 1
+    cfg["workers"] = args.workers or cfg.get("workers") or os.cpu_count() or 1
 
+    reporter = None
+    if args.progress:
+        reporter = progress.FileReporter(args.progress, cfg["sections"])
+        progress.set_reporter(reporter)
     runs = store.load_all()
     try:
-        run = runner.execute(cfg, args.suite, label=args.label, allow_stale=args.allow_stale)
+        run = runner.execute(cfg, suite_name, label=args.label, allow_stale=args.allow_stale)
     except (runner.StaleBuildError, runner.ExtensionError, runner.ReferenceMissingError, SpecError) as e:
+        if reporter:
+            reporter.finish("failed", error=str(e))
         sys.exit(f"error: {e}")
+    except BaseException as e:
+        if reporter:
+            reporter.finish("failed", error=f"{type(e).__name__}: {e}")
+        raise
     path = store.save(run)
+    if reporter:
+        reporter.finish("finished", run_id=run["id"])
     print(f"\nsaved {run['id']} → {os.path.relpath(path)}")
 
     base = _resolve(args.compare_to, runs) if args.compare_to else store.default_base(runs, run)
@@ -350,6 +369,8 @@ def build_parser():
     r.add_argument("--compare-to", metavar="REF", help="run to compare with (default: previous run of this suite)")
     r.add_argument("--fail-on-regression", action="store_true", help="exit 1 if anything regressed")
     r.add_argument("--allow-stale", action="store_true", help="run even if native builds are out of date")
+    r.add_argument("--config", metavar="FILE", help=argparse.SUPPRESS)  # {"suite": name, "config": {...}}
+    r.add_argument("--progress", metavar="FILE", help=argparse.SUPPRESS)  # JSON progress for the dashboard
     r.set_defaults(func=cmd_run)
 
     ls = sub.add_parser("list", help="list recorded runs")

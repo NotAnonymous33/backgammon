@@ -1,5 +1,34 @@
 import type { CompareRow } from "./types"
 
+/** Sequential blue ramp (steps 100–700) for magnitude cells, the same in both modes. */
+export const RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
+
+/** Ink for text inside a ramp cell: white from the fourth step. */
+export const rampInk = (step: number) => step >= 3 ? "#ffffff" : "#0b0b0b"
+
+/** `nn:models/main/main_checkpoint_latest.pt` -> `nn:main`; other specs unchanged. */
+export function shortName(spec: string) {
+    if (!spec.startsWith("nn:")) return spec
+    const file = spec.slice(3).split("/").pop() ?? spec
+    return `nn:${file.replace(/(_checkpoint)?(_latest)?\.pt$/, "")}`
+}
+
+/** Seconds as "45 s", "12 min" or "1 h 05 min". */
+export function fmtDuration(seconds: number): string {
+    if (seconds < 60) return `${Math.max(1, Math.round(seconds))} s`
+    const minutes = Math.round(seconds / 60)
+    if (minutes < 60) return `${minutes} min`
+    return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} min`
+}
+
+/** Elapsed time as m:ss or h:mm:ss, for a running clock. */
+export function fmtClock(seconds: number): string {
+    const s = Math.max(0, Math.floor(seconds))
+    const hh = Math.floor(s / 3600), mm = Math.floor(s / 60) % 60, ss = s % 60
+    const two = (n: number) => String(n).padStart(2, "0")
+    return hh ? `${hh}:${two(mm)}:${two(ss)}` : `${mm}:${two(ss)}`
+}
+
 export function fmtValue(value: number | null | undefined, unit: string): string {
     if (value === null || value === undefined || Number.isNaN(value)) return "—"
     if (unit === "fraction") return `${(value * 100).toFixed(Math.abs(value) < 0.1 ? 2 : 1)}%`

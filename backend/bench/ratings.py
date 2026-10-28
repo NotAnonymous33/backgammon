@@ -29,7 +29,7 @@ import time
 import numpy as np
 
 from . import agents as agent_specs
-from . import strength
+from . import progress, strength
 from .seeding import derive_seed
 from .store import metric
 
@@ -183,9 +183,10 @@ def run(cfg, log=print):
     stats = {"illegal": 0, "errors": [], "error_count": 0, "truncated": 0}
     start = time.perf_counter()
 
-    def play(schedule, pool_):
+    def play(schedule, pool_, played_before):
         tasks = _games_for(ladder, schedule, seed, move_limit)
         results = {}
+        done = 0
         iterator = map(_task, tasks) if pool_ is None else pool_.imap_unordered(_task, tasks, chunksize=2)
         for m, pair, a_white, outcome, illegal, err in iterator:
             results.setdefault((m, pair), {})[a_white] = outcome
@@ -195,6 +196,8 @@ def run(cfg, log=print):
                 if len(stats["errors"]) < 10:
                     stats["errors"].append(err)
             stats["truncated"] += outcome == "d"
+            done += 1
+            progress.update(played_before + done, rc["max_games"], "games")
         for (m, pair) in sorted(results):
             r = results[(m, pair)]
             assert len(ladder.matchups[m]) == pair, "pairs must be recorded in order"
@@ -208,7 +211,7 @@ def run(cfg, log=print):
         rnd = 0
         while schedule:
             rnd += 1
-            played = play(schedule, pool_)
+            played = play(schedule, pool_, total)
             total += played
             ladder.refit()
             # random is always the least precise and hides the agents that matter, so it is not reported.

@@ -8,6 +8,7 @@ import random
 from time import perf_counter
 
 from . import agents as agent_specs
+from . import progress
 from .positions import to_board
 from .seeding import DiceStream, derive_seed, seed_agents
 from .stats import percentile, summarize
@@ -150,7 +151,11 @@ def agent_latency(spec, suite, repeats, max_positions, log=print):
 
 
 def run(suite, cfg, log=print):
+    steps = 1 + len(cfg["latency_agents"])
+    progress.update(0, steps, "steps")
     results = engine_benchmarks(suite, cfg["repeats"], cfg["min_time"], log)
-    for spec in cfg["latency_agents"]:
+    progress.update(1, steps, "steps")
+    for i, spec in enumerate(cfg["latency_agents"], 2):
         results.extend(agent_latency(spec, suite, cfg["repeats"], cfg["latency_positions"], log))
+        progress.update(i, steps, "steps")
     return results
