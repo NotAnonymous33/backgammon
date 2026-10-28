@@ -115,7 +115,8 @@ export default function TournamentPanel({ options, busy, onStart }: Props) {
                 )}
                 <label title={`This machine has ${options.cpu_count} logical CPUs`}>
                     <span>Worker processes</span>
-                    <input type="number" min={1} value={workers} onChange={e => setWorkers(Math.max(1, Number(e.target.value) || 1))} />
+                    <input type="number" min={1} max={options.cpu_count} value={workers}
+                        onChange={e => setWorkers(Math.min(options.cpu_count, Math.max(1, Number(e.target.value) || 1)))} />
                 </label>
             </div>
 

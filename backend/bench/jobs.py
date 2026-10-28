@@ -64,14 +64,23 @@ class Busy(RuntimeError):
 
 # ---------------------------------------------------------------- configuration
 
-def _int(value, name, lo=0):
+def _int(value, name, lo=0, hi=None):
     try:
         n = int(value)
     except (TypeError, ValueError):
         raise JobError(f"{name} must be a whole number, got {value!r}")
     if n < lo:
         raise JobError(f"{name} must be at least {lo}")
+    if hi is not None and n > hi:
+        raise JobError(f"{name} must be at most {hi}")
     return n
+
+
+def _workers(value):
+    # Each worker is a spawned process holding its own networks, so an unbounded
+    # count from a request could exhaust the machine's memory.
+    cpus = os.cpu_count() or 1
+    return _int(value or cpus, "workers", 1, cpus)
 
 
 def _float(value, name, lo=0.0):
@@ -141,7 +150,7 @@ def _tournament(request):
     cfg = suites.get("quick")
     cfg.update(
         sections=["ratings"], matches=[], latency_agents=[], mcts_agents=[], skill_agents=[],
-        workers=_int(request.get("workers") or os.cpu_count() or 1, "workers", 1),
+        workers=_workers(request.get("workers")),
         ratings={
             "pool": pool, "anchor": anchor, "anchor_elo": 1500, "initial_pairs": pairs,
             "batch_pairs": pairs,
@@ -173,7 +182,7 @@ def _normalise(cfg):
     cfg["matches"] = matches
     for key in ("skill_repeats", "repeats", "latency_positions", "search_positions", "search_repeats", "seed"):
         cfg[key] = _int(cfg[key], key, 0 if key == "seed" else 1)
-    cfg["workers"] = _int(cfg["workers"], "workers", 1)
+    cfg["workers"] = _workers(cfg["workers"])
     rc = cfg["ratings"]
     rc["pool"] = list(dict.fromkeys(_specs(rc["pool"], "rating pool")))
     for key in ("initial_pairs", "batch_pairs", "max_pairs", "max_games"):
@@ -259,8 +268,13 @@ def estimate(cfg, suite_name, runs=None):
             "unknown": [n for n, e in out.items() if e["seconds"] is None]}
 
 
-def _live(job, prog, now):
-    """Per-section elapsed and expected time, blending history with the running section's rate."""
+def _live(job, prog, now, state=None):
+    """Per-section elapsed and expected time, blending history with the running section's rate.
+
+    ``state`` is the job's state when known. A cancelled or crashed run never
+    updates its progress file, which then still says it is running.
+    """
+    running = (state or prog.get("state")) == "running"
     sections = []
     planned = job.get("estimate", {}).get("sections", {})
     index = prog.get("section_index", -1)
@@ -271,7 +285,7 @@ def _live(job, prog, now):
                "done": None, "total": None, "unit": None}
         if name in prog.get("timings", {}):
             row.update(state="done", elapsed=prog["timings"][name], estimate=prog["timings"][name])
-        elif i == index and prog.get("state") == "running":
+        elif i == index and running:
             elapsed = now - prog["section_started"]
             done, total = prog.get("done") or 0, prog.get("total")
             row.update(state="running", elapsed=elapsed, done=done, total=total, unit=prog.get("unit"))
@@ -294,7 +308,7 @@ def _live(job, prog, now):
                 est = hist if hist is not None and hist > elapsed else None
             row["estimate"] = est
         else:
-            row["state"] = "pending" if prog.get("state") == "running" else "skipped"
+            row["state"] = "pending" if running else "skipped"
         sections.append(row)
     return sections
 
@@ -337,11 +351,27 @@ def _alive(job):
     proc = _procs.get(job["id"])
     if proc is not None:
         return proc.poll() is None
-    try:  # started by an earlier server process
-        os.kill(job["pid"], 0)
-    except (OSError, KeyError, TypeError):
+    # Started by an earlier server process (the dev server restarts on every edit),
+    # so all that is left is its pid, which the system may since have reused.
+    if (_read(_path(job["id"], "progress.json")) or {}).get("state") in ("finished", "failed"):
         return False
-    return True
+    pid = job.get("pid")
+    if not isinstance(pid, int):
+        return False
+    if os.name == "nt":
+        # On Windows os.kill(pid, 0) terminates the process rather than probing it.
+        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+                             capture_output=True, text=True).stdout
+        return f'"{pid}"' in out
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    try:  # where /proc exists, make sure the pid is still this job's run
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            return job["id"].encode() in f.read()
+    except OSError:
+        return True
 
 
 def start(request):
@@ -437,7 +467,7 @@ def status(job_id, log=True):
     if state == "failed" and not out["error"]:
         out["error"] = "the run stopped unexpectedly; see its log"
     if prog.get("sections"):
-        sections = _live(job, prog, now)
+        sections = _live(job, prog, now, state)
         out["sections_detail"] = sections
         out["elapsed"] = (prog["updated"] if state != "running" else now) - prog["started"]
         remaining = [max(0.0, s["estimate"] - (s["elapsed"] or 0)) for s in sections

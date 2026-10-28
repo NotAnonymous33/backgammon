@@ -43,6 +43,13 @@ class BuildTests(unittest.TestCase):
             with self.subTest(request=request), self.assertRaises(jobs.JobError):
                 jobs.build(request)
 
+    def test_more_workers_than_cpus_are_refused(self):
+        too_many = (os.cpu_count() or 1) + 1
+        for request in [{"kind": "tournament", "pool": ["nn", "heuristic"], "workers": too_many},
+                        {"kind": "custom", "suite": "quick", "config": {"workers": too_many}}]:
+            with self.subTest(request=request), self.assertRaises(jobs.JobError):
+                jobs.build(request)
+
     def test_specs_that_could_run_arbitrary_code_are_refused(self):
         for spec in ["py:subprocess:Popen,args='ls'", "nn:/etc/passwd", "nn:models/../app.py",
                      "mcts:iters=10,nn=../app.py", "emm:ply=2,nn=/tmp/x.pt"]:
@@ -82,6 +89,30 @@ class EstimateTests(unittest.TestCase):
                 "section_started": now - 20, "done": 100, "total": 200, "timings": {}}
         (row,) = jobs._live(job, prog, now)
         self.assertAlmostEqual(row["estimate"], 40.0)  # the rate to the budget, not the slower history
+
+    def test_a_cancelled_run_stops_showing_sections_as_running(self):
+        now = time.time()
+        job = {"estimate": {"sections": {}}}
+        # SIGTERM leaves the progress file saying the run is still going.
+        prog = {"state": "running", "sections": ["strength", "skill", "ratings"], "section_index": 1,
+                "section_started": now - 20, "done": 40, "total": 100, "timings": {"strength": 30.0}}
+        states = [s["state"] for s in jobs._live(job, prog, now, "cancelled")]
+        self.assertEqual(states, ["done", "skipped", "skipped"])
+
+
+class ProcessTests(unittest.TestCase):
+    def test_a_reused_pid_is_not_mistaken_for_the_job(self):
+        with tempfile.TemporaryDirectory() as d:
+            saved, jobs.JOBS_DIR = jobs.JOBS_DIR, d
+            try:
+                os.makedirs(os.path.join(d, "20261028-120000"))
+                # This test's own process is alive but is not running that job.
+                job = {"id": "20261028-120000", "pid": os.getpid()}
+                self.assertEqual(jobs._alive(job), not os.path.exists("/proc"))
+                jobs._write(jobs._path(job["id"], "progress.json"), {"state": "finished"})
+                self.assertFalse(jobs._alive(job))
+            finally:
+                jobs.JOBS_DIR = saved
 
 
 class ProgressTests(unittest.TestCase):

@@ -37,13 +37,13 @@ export function EstimateText({ estimate, sections }: { estimate: Estimate | null
     )
 }
 
-function NumberField({ label, value, onChange, min = 1, step = 1, help }: {
-    label: string, value: number, onChange: (v: number) => void, min?: number, step?: number, help?: string
+function NumberField({ label, value, onChange, min = 1, max, step = 1, help }: {
+    label: string, value: number, onChange: (v: number) => void, min?: number, max?: number, step?: number, help?: string
 }) {
     return (
         <label title={help}>
             <span>{label}</span>
-            <input type="number" min={min} step={step} value={value}
+            <input type="number" min={min} max={max} step={step} value={value}
                 onChange={e => { const v = Number(e.target.value); if (Number.isFinite(v)) onChange(v) }} />
         </label>
     )
@@ -240,7 +240,7 @@ export default function RunPanel({ options, busy, onStart }: Props) {
                     )}
 
                     <div className="row">
-                        <NumberField label="Worker processes" value={cfg.workers} onChange={v => set({ workers: v })}
+                        <NumberField label="Worker processes" max={options.cpu_count} value={cfg.workers} onChange={v => set({ workers: v })}
                             help={`This machine has ${options.cpu_count} logical CPUs`} />
                         <NumberField label="Seed" min={0} value={cfg.seed} onChange={v => set({ seed: v })}
                             help="Keep the default so results pair with earlier runs game by game" />
