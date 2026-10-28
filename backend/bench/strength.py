@@ -15,6 +15,7 @@ import sys
 import time
 
 from . import agents as agent_specs
+from . import progress
 from .seeding import DiceStream, derive_seed, seed_agents
 from .stats import mean_ci, wilson
 from .store import metric
@@ -120,6 +121,7 @@ def run(cfg, log=print):
         if err and len(r["errors"]) < 10:
             r["errors"].append(err)
         done += 1
+        progress.update(done, len(tasks), "games")
         now = time.perf_counter()
         if now - last > 5 or done == len(tasks):
             last = now

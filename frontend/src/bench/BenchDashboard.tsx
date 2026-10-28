@@ -1,12 +1,24 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { BACKEND_URL } from "../constants"
+import JobProgress from "./JobProgress"
+import RatingsPanel from "./RatingsPanel"
+import RunPanel from "./RunPanel"
 import SkillPanel from "./SkillPanel"
+import TournamentPanel from "./TournamentPanel"
 import TrendChart from "./TrendChart"
 import { fmtChange, fmtDate, fmtValue } from "./format"
 import { SECTION_TITLES, SECTIONS } from "./types"
-import type { Comparison, RunSummary, Status } from "./types"
+import type { BenchOptions, Comparison, Job, JobRequest, RunSummary, Status } from "./types"
 import "./Bench.css"
+
+type Tab = "results" | "run" | "tournament"
+const TABS: { tab: Tab, label: string }[] = [
+    { tab: "results", label: "Results" },
+    { tab: "run", label: "Run benchmark" },
+    { tab: "tournament", label: "Tournament" },
+]
+const POLL_MS = 1500
 
 const STATUS: Record<Status, { icon: string, text: string }> = {
     improved: { icon: "▲", text: "improved" },
@@ -52,34 +64,97 @@ export default function BenchDashboard() {
     const [comparison, setComparison] = useState<Comparison | null>(null)
     const [selected, setSelected] = useState<string>()
     const [changesOnly, setChangesOnly] = useState(false)
-    // ?base=&head=&metric= make a view shareable and survive reloads.
+    // ?tab=&base=&head=&metric= make a view shareable and survive reloads.
     const [params, setParams] = useSearchParams()
+    const [tab, setTab] = useState<Tab>(() => TABS.find(t => t.tab === params.get("tab"))?.tab ?? "results")
+    const [options, setOptions] = useState<BenchOptions | null>(null)
+    const [job, setJob] = useState<Job | null>(null)
+    const [jobFetchedAt, setJobFetchedAt] = useState(0)
 
-    useEffect(() => {
-        fetch(`${BACKEND_URL}/api/bench/runs`)
+    /** Load the runs, showing `headRef` (default: the URL's head, else the latest run). */
+    const loadRuns = useCallback((headRef?: string) => {
+        return fetch(`${BACKEND_URL}/api/bench/runs`)
             .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
             .then((data: RunSummary[]) => {
                 setRuns(data)
-                const find = (id: string | null) => data.find(r => r.id === id)
-                const head = find(params.get("head")) ?? data[data.length - 1]
+                const find = (id: string | null | undefined) => data.find(r => r.id === id)
+                const head = find(headRef ?? params.get("head")) ?? data[data.length - 1]
                 setHeadId(head?.id)
-                setBaseId((find(params.get("base")) ?? defaultBase(data, head))?.id)
-                const metric = params.get("metric")
+                setBaseId((headRef ? undefined : find(params.get("base")))?.id ?? defaultBase(data, head)?.id)
+                const metric = headRef ? null : params.get("metric")
                 setSelected(metric && head?.metrics[metric] ? metric : defaultMetric(head))
             })
             .catch(e => setError(`Could not load benchmark runs from the backend (${e.message}).`))
-        // Read the URL once on load; afterwards state drives the URL.
+        // Reads the URL only when called; afterwards state drives the URL.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
+
+    useEffect(() => { loadRuns() }, [loadRuns])
+
+    useEffect(() => {
+        fetch(`${BACKEND_URL}/api/bench/options`).then(r => r.json()).then(setOptions).catch(() => {})
+        // Pick up a benchmark that is already running, e.g. after a reload.
+        fetch(`${BACKEND_URL}/api/bench/jobs`).then(r => r.json()).then(data => {
+            if (data.active) return fetch(`${BACKEND_URL}/api/bench/jobs/${data.active}`).then(r => r.json()).then((j: Job) => {
+                setJob(j)
+                setJobFetchedAt(Date.now())
+            })
+        }).catch(() => {})
+    }, [])
+
+    const jobId = job?.id
+    const jobRunning = job?.state === "running" || job?.state === "starting"
+    useEffect(() => {
+        if (!jobId || !jobRunning) return
+        let stale = false
+        const timer = setInterval(() => {
+            fetch(`${BACKEND_URL}/api/bench/jobs/${jobId}`).then(r => r.json()).then((j: Job) => {
+                if (stale || j.id !== jobId) return
+                setJob(j)
+                setJobFetchedAt(Date.now())
+                if (j.state === "finished" && j.run_id) {
+                    loadRuns(j.run_id)
+                    // Refresh the time estimates, which now include this run.
+                    fetch(`${BACKEND_URL}/api/bench/options`).then(r => r.json()).then(setOptions).catch(() => {})
+                }
+            }).catch(() => {})
+        }, POLL_MS)
+        return () => { stale = true; clearInterval(timer) }
+    }, [jobId, jobRunning, loadRuns])
+
+    const startJob = async (request: JobRequest) => {
+        const r = await fetch(`${BACKEND_URL}/api/bench/jobs`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request),
+        })
+        const data = await r.json()
+        if (!r.ok) throw new Error(data.error ?? `HTTP ${r.status}`)
+        setJob(data)
+        setJobFetchedAt(Date.now())
+    }
+
+    const cancelJob = () => {
+        if (!job) return
+        fetch(`${BACKEND_URL}/api/bench/jobs/${job.id}/cancel`, { method: "POST" }).then(r => r.json()).then((j: Job) => {
+            setJob(j)
+            setJobFetchedAt(Date.now())
+        }).catch(() => {})
+    }
+
+    const openRun = (runId: string) => {
+        setHeadId(runId)
+        setBaseId(defaultBase(runs ?? [], runs?.find(r => r.id === runId))?.id)
+        setTab("results")
+    }
 
     useEffect(() => {
         if (!runs) return
         const next: Record<string, string> = {}
+        if (tab !== "results") next.tab = tab
         if (baseId) next.base = baseId
         if (headId) next.head = headId
         if (selected) next.metric = selected
         setParams(next, { replace: true })
-    }, [runs, baseId, headId, selected, setParams])
+    }, [runs, tab, baseId, headId, selected, setParams])
 
     useEffect(() => {
         if (!headId || !baseId) { setComparison(null); return }
@@ -117,12 +192,35 @@ export default function BenchDashboard() {
                     <Link to="/" className="back">← Home</Link>
                     <h1>Benchmarks</h1>
                 </div>
-                <p className="muted">Record a run with <code>python -m bench run</code> in <code>backend/</code>, then refresh.</p>
+                <p className="muted">Runs from <code>python -m bench run</code> appear here too.</p>
             </header>
 
+            <nav className="tabs" role="tablist" aria-label="Benchmark views">
+                {TABS.map(t => (
+                    <button key={t.tab} type="button" role="tab" aria-selected={tab === t.tab}
+                        className={tab === t.tab ? "active" : ""} onClick={() => setTab(t.tab)}>
+                        {t.label}
+                    </button>
+                ))}
+            </nav>
+
+            {job && (
+                <JobProgress job={job} fetchedAt={jobFetchedAt} onCancel={cancelJob} onDismiss={() => setJob(null)}
+                    onOpenRun={openRun} />
+            )}
+
+            {tab === "run" && (options
+                ? <RunPanel options={options} busy={jobRunning} onStart={startJob} />
+                : <p className="muted">Loading…</p>)}
+
+            {tab === "tournament" && (options
+                ? <TournamentPanel options={options} busy={jobRunning} onStart={startJob} />
+                : <p className="muted">Loading…</p>)}
+
+            {tab === "results" && <>
             {runs.length === 0 && (
                 <section className="panel">
-                    <p>No runs recorded yet. In <code>backend/</code>:</p>
+                    <p>No runs recorded yet. Start one from <button type="button" className="link" onClick={() => setTab("run")}>Run benchmark</button>, or in <code>backend/</code>:</p>
                     <pre>python -m bench run --label baseline</pre>
                 </section>
             )}
@@ -174,6 +272,8 @@ export default function BenchDashboard() {
                     )}
                 </>
             )}
+
+            {head && head.sections.includes("ratings") && <RatingsPanel runId={head.id} />}
 
             {head && Object.keys(head.metrics).some(k => k.startsWith("skill[")) && (
                 <section className="panel">
@@ -247,6 +347,7 @@ export default function BenchDashboard() {
                     </table>
                 </section>
             )}
+            </>}
         </div>
     )
 }

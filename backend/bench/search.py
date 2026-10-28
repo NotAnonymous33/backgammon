@@ -12,6 +12,7 @@ runs simulate the same games and differ only in how fast they run them.
 from time import perf_counter
 
 from . import agents as agent_specs
+from . import progress
 from .positions import to_board
 from .seeding import derive_seed, seed_agents
 from .stats import percentile
@@ -85,6 +86,8 @@ def iterations(spec, suite, repeats, limit, log=print):
 
 def run(suite, cfg, log=print):
     results = []
-    for spec in cfg["mcts_agents"]:
+    progress.update(0, len(cfg["mcts_agents"]), "configurations")
+    for i, spec in enumerate(cfg["mcts_agents"], 1):
         results.extend(iterations(spec, suite, cfg["search_repeats"], cfg["search_positions"], log))
+        progress.update(i, len(cfg["mcts_agents"]), "configurations")
     return results

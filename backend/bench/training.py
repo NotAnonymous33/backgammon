@@ -25,6 +25,7 @@ import os
 import random
 import time
 
+from . import progress
 from .seeding import derive_seed
 from .speed import timing_metric
 from .stats import percentile, wilson
@@ -240,12 +241,18 @@ def learning(cfg, log=print):
     log(f"  learning: {seeds} run(s) × {tc['learn_games']} self-play games, "
         f"evaluated over {tc['learn_pairs']} pairs per opponent, on {workers} worker(s)")
 
+    steps = 1 + seeds
+    results = []
     if workers == 1:
-        results = [_learn_task(t) for t in tasks]
+        for t in tasks:
+            results.append(_learn_task(t))
+            progress.update(1 + len(results), steps, "steps")
     else:
         ctx = mp.get_context("spawn")
         with ctx.Pool(workers, initializer=_init_worker) as pool:
-            results = pool.map(_learn_task, tasks)
+            for r in pool.imap_unordered(_learn_task, tasks):
+                results.append(r)
+                progress.update(1 + len(results), steps, "steps")
     results.sort(key=lambda r: r[0])
 
     seeded = all(r[6] for r in results)
@@ -281,4 +288,9 @@ def learning(cfg, log=print):
 
 
 def run(cfg, log=print):
-    return throughput(cfg, log) + learning(cfg, log)
+    tc = cfg["training"]
+    steps = 1 + (tc["learn_seeds"] if tc["learn_games"] > 0 else 0)
+    progress.update(0, steps, "steps")
+    metrics = throughput(cfg, log)
+    progress.update(1, steps, "steps")
+    return metrics + learning(cfg, log)

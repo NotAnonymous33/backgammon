@@ -25,8 +25,29 @@ all runs. Click a metric to chart it. When the head run has a `skill` section,
 a decision-quality panel compares its agents side by side. It plots
 winning chance lost per decision against mean decision time, with MCTS
 iteration budgets joined into a ladder, so you can see what extra search buys.
-A table breaks the loss down by game phase. The dashboard only reads results;
-start runs from the command line.
+A table breaks the loss down by game phase. A run that rates agents shows their
+Elo standings and a head-to-head score matrix.
+
+The dashboard can also start runs (one at a time, each in its own process):
+
+- **Run benchmark**: a preset, or a custom run that starts from a preset and
+  turns sections on or off and changes their agents, matches, pairs and game
+  budgets. A run whose settings match its preset apart from the sections
+  turned off is recorded under the preset's name, as `--only` is. Anything
+  else is recorded as `custom`.
+- **Tournament**: rate any set of agents against each other, either as a
+  round robin with a fixed number of pairs per matchup or adaptively (see
+  `ratings` below). Recorded as `tournament`.
+
+Agents are added and edited with a form that covers every MCTS setting:
+iteration or time budget, leaf evaluation, network, rollout depth and
+exploration. While a run is going, a meter shows each section's progress,
+with the time left and when it should finish. Estimates come from earlier
+runs of a section with the same settings, then from the running section's
+own rate. A section with no earlier run is estimated once it starts.
+Jobs live in `results/jobs/`. For safety the dashboard refuses `py:` agents and
+checkpoints outside `backend/models/`, since the server listens on the
+network; the command line has no such limit.
 
 ## What is measured
 
@@ -315,8 +336,8 @@ ratings, trust the scores against fixed opponents.
 | Suite | Strength games per match (95% CI near 70%) | MCTS positions | Training learning check | Skill agents | Rating pool | Time on 16 threads |
 |---|---|---|---|---|---|---|
 | `quick` (default) | 200 (±6 points) | 20 | off | heuristic, nn, MCTS at 100–400 iterations, `emm:ply=2`, `emm:ply=3` | random, first, heuristic, nn | ~3.5 min |
-| `standard` | 2,000 (±2 points), plus nn vs `mcts:iters=400` and `emm:ply=2` vs nn | 60 | 8 runs × 3,000 games | + canonical and tdgammon networks, MCTS at 100–800 iterations, random- and heuristic-rollout MCTS, `mcts:time=1.0` | + canonical, tdgammon, `mcts:iters=100`, `emm:ply=2` | ~20 min (estimated) |
-| `full` | 6,000 (±1.2 points), plus MCTS and expectiminimax matches | 120 | 16 runs × 10,000 games | + momentum network, MCTS up to 1,600 iterations, neural-rollout MCTS | + momentum and earlier main checkpoints, `mcts:iters=400`, `mcts:iters=1600`, `emm:ply=2`, `emm:ply=3` | several hours (not timed) |
+| `standard` | 2,000 (±2 points), plus nn vs `mcts:iters=200`, nn vs `mcts:iters=400` and `emm:ply=2` vs nn | 60 | 8 runs × 3,000 games | + canonical and tdgammon networks, MCTS at 100–800 iterations, random- and heuristic-rollout MCTS, `mcts:time=1.0` | + canonical, tdgammon, `mcts:iters=100`, `mcts:iters=200`, `emm:ply=2` | ~20 min (estimated) |
+| `full` | 6,000 (±1.2 points), plus MCTS (200 and 400 iterations) and expectiminimax matches | 120 | 16 runs × 10,000 games | + momentum network, MCTS up to 1,600 iterations, neural-rollout MCTS | + momentum and earlier main checkpoints, `mcts:iters=200`, `mcts:iters=400`, `mcts:iters=1600`, `emm:ply=2`, `emm:ply=3` | several hours (not timed) |
 
 Comparisons between runs with the same seed are **paired** (see below). They
 cancel shared dice luck, so they detect smaller changes than these

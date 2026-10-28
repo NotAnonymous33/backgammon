@@ -1,10 +1,8 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { MetricSummary, RunSummary } from "./types"
-import { fmtTick, niceTicks } from "./format"
+import { RAMP, fmtTick, niceTicks, rampInk, shortName } from "./format"
 
 const PHASES = ["opening", "contact", "bar", "race", "exact"] as const
-// Sequential blue ramp for loss cells; ink flips to white from the fourth step.
-const RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
 const RAMP_MAX = 0.09
 
 type Family = "nn" | "other" | "mcts" | "emm"
@@ -37,12 +35,6 @@ const PAD = { top: 20, right: 24, bottom: 40, left: 52 }
 function value(run: RunSummary, key: string): number | undefined {
     const v = run.metrics[key]?.value
     return v === null || v === undefined ? undefined : v
-}
-
-function shortName(spec: string) {
-    if (!spec.startsWith("nn:")) return spec
-    const file = spec.slice(3).split("/").pop() ?? spec
-    return `nn:${file.replace(/(_checkpoint)?(_latest)?\.pt$/, "")}`
 }
 
 /** Every agent the run's skill section scored. */
@@ -256,7 +248,7 @@ export default function SkillPanel({ run, selected, onSelect }: Props) {
                                     const step = Math.min(RAMP.length - 1, Math.max(0, Math.floor(v / RAMP_MAX * RAMP.length)))
                                     return (
                                         <td key={PHASES[i]} className="phase">
-                                            <span className="cell" style={{ background: RAMP[step], color: step >= 3 ? "#ffffff" : "#0b0b0b" }}>
+                                            <span className="cell" style={{ background: RAMP[step], color: rampInk(step) }}>
                                                 {(v * 100).toFixed(1)}
                                             </span>
                                         </td>
